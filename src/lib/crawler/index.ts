@@ -1,9 +1,13 @@
+import { Agent } from 'undici';
 import { eq, and, sql } from 'drizzle-orm';
 import { getDb } from '../db';
 import { posts, crawlLogs } from '../db/schema';
 import { BOARDS, type BoardType } from '../constants';
 import { parseBoardPage, type ParsedPost } from './parser';
 import { notifyNewPosts } from '../email/sender';
+
+// KSAE server uses weak DH parameters rejected by OpenSSL 3.x default SECLEVEL
+const tlsAgent = new Agent({ connect: { ciphers: 'DEFAULT:@SECLEVEL=0' } });
 
 function startCrawlLog(db: ReturnType<typeof getDb>, boardType: string) {
   return db.insert(crawlLogs).values({
@@ -23,10 +27,9 @@ function finishCrawlLog(db: ReturnType<typeof getDb>, logId: bigint | number, st
 async function fetchPage(boardCode: string, page: number): Promise<string> {
   const url = `https://www.ksae.org/jajak/bbs/index.php?page=${page}&code=${boardCode}`;
   const res = await fetch(url, {
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (compatible; KSAE-Notice-Bot/1.0)',
-    },
-  });
+    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; KSAE-Notice-Bot/1.0)' },
+    dispatcher: tlsAgent,
+  } as any);
   if (!res.ok) throw new Error(`Failed to fetch ${url}: ${res.status}`);
   return res.text();
 }

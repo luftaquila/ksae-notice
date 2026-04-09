@@ -9,7 +9,18 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+      - run: npm ci
+      - run: npm test
+
   build:
+    needs: test
     strategy:
       matrix:
         include:
@@ -23,7 +34,7 @@ jobs:
       packages: write
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - uses: docker/setup-buildx-action@v4
 
@@ -51,7 +62,7 @@ jobs:
           PLATFORM="${{ matrix.platform }}"
           echo "${{ steps.build.outputs.digest }}" > "/tmp/digests/${PLATFORM//\//-}.txt"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: digest-${{ matrix.runner }}
           path: /tmp/digests/
@@ -63,7 +74,7 @@ jobs:
       packages: write
 
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: digest-*
           merge-multiple: true
@@ -84,7 +95,7 @@ jobs:
           docker buildx imagetools create -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest $SOURCES
 
       - name: Delete orphaned versions
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const pkg = 'ksae-notice';
