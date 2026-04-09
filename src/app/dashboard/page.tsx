@@ -125,7 +125,7 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="max-w-2xl mx-auto px-4 py-12 text-center text-gray-400">불러오는 중...</div>
+      <div className="max-w-2xl mx-auto px-4 py-12 text-center text-gray-400 dark:text-gray-500">불러오는 중...</div>
     );
   }
 
@@ -139,29 +139,29 @@ export default function DashboardPage() {
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold text-gray-900 mb-2">구독 관리</h1>
-      <p className="text-sm text-gray-500 mb-6">{session?.user?.email}</p>
+      <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">구독 관리</h1>
+      <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">{session?.user?.email}</p>
 
       {error && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">
+        <div className="mb-4 p-3 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 text-red-700 dark:text-red-400 text-sm rounded-lg">
           {error}
         </div>
       )}
 
       {/* Expiry info */}
       {hasActiveSubs && expiresAt && (
-        <div className="mb-4 p-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-600">
-          구독 만료일: <span className="font-medium text-gray-900">{expiresAt.slice(0, 10)}</span>
+        <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-600 dark:text-gray-400">
+          구독 만료일: <span className="font-medium text-gray-900 dark:text-gray-100">{expiresAt.slice(0, 10)}</span>
         </div>
       )}
 
       {/* Renewal banner */}
       {showRenewal && (
-        <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+        <div className="mb-6 p-4 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-lg">
           <div className="flex items-start justify-between">
             <div>
-              <div className="font-medium text-amber-800">구독 갱신 안내</div>
-              <div className="text-sm text-amber-600 mt-1">
+              <div className="font-medium text-amber-800 dark:text-amber-400">구독 갱신 안내</div>
+              <div className="text-sm text-amber-600 dark:text-amber-500 mt-1">
                 {isExpired
                   ? '구독이 만료되었습니다. 아래 버튼을 눌러 갱신하세요.'
                   : `현재 구독은 ${currentYear}년 12월 31일에 만료됩니다. 아래 버튼을 눌러 갱신하세요.`}
@@ -179,7 +179,7 @@ export default function DashboardPage() {
       )}
 
       {/* Subscription toggles */}
-      <div className="bg-white rounded-lg border border-gray-200 divide-y divide-gray-100">
+      <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 divide-y divide-gray-100 dark:divide-gray-800">
         {SUBSCRIPTION_CATEGORIES.map((cat) => {
           const sub = subs.find((s) => s.category === cat.id);
           const isActive = sub?.isActive === 1;
@@ -189,7 +189,7 @@ export default function DashboardPage() {
               key={cat.id}
               className="flex items-center justify-between px-4 py-3"
             >
-              <div className="text-sm font-medium text-gray-900">{cat.label.replace('공지 - ', '')}</div>
+              <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{cat.label.replace('공지 - ', '')}</div>
               <ToggleSwitch
                 checked={isActive}
                 onChange={() => toggleSubscription(cat.id, isActive)}
@@ -205,14 +205,14 @@ export default function DashboardPage() {
           <button
             onClick={unsubscribeAll}
             disabled={actionLoading === 'unsubscribe_all'}
-            className="text-sm px-4 py-2 border border-gray-200 rounded-lg text-gray-500 hover:border-red-300 hover:text-red-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 transition cursor-pointer disabled:opacity-50"
+            className="text-sm px-4 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-500 dark:text-gray-400 hover:border-red-300 hover:text-red-500 dark:hover:border-red-500/50 dark:hover:text-red-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 transition cursor-pointer disabled:opacity-50"
           >
             {actionLoading === 'unsubscribe_all' ? '처리 중...' : '전체 구독 해제'}
           </button>
         </div>
       )}
 
-      <div className="mt-6 text-sm text-gray-400 text-center space-y-1">
+      <div className="mt-6 text-sm text-gray-400 dark:text-gray-500 text-center space-y-1">
         <p>구독은 매년 12월 31일에 만료되며, 12월에 갱신 안내 메일이 발송됩니다.</p>
         <p>매일 발송 가능한 이메일 수가 한정되어 있습니다.</p>
         <p>졸업 등으로 알림이 불필요한 경우 구독을 해제해 주세요.</p>
@@ -220,11 +220,11 @@ export default function DashboardPage() {
 
       {/* Account deletion (not for admin) */}
       {!session?.user?.isAdmin && (
-        <div className="mt-12 pt-6 border-t border-gray-200">
+        <div className="mt-12 pt-6 border-t border-gray-200 dark:border-gray-800">
           <button
             onClick={deleteAccount}
             disabled={actionLoading === 'delete'}
-            className="text-sm text-red-400 hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 transition cursor-pointer disabled:opacity-50"
+            className="text-sm text-red-400 hover:text-red-600 dark:hover:text-red-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 transition cursor-pointer disabled:opacity-50"
           >
             {actionLoading === 'delete' ? '처리 중...' : '회원 탈퇴'}
           </button>

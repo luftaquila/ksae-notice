@@ -218,15 +218,15 @@ export default function AdminPage() {
   };
 
   if (loading) {
-    return <div className="max-w-6xl mx-auto px-4 py-12 text-center text-gray-400">불러오는 중...</div>;
+    return <div className="max-w-6xl mx-auto px-4 py-12 text-center text-gray-400 dark:text-gray-500">불러오는 중...</div>;
   }
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">관리자 대시보드</h1>
+      <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">관리자 대시보드</h1>
 
       {error && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">{error}</div>
+        <div className="mb-4 p-3 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 text-red-700 dark:text-red-400 text-sm rounded-lg">{error}</div>
       )}
 
       {/* Stats cards */}
@@ -239,48 +239,48 @@ export default function AdminPage() {
 
       {/* Email stats */}
       <div className="grid grid-cols-2 gap-4 mb-8">
-        <div className="bg-white rounded-lg border border-gray-200 p-4">
-          <div className="text-sm text-gray-500">누적 발송 성공</div>
-          <div className="text-xl font-bold text-green-600 mt-1">{stats?.emails.totalSent ?? 0}건</div>
+        <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-4">
+          <div className="text-sm text-gray-500 dark:text-gray-400">누적 발송 성공</div>
+          <div className="text-xl font-bold text-green-600 dark:text-green-400 mt-1">{stats?.emails.totalSent ?? 0}건</div>
         </div>
         <button
           onClick={() => setShowFailedModal(true)}
-          className="bg-white rounded-lg border border-gray-200 p-4 text-left hover:border-red-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition cursor-pointer"
+          className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-4 text-left hover:border-red-300 dark:hover:border-red-500/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition cursor-pointer"
         >
-          <div className="text-sm text-gray-500">누적 발송 실패</div>
-          <div className="text-xl font-bold text-red-600 mt-1">{stats?.emails.totalFailed ?? 0}건</div>
-          <div className="text-xs text-gray-400 mt-1">클릭하여 상세 보기</div>
+          <div className="text-sm text-gray-500 dark:text-gray-400">누적 발송 실패</div>
+          <div className="text-xl font-bold text-red-600 dark:text-red-400 mt-1">{stats?.emails.totalFailed ?? 0}건</div>
+          <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">클릭하여 상세 보기</div>
         </button>
       </div>
 
       {/* Failed email modal */}
       {showFailedModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowFailedModal(false)}>
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-6 border-b border-gray-200">
-              <h2 className="text-lg font-semibold text-gray-900">최근 발송 실패</h2>
-              <button onClick={() => setShowFailedModal(false)} className="text-gray-400 hover:text-gray-600 text-xl cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 rounded">&times;</button>
+          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-800">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">최근 발송 실패</h2>
+              <button onClick={() => setShowFailedModal(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-xl cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 rounded">&times;</button>
             </div>
             <div className="overflow-auto p-6">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-left text-gray-500 border-b">
+                  <tr className="text-left text-gray-500 dark:text-gray-400 border-b dark:border-gray-800">
                     <th className="pb-2 pr-4 whitespace-nowrap w-[1%]">시각</th>
                     <th className="pb-2 pr-4 whitespace-nowrap w-[1%]">이메일</th>
                     <th className="pb-2 whitespace-nowrap">에러</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-50">
+                <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
                   {(!stats?.emails.recentFailed || stats.emails.recentFailed.length === 0) && (
-                    <tr><td colSpan={3} className="py-4 text-center text-gray-400">실패 기록 없음</td></tr>
+                    <tr><td colSpan={3} className="py-4 text-center text-gray-400 dark:text-gray-500">실패 기록 없음</td></tr>
                   )}
                   {stats?.emails.recentFailed?.map((log) => (
                     <tr key={log.id}>
-                      <td className="py-2 pr-4 text-gray-400 whitespace-nowrap">
+                      <td className="py-2 pr-4 text-gray-400 dark:text-gray-500 whitespace-nowrap">
                         {new Date(log.sentAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}
                       </td>
                       <td className="py-2 pr-4 font-mono text-xs whitespace-nowrap">{log.email}</td>
-                      <td className="py-2 text-red-600 text-xs">{log.error || '-'}</td>
+                      <td className="py-2 text-red-600 dark:text-red-400 text-xs">{log.error || '-'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -291,20 +291,20 @@ export default function AdminPage() {
       )}
 
       {/* Settings */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6 mb-8">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">설정</h2>
+      <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-6 mb-8">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">설정</h2>
         <div className="grid grid-cols-1 sm:grid-cols-[auto_auto_1fr] gap-4 sm:items-end">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">최대 구독자 수</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">최대 구독자 수</label>
             <input
               type="number"
               value={settings.maxSubscribers}
               onChange={(e) => setSettings({ ...settings, maxSubscribers: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm bg-white dark:bg-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">신규 구독 접수</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">신규 구독 접수</label>
             <div className="flex items-center gap-3 h-[38px]">
               <ToggleSwitch
                 checked={settings.registrationOpen === 'true'}
@@ -315,7 +315,7 @@ export default function AdminPage() {
                   })
                 }
               />
-              <span className="text-sm text-gray-600">
+              <span className="text-sm text-gray-600 dark:text-gray-400">
                 {settings.registrationOpen === 'true' ? '접수 중' : '중단됨'}
               </span>
             </div>
@@ -324,7 +324,7 @@ export default function AdminPage() {
             <button
               onClick={sendTestEmail}
               disabled={sendingTestEmail}
-              className="px-4 py-2 bg-gray-100 text-gray-600 text-sm font-medium rounded-lg hover:bg-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition cursor-pointer disabled:opacity-50"
+              className="px-4 py-2 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-sm font-medium rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition cursor-pointer disabled:opacity-50"
             >
               {sendingTestEmail ? '발송 중...' : '테스트 메일'}
             </button>
@@ -340,12 +340,12 @@ export default function AdminPage() {
       </div>
 
       {/* Recent crawls */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6 mb-8">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">최근 크롤링</h2>
+      <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-6 mb-8">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">최근 크롤링</h2>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-gray-500 border-b">
+              <tr className="text-left text-gray-500 dark:text-gray-400 border-b dark:border-gray-800">
                 <th className="pb-2 pr-4 whitespace-nowrap w-[1%]">게시판</th>
                 <th className="pb-2 pr-4 whitespace-nowrap w-[1%]">상태</th>
                 <th className="pb-2 pr-4 whitespace-nowrap w-[1%]">시작</th>
@@ -353,12 +353,12 @@ export default function AdminPage() {
                 <th className="pb-2 whitespace-nowrap">신규</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
               {stats?.recentCrawls.map((crawl) => (
                 <tr key={crawl.id}>
                   <td className="py-2 pr-4 whitespace-nowrap">
                     <span className={`inline-block px-1.5 py-0.5 rounded text-xs ${
-                      crawl.boardType === 'notice' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
+                      crawl.boardType === 'notice' ? 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400' : 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400'
                     }`}>
                       {crawl.boardType === 'notice' ? '공지' : '규정'}
                     </span>
@@ -367,19 +367,19 @@ export default function AdminPage() {
                     <span
                       className={`inline-block px-2 py-0.5 rounded text-xs ${
                         crawl.status === 'completed'
-                          ? 'bg-gray-100 text-gray-600'
+                          ? 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
                           : crawl.status === 'running'
-                            ? 'bg-blue-100 text-blue-700'
-                            : 'bg-red-100 text-red-700'
+                            ? 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400'
+                            : 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400'
                       }`}
                     >
                       {crawl.status === 'completed' ? '완료' : crawl.status === 'running' ? '진행 중' : '실패'}
                     </span>
                   </td>
-                  <td className="py-2 pr-4 text-gray-400 whitespace-nowrap">
+                  <td className="py-2 pr-4 text-gray-400 dark:text-gray-500 whitespace-nowrap">
                     {new Date(crawl.startedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}
                   </td>
-                  <td className="py-2 pr-4 text-gray-400 whitespace-nowrap">
+                  <td className="py-2 pr-4 text-gray-400 dark:text-gray-500 whitespace-nowrap">
                     {crawl.finishedAt
                       ? new Date(crawl.finishedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })
                       : '-'}
@@ -393,14 +393,14 @@ export default function AdminPage() {
       </div>
 
       {/* User list */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">
+      <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-6">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
           유저 목록 ({users.length}명)
         </h2>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-gray-500 border-b">
+              <tr className="text-left text-gray-500 dark:text-gray-400 border-b dark:border-gray-800">
                 <th className="pb-2 pr-4 whitespace-nowrap w-[1%]">이메일</th>
                 <th className="pb-2 pr-4 whitespace-nowrap w-[1%]">이름</th>
                 <th className="pb-2 pr-4 whitespace-nowrap w-[1%]">가입일</th>
@@ -409,18 +409,18 @@ export default function AdminPage() {
                 <th className="pb-2 whitespace-nowrap w-[1%]">관리</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
               {users.map((user) => {
                 const isDeleted = !!user.deletedAt;
                 const hasActive = user.subscriptions.some((s) => s.isActive);
                 return (
-                  <tr key={user.id} className={isDeleted ? 'text-gray-300 line-through' : ''}>
+                  <tr key={user.id} className={isDeleted ? 'text-gray-300 dark:text-gray-600 line-through' : ''}>
                     <td className="py-3 pr-4 font-mono text-xs whitespace-nowrap">{user.email}</td>
                     <td className="py-3 pr-4 whitespace-nowrap">{user.name || '-'}</td>
                     <td className="py-3 pr-4 whitespace-nowrap">{user.createdAt.slice(0, 10)}</td>
                     <td className="py-3 pr-4 whitespace-nowrap">
                       {isDeleted ? (
-                        <span className="text-xs text-gray-300">탈퇴 ({user.deletedAt!.slice(0, 10)})</span>
+                        <span className="text-xs text-gray-300 dark:text-gray-600">탈퇴 ({user.deletedAt!.slice(0, 10)})</span>
                       ) : (
                         <div className="flex gap-1">
                           {SUBSCRIPTION_CATEGORIES.map((cat) => {
@@ -434,7 +434,7 @@ export default function AdminPage() {
                                 className={`text-xs px-2 py-0.5 rounded transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${
                                   isActive
                                     ? (CATEGORY_COLORS[label]?.chipHover || 'bg-blue-100 text-blue-700 hover:bg-blue-200')
-                                    : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+                                    : 'bg-gray-100 text-gray-400 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-500 dark:hover:bg-gray-700'
                                 }`}
                               >
                                 {label}
@@ -447,27 +447,27 @@ export default function AdminPage() {
                     <td className="py-3 pr-4 whitespace-nowrap">{user.emailsSent}건</td>
                     <td className="py-3 whitespace-nowrap">
                       {isDeleted ? null : user.email === session?.user?.email ? (
-                        <span className="text-xs text-gray-400">관리자</span>
+                        <span className="text-xs text-gray-400 dark:text-gray-500">관리자</span>
                       ) : (
                         <div className="flex gap-1">
                           {hasActive ? (
                             <button
                               onClick={() => deactivateUser(user.id)}
-                              className="text-xs px-3 py-1 rounded bg-red-50 text-red-600 hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 transition cursor-pointer"
+                              className="text-xs px-3 py-1 rounded bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-500/10 dark:text-red-400 dark:hover:bg-red-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 transition cursor-pointer"
                             >
                               구독 중단
                             </button>
                           ) : (
                             <button
                               onClick={() => subscribeAll(user.id)}
-                              className="text-xs px-3 py-1 rounded bg-green-50 text-green-600 hover:bg-green-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 transition cursor-pointer"
+                              className="text-xs px-3 py-1 rounded bg-green-50 text-green-600 hover:bg-green-100 dark:bg-green-500/10 dark:text-green-400 dark:hover:bg-green-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 transition cursor-pointer"
                             >
                               전체 구독
                             </button>
                           )}
                           <button
                             onClick={() => deleteUser(user.id)}
-                            className="text-xs px-3 py-1 rounded bg-gray-50 text-gray-500 hover:bg-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition cursor-pointer"
+                            className="text-xs px-3 py-1 rounded bg-gray-50 text-gray-500 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition cursor-pointer"
                           >
                             삭제
                           </button>
@@ -487,9 +487,9 @@ export default function AdminPage() {
 
 function StatCard({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-4">
-      <div className="text-sm text-gray-500">{label}</div>
-      <div className="text-xl font-bold text-gray-900 mt-1">{value}</div>
+    <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-4">
+      <div className="text-sm text-gray-500 dark:text-gray-400">{label}</div>
+      <div className="text-xl font-bold text-gray-900 dark:text-gray-100 mt-1">{value}</div>
     </div>
   );
 }

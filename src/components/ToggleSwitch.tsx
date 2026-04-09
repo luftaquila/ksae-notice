@@ -15,7 +15,7 @@ export default function ToggleSwitch({ checked, onChange, disabled }: ToggleSwit
       onClick={onChange}
       disabled={disabled}
       className={`relative w-11 h-6 rounded-full transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ${
-        checked ? 'bg-blue-600' : 'bg-gray-300'
+        checked ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'
       }`}
     >
       <span
