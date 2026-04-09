@@ -162,6 +162,49 @@ export default function AdminPage() {
     }
   };
 
+  const subscribeAll = async (userId: number) => {
+    setUsers((prev) =>
+      prev.map((u) => {
+        if (u.id !== userId) return u;
+        const endOfYear = `${new Date().getFullYear()}-12-31T23:59:59.000Z`;
+        return {
+          ...u,
+          subscriptions: SUBSCRIPTION_CATEGORIES.map((cat) => ({
+            category: cat.id,
+            isActive: 1,
+            expiresAt: endOfYear,
+          })),
+        };
+      }),
+    );
+    try {
+      await fetch('/api/admin/users', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, action: 'subscribe_all' }),
+      });
+    } catch {
+      await fetchAll();
+    }
+  };
+
+  const [sendingTestEmail, setSendingTestEmail] = useState(false);
+  const sendTestEmail = async () => {
+    setSendingTestEmail(true);
+    try {
+      const res = await fetch('/api/admin/test-email', { method: 'POST' });
+      if (res.ok) {
+        alert('테스트 메일이 발송되었습니다.');
+      } else {
+        const data = await res.json();
+        alert(`발송 실패: ${data.error}`);
+      }
+    } catch {
+      alert('발송 실패');
+    }
+    setSendingTestEmail(false);
+  };
+
   if (loading) {
     return <div className="max-w-6xl mx-auto px-4 py-12 text-center text-gray-400">불러오는 중...</div>;
   }
@@ -184,7 +227,7 @@ export default function AdminPage() {
       </div>
 
       {/* Email stats */}
-      <div className="grid grid-cols-2 gap-4 mb-8">
+      <div className="grid grid-cols-3 gap-4 mb-8">
         <div className="bg-white rounded-lg border border-gray-200 p-4">
           <div className="text-sm text-gray-500">누적 발송 성공</div>
           <div className="text-xl font-bold text-green-600 mt-1">{stats?.emails.totalSent ?? 0}건</div>
@@ -196,6 +239,15 @@ export default function AdminPage() {
           <div className="text-sm text-gray-500">누적 발송 실패</div>
           <div className="text-xl font-bold text-red-600 mt-1">{stats?.emails.totalFailed ?? 0}건</div>
           <div className="text-xs text-gray-400 mt-1">클릭하여 상세 보기</div>
+        </button>
+        <button
+          onClick={sendTestEmail}
+          disabled={sendingTestEmail}
+          className="bg-white rounded-lg border border-gray-200 p-4 text-left hover:border-blue-300 transition cursor-pointer disabled:opacity-50"
+        >
+          <div className="text-sm text-gray-500">테스트 메일</div>
+          <div className="text-sm font-medium text-blue-600 mt-1">{sendingTestEmail ? '발송 중...' : '관리자에게 발송'}</div>
+          <div className="text-xs text-gray-400 mt-1">실제 알림과 동일 형식</div>
         </button>
       </div>
 
@@ -390,12 +442,19 @@ export default function AdminPage() {
                         <span className="text-xs text-gray-400">본인</span>
                       ) : (
                         <div className="flex gap-1">
-                          {hasActive && (
+                          {hasActive ? (
                             <button
                               onClick={() => deactivateUser(user.id)}
                               className="text-xs px-3 py-1 rounded bg-red-50 text-red-600 hover:bg-red-100 transition"
                             >
                               구독 중단
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => subscribeAll(user.id)}
+                              className="text-xs px-3 py-1 rounded bg-blue-50 text-blue-600 hover:bg-blue-100 transition"
+                            >
+                              전체 구독
                             </button>
                           )}
                           <button

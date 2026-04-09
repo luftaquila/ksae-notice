@@ -123,5 +123,25 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ ok: true });
   }
 
+  if (action === 'subscribe_all') {
+    const endOfYear = getEndOfYear();
+    for (const cat of SUBSCRIPTION_CATEGORIES) {
+      const existing = db
+        .select()
+        .from(subscriptions)
+        .where(and(eq(subscriptions.userId, userId), eq(subscriptions.category, cat.id)))
+        .get();
+      if (existing) {
+        db.update(subscriptions)
+          .set({ isActive: 1, expiresAt: endOfYear, renewedAt: new Date().toISOString() })
+          .where(eq(subscriptions.id, existing.id))
+          .run();
+      } else {
+        db.insert(subscriptions).values({ userId, category: cat.id, isActive: 1, expiresAt: endOfYear }).run();
+      }
+    }
+    return NextResponse.json({ ok: true });
+  }
+
   return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
 }
