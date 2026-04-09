@@ -8,6 +8,7 @@ export const users = sqliteTable('users', {
   name: text('name'),
   avatar: text('avatar'),
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+  deletedAt: text('deleted_at'),
 });
 
 export const subscriptions = sqliteTable(

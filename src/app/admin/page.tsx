@@ -9,6 +9,7 @@ interface UserInfo {
   email: string;
   name: string | null;
   createdAt: string;
+  deletedAt: string | null;
   subscriptions: { category: string; isActive: number; expiresAt: string }[];
   emailsSent: number;
 }
@@ -351,36 +352,41 @@ export default function AdminPage() {
             </thead>
             <tbody className="divide-y divide-gray-50">
               {users.map((user) => {
+                const isDeleted = !!user.deletedAt;
                 const hasActive = user.subscriptions.some((s) => s.isActive);
                 return (
-                  <tr key={user.id}>
+                  <tr key={user.id} className={isDeleted ? 'text-gray-300 line-through' : ''}>
                     <td className="py-3 pr-4 font-mono text-xs whitespace-nowrap">{user.email}</td>
                     <td className="py-3 pr-4 whitespace-nowrap">{user.name || '-'}</td>
-                    <td className="py-3 pr-4 text-gray-400 whitespace-nowrap">{user.createdAt.slice(0, 10)}</td>
+                    <td className="py-3 pr-4 whitespace-nowrap">{user.createdAt.slice(0, 10)}</td>
                     <td className="py-3 pr-4 whitespace-nowrap">
-                      <div className="flex gap-1">
-                        {SUBSCRIPTION_CATEGORIES.map((cat) => {
-                          const sub = user.subscriptions.find((s) => s.category === cat.id);
-                          const isActive = sub?.isActive === 1;
-                          return (
-                            <button
-                              key={cat.id}
-                              onClick={() => toggleUserSubscription(user.id, cat.id, isActive)}
-                              className={`text-xs px-2 py-0.5 rounded transition cursor-pointer ${
-                                isActive
-                                  ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-                                  : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
-                              }`}
-                            >
-                              {catLabel(cat.id)}
-                            </button>
-                          );
-                        })}
-                      </div>
+                      {isDeleted ? (
+                        <span className="text-xs text-gray-300">탈퇴 ({user.deletedAt!.slice(0, 10)})</span>
+                      ) : (
+                        <div className="flex gap-1">
+                          {SUBSCRIPTION_CATEGORIES.map((cat) => {
+                            const sub = user.subscriptions.find((s) => s.category === cat.id);
+                            const isActive = sub?.isActive === 1;
+                            return (
+                              <button
+                                key={cat.id}
+                                onClick={() => toggleUserSubscription(user.id, cat.id, isActive)}
+                                className={`text-xs px-2 py-0.5 rounded transition cursor-pointer ${
+                                  isActive
+                                    ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                                    : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+                                }`}
+                              >
+                                {catLabel(cat.id)}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
                     </td>
                     <td className="py-3 pr-4 whitespace-nowrap">{user.emailsSent}건</td>
                     <td className="py-3 whitespace-nowrap">
-                      {user.email === session?.user?.email ? (
+                      {isDeleted ? null : user.email === session?.user?.email ? (
                         <span className="text-xs text-gray-400">본인</span>
                       ) : (
                         <div className="flex gap-1">

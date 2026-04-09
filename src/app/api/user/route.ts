@@ -13,9 +13,8 @@ export async function DELETE() {
   const db = getDb();
   const userId = session.user.id;
 
-  db.delete(emailLogs).where(eq(emailLogs.userId, userId)).run();
-  db.delete(subscriptions).where(eq(subscriptions.userId, userId)).run();
-  db.delete(users).where(eq(users.id, userId)).run();
+  db.update(subscriptions).set({ isActive: 0 }).where(eq(subscriptions.userId, userId)).run();
+  db.update(users).set({ deletedAt: new Date().toISOString() }).where(eq(users.id, userId)).run();
 
   return NextResponse.json({ ok: true });
 }

@@ -42,6 +42,7 @@ export async function GET() {
       email: user.email,
       name: user.name,
       createdAt: user.createdAt,
+      deletedAt: user.deletedAt,
       subscriptions: subs.map((s) => ({
         category: s.category,
         isActive: s.isActive,
@@ -49,6 +50,12 @@ export async function GET() {
       })),
       emailsSent: emailCount?.count || 0,
     };
+  });
+
+  result.sort((a, b) => {
+    if (a.deletedAt && !b.deletedAt) return 1;
+    if (!a.deletedAt && b.deletedAt) return -1;
+    return 0;
   });
 
   return NextResponse.json({ users: result });
@@ -77,9 +84,8 @@ export async function PATCH(request: NextRequest) {
   }
 
   if (action === 'delete') {
-    db.delete(emailLogs).where(eq(emailLogs.userId, userId)).run();
-    db.delete(subscriptions).where(eq(subscriptions.userId, userId)).run();
-    db.delete(users).where(eq(users.id, userId)).run();
+    db.update(subscriptions).set({ isActive: 0 }).where(eq(subscriptions.userId, userId)).run();
+    db.update(users).set({ deletedAt: new Date().toISOString() }).where(eq(users.id, userId)).run();
     return NextResponse.json({ ok: true });
   }
 

@@ -152,7 +152,7 @@ export default function DashboardPage() {
       )}
 
       {/* Subscription toggles */}
-      <div className="space-y-3">
+      <div className="bg-white rounded-lg border border-gray-200 divide-y divide-gray-100">
         {SUBSCRIPTION_CATEGORIES.map((cat) => {
           const sub = subs.find((s) => s.category === cat.id);
           const isActive = sub?.isActive === 1;
@@ -160,19 +160,19 @@ export default function DashboardPage() {
           return (
             <div
               key={cat.id}
-              className="flex items-center justify-between p-4 bg-white rounded-lg border border-gray-200"
+              className="flex items-center justify-between px-4 py-3"
             >
-              <div className="font-medium text-gray-900">{cat.label}</div>
+              <div className="text-sm font-medium text-gray-900">{cat.label}</div>
               <button
                 onClick={() => toggleSubscription(cat.id, isActive)}
                 disabled={actionLoading === cat.id}
-                className={`relative w-12 h-6 rounded-full transition ${
+                className={`relative w-11 h-6 rounded-full transition ${
                   isActive ? 'bg-blue-600' : 'bg-gray-300'
                 } ${actionLoading === cat.id ? 'opacity-50' : ''}`}
               >
                 <span
                   className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
-                    isActive ? 'translate-x-6' : ''
+                    isActive ? 'translate-x-5' : ''
                   }`}
                 />
               </button>
@@ -183,7 +183,7 @@ export default function DashboardPage() {
 
       <div className="mt-6 text-sm text-gray-400 text-center space-y-1">
         <p>구독은 매년 12월 31일에 만료되며, 12월에 갱신 안내 메일이 발송됩니다.</p>
-        <p>무료 이메일 API 제한으로 구독자 수가 한정되어 있습니다. 졸업 등으로 알림이 불필요한 경우 구독을 해제해 주세요.</p>
+        <p>매일 발송 가능한 이메일 수가 한정되어 있습니다. 졸업 등으로 알림이 불필요한 경우 구독을 해제해 주세요.</p>
       </div>
 
       {/* Account deletion (not for admin) */}

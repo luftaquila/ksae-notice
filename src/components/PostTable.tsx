@@ -56,7 +56,7 @@ export default function PostTable() {
   });
   const [pinnedFirst, setPinnedFirst] = useState(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('pinnedFirst') !== 'false';
+      return localStorage.getItem('pinnedFirst') === 'true';
     }
     return true;
   });
@@ -124,7 +124,7 @@ export default function PostTable() {
 
   return (
     <div>
-      <div className="sticky top-0 z-10 bg-gray-50 pb-4 -mx-4 px-4">
+      <div className="sticky top-14 z-10 bg-gray-50 pb-4 -mx-4 px-4">
       {/* Category filter */}
       <div className="mb-3">
         <CategoryFilter

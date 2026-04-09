@@ -1,4 +1,4 @@
-import { eq, and, sql, gte } from 'drizzle-orm';
+import { eq, and, sql, gte, isNull } from 'drizzle-orm';
 import { getDb } from '../db';
 import { users, subscriptions, emailLogs } from '../db/schema';
 import { NOTICE_CATEGORY_CODES, type BoardType } from '../constants';
@@ -76,6 +76,7 @@ export async function notifyNewPosts(newPosts: NewPost[]): Promise<void> {
     .where(and(
       eq(subscriptions.isActive, 1),
       gte(subscriptions.expiresAt, now),
+      isNull(users.deletedAt),
     ))
     .all()
     .filter((s) => categories.includes(s.category));

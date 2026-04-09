@@ -35,6 +35,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         .where(eq(users.googleId, profile.sub))
         .get();
 
+      if (existing?.deletedAt) return false;
+
       if (!existing) {
         const result = db.insert(users).values({
           googleId: profile.sub,
