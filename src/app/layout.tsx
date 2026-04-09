@@ -39,7 +39,7 @@ export default function RootLayout({
           <main className="flex-1">{children}</main>
           <footer className="border-t border-gray-200 bg-white py-6">
             <div className="max-w-6xl mx-auto px-4 text-center text-sm text-gray-400">
-              KSAE 공지봇 - 대학생 자작자동차대회 공지사항 및 규정 알림
+              KSAE 대학생 자작자동차대회 공지사항 알림봇 &bull; <a href="https://github.com/luftaquila/ksae-notice" target="_blank" rel="noopener noreferrer" className="hover:text-gray-600 transition">GitHub</a>
             </div>
           </footer>
         </SessionProvider>
