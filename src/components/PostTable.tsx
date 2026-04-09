@@ -167,8 +167,8 @@ export default function PostTable() {
           <table className="w-full">
             <thead>
               <tr className="bg-gray-50 text-left text-sm text-gray-500">
-                <th className="px-4 py-3 whitespace-nowrap" style={{ width: '1%' }}>구분</th>
-                <th className="px-4 py-3 whitespace-nowrap" style={{ width: '1%' }}>분류</th>
+                <th className="px-4 py-3 whitespace-nowrap text-center" style={{ width: '1%' }}>구분</th>
+                <th className="px-4 py-3 whitespace-nowrap text-center" style={{ width: '1%' }}>분류</th>
                 <th className="px-4 py-3">제목</th>
                 <th className="px-4 py-3 w-28 hidden sm:table-cell">등록일</th>
               </tr>
@@ -179,7 +179,7 @@ export default function PostTable() {
                   key={`${post.boardType}-${post.postNumber}`}
                   className={`hover:bg-gray-50 transition ${post.isPinned ? 'bg-blue-50/50' : ''}`}
                 >
-                  <td className="px-4 py-3 whitespace-nowrap">
+                  <td className="px-4 py-3 whitespace-nowrap text-center">
                     <span
                       className={`inline-block text-xs px-2 py-0.5 rounded whitespace-nowrap ${
                         post.boardType === 'notice'
@@ -190,7 +190,7 @@ export default function PostTable() {
                       {post.boardType === 'notice' ? '공지' : '규정'}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">{post.category || '-'}</td>
+                  <td className="px-4 py-3 text-sm text-gray-500 whitespace-nowrap text-center">{post.category || '-'}</td>
                   <td className="px-4 py-3">
                     <a
                       href={isMobile ? getMobileUrl(post) : post.url}
@@ -198,9 +198,6 @@ export default function PostTable() {
                       rel="noopener noreferrer"
                       className="text-sm text-gray-900 hover:text-blue-600 transition"
                     >
-                      {post.isPinned ? (
-                        <span className="text-blue-600 font-medium mr-1">[공지]</span>
-                      ) : null}
                       {post.title}
                     </a>
                   </td>
