@@ -163,43 +163,42 @@ export default function PostTable() {
           <table className="w-full">
             <thead>
               <tr className="bg-gray-50 text-left text-sm text-gray-500">
-                <th className="px-4 py-3 whitespace-nowrap text-center" style={{ width: '1%' }}>구분</th>
                 <th className="px-4 py-3 whitespace-nowrap text-center" style={{ width: '1%' }}>분류</th>
                 <th className="px-4 py-3">제목</th>
                 <th className="px-4 py-3 w-28 hidden sm:table-cell">등록일</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {posts.map((post) => (
-                <tr
-                  key={`${post.boardType}-${post.postNumber}`}
-                  className={`hover:bg-gray-50 transition ${post.isPinned ? 'bg-blue-50/50' : ''}`}
-                >
-                  <td className="px-4 py-3 whitespace-nowrap text-center">
-                    <span
-                      className={`inline-block text-xs px-2 py-0.5 rounded whitespace-nowrap ${
-                        post.boardType === 'notice'
-                          ? 'bg-blue-100 text-blue-700'
-                          : 'bg-green-100 text-green-700'
-                      }`}
-                    >
-                      {post.boardType === 'notice' ? '공지' : '규정'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-gray-500 whitespace-nowrap text-center">{post.category || '-'}</td>
-                  <td className="px-4 py-3">
-                    <a
-                      href={isMobile ? getMobileUrl(post) : post.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm text-gray-900 hover:text-blue-600 transition"
-                    >
-                      {post.title}
-                    </a>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-gray-400 hidden sm:table-cell">{post.date}</td>
-                </tr>
-              ))}
+              {posts.map((post) => {
+                const chipLabel = post.boardType === 'rule' ? '규정' : (post.category || '공통');
+                const chipColor = post.boardType === 'rule'
+                  ? 'bg-green-100 text-green-700'
+                  : 'bg-blue-100 text-blue-700';
+                return (
+                  <tr
+                    key={`${post.boardType}-${post.postNumber}`}
+                    className={`hover:bg-gray-50 transition ${post.isPinned ? 'bg-blue-50/50' : ''}`}
+                  >
+                    <td className="px-4 py-3 whitespace-nowrap text-center">
+                      <span className={`inline-block text-xs px-2 py-0.5 rounded whitespace-nowrap ${chipColor}`}>
+                        {chipLabel}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <a
+                        href={isMobile ? getMobileUrl(post) : post.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-gray-900 hover:text-blue-600 transition"
+                      >
+                        {post.title}
+                      </a>
+                      <div className="text-xs text-gray-400 mt-0.5 sm:hidden">{post.date}</div>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-400 hidden sm:table-cell">{post.date}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}
