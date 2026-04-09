@@ -13,11 +13,14 @@ export async function GET(request: NextRequest) {
 
   const db = getDb();
 
+  const search = searchParams.get('search');
+
   const conditions = [];
   if (board) conditions.push(eq(posts.boardType, board));
   if (category) conditions.push(eq(posts.category, category));
   if (pinned === 'true') conditions.push(eq(posts.isPinned, 1));
   if (pinned === 'false') conditions.push(eq(posts.isPinned, 0));
+  if (search) conditions.push(like(posts.title, `%${search}%`));
 
   const where = conditions.length > 0 ? and(...conditions) : undefined;
 

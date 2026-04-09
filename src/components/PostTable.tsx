@@ -23,20 +23,37 @@ const ALL_CATEGORIES = [
   { id: '규정', label: '규정' },
 ];
 
+function getMobileUrl(post: Post): string {
+  const code = post.boardType === 'notice' ? 'J_notice' : 'J_rule';
+  return `https://www.ksae.org/jajak/mobile/bbs/view.php?number=${post.postNumber}&page=1&code=${code}`;
+}
+
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 640);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
+  return isMobile;
+}
+
 export default function PostTable() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [search, setSearch] = useState('');
+  const [searchInput, setSearchInput] = useState('');
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
+  const isMobile = useIsMobile();
 
   const fetchPosts = useCallback(async () => {
     setLoading(true);
     const params = new URLSearchParams();
 
-    // If only 규정 is selected, filter by board=rule
-    // If only notice categories selected, filter by board=notice
     const hasRule = selectedCategories.includes('규정');
     const noticeCategories = selectedCategories.filter((c) => c !== '규정');
 
@@ -47,6 +64,7 @@ export default function PostTable() {
       params.set('board', 'rule');
     }
 
+    if (search) params.set('search', search);
     params.set('page', String(page));
     params.set('limit', '30');
 
@@ -55,7 +73,6 @@ export default function PostTable() {
       const data = await res.json();
       let filtered = data.posts;
 
-      // Client-side filtering for mixed selections
       if (selectedCategories.length > 0) {
         filtered = filtered.filter((p: Post) => {
           if (p.boardType === 'rule') return hasRule;
@@ -71,7 +88,7 @@ export default function PostTable() {
     } finally {
       setLoading(false);
     }
-  }, [selectedCategories, page]);
+  }, [selectedCategories, search, page]);
 
   useEffect(() => {
     fetchPosts();
@@ -79,18 +96,40 @@ export default function PostTable() {
 
   useEffect(() => {
     setPage(1);
-  }, [selectedCategories]);
+  }, [selectedCategories, search]);
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    setSearch(searchInput);
+  };
 
   return (
     <div>
       {/* Category filter */}
-      <div className="mb-4">
+      <div className="mb-3">
         <CategoryFilter
           categories={ALL_CATEGORIES}
           selected={selectedCategories}
           onChange={setSelectedCategories}
         />
       </div>
+
+      {/* Search */}
+      <form onSubmit={handleSearch} className="flex gap-2 mb-4">
+        <input
+          type="text"
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
+          placeholder="제목 검색"
+          className="flex-1 px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+        <button
+          type="submit"
+          className="shrink-0 px-3 py-1.5 text-sm bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition"
+        >
+          검색
+        </button>
+      </form>
 
       {/* Post list */}
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
@@ -128,7 +167,7 @@ export default function PostTable() {
                   <td className="px-4 py-3 text-sm text-gray-500">{post.category || '-'}</td>
                   <td className="px-4 py-3">
                     <a
-                      href={post.url}
+                      href={isMobile ? getMobileUrl(post) : post.url}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-sm text-gray-900 hover:text-blue-600 transition"
@@ -149,7 +188,7 @@ export default function PostTable() {
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex justify-center gap-1 mt-4">
+        <div className="flex justify-center items-center gap-2 mt-4">
           <button
             onClick={() => setPage(Math.max(1, page - 1))}
             disabled={page === 1}
@@ -157,24 +196,29 @@ export default function PostTable() {
           >
             이전
           </button>
-          {Array.from({ length: Math.min(totalPages, 10) }, (_, i) => {
-            const start = Math.max(1, Math.min(page - 4, totalPages - 9));
-            const p = start + i;
-            if (p > totalPages) return null;
-            return (
-              <button
-                key={p}
-                onClick={() => setPage(p)}
-                className={`px-3 py-1.5 text-sm rounded border transition ${
-                  p === page
-                    ? 'bg-blue-600 text-white border-blue-600'
-                    : 'border-gray-200 hover:bg-gray-50'
-                }`}
-              >
-                {p}
-              </button>
-            );
-          })}
+          <span className="text-sm text-gray-500 sm:hidden">
+            {page} / {totalPages}
+          </span>
+          <div className="hidden sm:flex gap-1">
+            {Array.from({ length: Math.min(totalPages, 10) }, (_, i) => {
+              const start = Math.max(1, Math.min(page - 4, totalPages - 9));
+              const p = start + i;
+              if (p > totalPages) return null;
+              return (
+                <button
+                  key={p}
+                  onClick={() => setPage(p)}
+                  className={`px-3 py-1.5 text-sm rounded border transition ${
+                    p === page
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'border-gray-200 hover:bg-gray-50'
+                  }`}
+                >
+                  {p}
+                </button>
+              );
+            })}
+          </div>
           <button
             onClick={() => setPage(Math.min(totalPages, page + 1))}
             disabled={page === totalPages}
