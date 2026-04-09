@@ -1,4 +1,4 @@
-import { eq, sql } from 'drizzle-orm';
+import { eq, and, sql } from 'drizzle-orm';
 import { getDb } from '../db';
 import { posts, crawlLogs } from '../db/schema';
 import { BOARDS, type BoardType } from '../constants';
@@ -16,10 +16,29 @@ async function fetchPage(boardCode: string, page: number): Promise<string> {
   return res.text();
 }
 
-function insertPost(db: ReturnType<typeof getDb>, post: ParsedPost, boardType: BoardType): boolean {
+function upsertPost(db: ReturnType<typeof getDb>, post: ParsedPost, boardType: BoardType): boolean {
   try {
-    const result = db
-      .insert(posts)
+    // Check if post already exists
+    const existing = db
+      .select({ id: posts.id })
+      .from(posts)
+      .where(and(eq(posts.boardType, boardType), eq(posts.postNumber, post.postNumber)))
+      .get();
+
+    if (existing) {
+      // Update isPinned/title/category if changed
+      db.update(posts)
+        .set({
+          isPinned: post.isPinned ? 1 : 0,
+          title: post.title,
+          category: post.category,
+        })
+        .where(eq(posts.id, existing.id))
+        .run();
+      return false; // Not a new post
+    }
+
+    db.insert(posts)
       .values({
         boardType,
         postNumber: post.postNumber,
@@ -29,12 +48,9 @@ function insertPost(db: ReturnType<typeof getDb>, post: ParsedPost, boardType: B
         isPinned: post.isPinned ? 1 : 0,
         url: post.url,
       })
-      .onConflictDoNothing({
-        target: [posts.boardType, posts.postNumber],
-      })
       .run();
 
-    return result.changes > 0;
+    return true;
   } catch {
     return false;
   }
@@ -70,7 +86,7 @@ export async function crawlAll(): Promise<void> {
         for (const post of pagePosts) {
           // Skip pinned posts on subsequent pages (already inserted from page 1)
           if (page > 1 && post.isPinned) continue;
-          if (insertPost(db, post, board.type)) newCount++;
+          if (upsertPost(db, post, board.type)) newCount++;
         }
 
         page++;
@@ -121,7 +137,7 @@ export async function crawlLatest(): Promise<ParsedPost[]> {
       let newCount = 0;
 
       for (const post of pagePosts) {
-        if (insertPost(db, post, board.type)) {
+        if (upsertPost(db, post, board.type)) {
           newCount++;
           allNewPosts.push({ ...post, boardType: board.type });
         }

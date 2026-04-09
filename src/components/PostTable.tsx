@@ -154,9 +154,9 @@ export default function PostTable() {
                   key={`${post.boardType}-${post.postNumber}`}
                   className={`hover:bg-gray-50 transition ${post.isPinned ? 'bg-blue-50/50' : ''}`}
                 >
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3 whitespace-nowrap">
                     <span
-                      className={`inline-block text-xs px-2 py-0.5 rounded ${
+                      className={`inline-block text-xs px-2 py-0.5 rounded whitespace-nowrap ${
                         post.boardType === 'notice'
                           ? 'bg-blue-100 text-blue-700'
                           : 'bg-green-100 text-green-700'
@@ -165,7 +165,7 @@ export default function PostTable() {
                       {post.boardType === 'notice' ? '공지' : '규정'}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-500">{post.category || '-'}</td>
+                  <td className="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">{post.category || '-'}</td>
                   <td className="px-4 py-3">
                     <a
                       href={isMobile ? getMobileUrl(post) : post.url}
