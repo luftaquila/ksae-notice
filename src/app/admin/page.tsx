@@ -56,6 +56,7 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showFailedModal, setShowFailedModal] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchAll = async () => {
     setLoading(true);
@@ -71,7 +72,9 @@ export default function AdminPage() {
       setUsers(usersData.users || []);
       setStats(statsData);
       setSettings(settingsData);
-    } catch {}
+    } catch {
+      setError('데이터 로딩에 실패했습니다.');
+    }
     setLoading(false);
   };
 
@@ -81,14 +84,18 @@ export default function AdminPage() {
 
   const saveSettings = async () => {
     setSaving(true);
+    setError(null);
     try {
-      await fetch('/api/admin/settings', {
+      const res = await fetch('/api/admin/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(settings),
       });
+      if (!res.ok) setError('설정 저장에 실패했습니다.');
       await fetchAll();
-    } catch {}
+    } catch {
+      setError('설정 저장에 실패했습니다.');
+    }
     setSaving(false);
   };
 
@@ -101,11 +108,12 @@ export default function AdminPage() {
       ),
     );
     try {
-      await fetch('/api/admin/users', {
+      const res = await fetch('/api/admin/users', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId, action: 'deactivate' }),
       });
+      if (!res.ok) await fetchAll();
     } catch {
       await fetchAll();
     }
@@ -115,11 +123,12 @@ export default function AdminPage() {
     if (!confirm('이 유저를 삭제하시겠습니까? 모든 데이터가 삭제됩니다.')) return;
     setUsers((prev) => prev.filter((u) => u.id !== userId));
     try {
-      await fetch('/api/admin/users', {
+      const res = await fetch('/api/admin/users', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId, action: 'delete' }),
       });
+      if (!res.ok) await fetchAll();
     } catch {
       await fetchAll();
     }
@@ -148,7 +157,7 @@ export default function AdminPage() {
       }),
     );
     try {
-      await fetch('/api/admin/users', {
+      const res = await fetch('/api/admin/users', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -157,6 +166,7 @@ export default function AdminPage() {
           category,
         }),
       });
+      if (!res.ok) await fetchAll();
     } catch {
       await fetchAll();
     }
@@ -178,11 +188,12 @@ export default function AdminPage() {
       }),
     );
     try {
-      await fetch('/api/admin/users', {
+      const res = await fetch('/api/admin/users', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId, action: 'subscribe_all' }),
       });
+      if (!res.ok) await fetchAll();
     } catch {
       await fetchAll();
     }
@@ -229,6 +240,10 @@ export default function AdminPage() {
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
       <h1 className="text-2xl font-bold text-gray-900 mb-6">관리자 대시보드</h1>
+
+      {error && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">{error}</div>
+      )}
 
       {/* Stats cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">

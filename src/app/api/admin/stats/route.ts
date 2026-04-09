@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { eq, sql, and, gte, desc, ne } from 'drizzle-orm';
+import { eq, sql, and, gte, desc } from 'drizzle-orm';
 import { auth } from '@/lib/auth';
 import { getDb } from '@/lib/db';
 import { users, subscriptions, emailLogs, crawlLogs, posts } from '@/lib/db/schema';
@@ -11,13 +11,6 @@ export async function GET() {
   }
 
   const db = getDb();
-
-  // Fix stale running crawl logs (older than 10 minutes)
-  const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
-  db.update(crawlLogs)
-    .set({ status: 'failed', finishedAt: new Date().toISOString() })
-    .where(and(eq(crawlLogs.status, 'running'), sql`${crawlLogs.startedAt} < ${tenMinutesAgo}`))
-    .run();
 
   const totalUsers = db
     .select({ count: sql<number>`count(*)` })

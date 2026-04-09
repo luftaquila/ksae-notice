@@ -103,7 +103,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         (session.user as { id: number }).id = token.userId;
       }
       (session.user as { isAdmin: boolean }).isAdmin =
-        session.user.email === process.env.ADMIN_EMAIL;
+        session.user.email?.toLowerCase() === process.env.ADMIN_EMAIL?.toLowerCase();
       return session;
     },
   },

@@ -40,17 +40,20 @@ export default function DashboardPage() {
     setActionLoading('unsubscribe_all');
     setError(null);
     try {
+      let hasError = false;
       for (const cat of SUBSCRIPTION_CATEGORIES) {
         const sub = subs.find((s) => s.category === cat.id);
         if (sub?.isActive) {
-          await fetch('/api/subscriptions', {
+          const res = await fetch('/api/subscriptions', {
             method: 'DELETE',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ category: cat.id }),
           });
+          if (!res.ok) hasError = true;
         }
       }
       await fetchSubs();
+      if (hasError) setError('일부 구독 해제에 실패했습니다.');
     } catch {
       setError('요청에 실패했습니다.');
     } finally {
@@ -92,12 +95,12 @@ export default function DashboardPage() {
         const data = await res.json();
         setError(data.error || '갱신에 실패했습니다.');
       }
+      await fetchSubs();
     } catch {
       setError('갱신에 실패했습니다.');
+    } finally {
+      setActionLoading(null);
     }
-
-    await fetchSubs();
-    setActionLoading(null);
   };
 
   const deleteAccount = async () => {

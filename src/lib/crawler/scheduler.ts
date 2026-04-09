@@ -1,9 +1,10 @@
 import cron, { type ScheduledTask } from 'node-cron';
-import { crawlLatest, crawlAll, needsInitialCrawl } from './index';
+import { crawlLatest, crawlAll, needsInitialCrawl, cleanupStaleCrawlLogs } from './index';
 import { checkAndSendRenewalReminders } from '../subscription/renewal';
 
 let crawlTask: ScheduledTask | null = null;
 let renewalTask: ScheduledTask | null = null;
+let isCrawling = false;
 
 export async function initScheduler() {
   // Run initial crawl if DB is empty
@@ -15,11 +16,18 @@ export async function initScheduler() {
   // Schedule incremental crawl every 5 minutes, 7AM-7PM KST
   // cron: minute 0,5,10,...55 of hours 7-18 (18:55 is the last run before 19:00)
   crawlTask = cron.schedule('*/5 7-18 * * *', async () => {
-    console.log(`[Scheduler] Running incremental crawl at ${new Date().toISOString()}`);
+    if (isCrawling) {
+      console.log('[Scheduler] Previous crawl still running, skipping');
+      return;
+    }
+    isCrawling = true;
     try {
+      cleanupStaleCrawlLogs();
       await crawlLatest();
     } catch (error) {
       console.error('[Scheduler] Crawl error:', error);
+    } finally {
+      isCrawling = false;
     }
   }, {
     timezone: 'Asia/Seoul',

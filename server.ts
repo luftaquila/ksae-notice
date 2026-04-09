@@ -2,7 +2,7 @@ import { createServer } from 'http';
 import next from 'next';
 import { runMigrations } from './src/lib/db/migrate';
 import { initScheduler, stopScheduler } from './src/lib/crawler/scheduler';
-import { crawlLatest } from './src/lib/crawler';
+import { crawlLatest, needsInitialCrawl } from './src/lib/crawler';
 
 const dev = process.env.NODE_ENV !== 'production';
 const hostname = process.env.HOSTNAME || '0.0.0.0';
@@ -26,11 +26,17 @@ async function main() {
     console.log(`[Server] Ready on http://${hostname}:${port}`);
   });
 
-  // Initial crawl on startup
-  console.log('[Server] Running initial crawl...');
-  crawlLatest().catch((err) => console.error('[Server] Initial crawl failed:', err));
+  // Initial crawl on startup (skip if fresh DB — initScheduler will run crawlAll)
+  if (!needsInitialCrawl()) {
+    console.log('[Server] Running initial crawl...');
+    try {
+      await crawlLatest();
+    } catch (err) {
+      console.error('[Server] Initial crawl failed:', err);
+    }
+  }
 
-  // Initialize cron scheduler
+  // Initialize cron scheduler (runs crawlAll on fresh DB)
   await initScheduler();
 
   // Graceful shutdown

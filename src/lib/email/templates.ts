@@ -1,5 +1,3 @@
-import { SUBSCRIPTION_CATEGORIES } from '../constants';
-
 interface PostInfo {
   title: string;
   category: string | null;
@@ -25,6 +23,10 @@ function getBaseStyle() {
   `;
 }
 
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 const CATEGORY_EMAIL_COLORS: Record<string, { bg: string; text: string }> = {
   '공통': { bg: '#e5e7eb', text: '#374151' },
   'Baja': { bg: '#ffedd5', text: '#c2410c' },
@@ -40,10 +42,10 @@ export function newPostNotification(postsByCategory: PostInfo[], siteUrl: string
       const categoryLabel = post.boardType === 'rule' ? '규정' : (post.category || '공통');
       const colors = CATEGORY_EMAIL_COLORS[categoryLabel] || CATEGORY_EMAIL_COLORS['공통'];
       return `
-        <a href="${post.url}" class="post-item">
-          <span class="category" style="background: ${colors.bg}; color: ${colors.text};">${categoryLabel}</span>
-          <div class="title">${post.title}</div>
-          <div class="date">${post.date}</div>
+        <a href="${escapeHtml(post.url)}" class="post-item">
+          <span class="category" style="background: ${colors.bg}; color: ${colors.text};">${escapeHtml(categoryLabel)}</span>
+          <div class="title">${escapeHtml(post.title)}</div>
+          <div class="date">${escapeHtml(post.date)}</div>
         </a>
       `;
     })
@@ -79,7 +81,7 @@ export function renewalReminder(userName: string, siteUrl: string): string {
       <h1>KSAE 공지봇 구독 갱신 안내</h1>
     </div>
     <div class="content">
-      <p style="color: #4a5568;">안녕하세요${userName ? `, ${userName}` : ''}님.</p>
+      <p style="color: #4a5568;">안녕하세요${userName ? `, ${escapeHtml(userName)}` : ''}님.</p>
       <p style="color: #4a5568;">현재 구독 중인 KSAE 공지봇 서비스가 <strong>12월 31일</strong>에 만료됩니다.</p>
       <p style="color: #4a5568;">계속 알림을 받으시려면 아래 버튼을 클릭하여 구독을 갱신해 주세요.</p>
       <p style="text-align: center; margin-top: 24px;">

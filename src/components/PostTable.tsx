@@ -70,14 +70,8 @@ export default function PostTable() {
     if (isInitialLoad.current) setLoading(true);
     const params = new URLSearchParams();
 
-    const hasRule = selectedCategories.includes('규정');
-    const noticeCategories = selectedCategories.filter((c) => c !== '규정');
-
-    if (selectedCategories.length > 0 && !hasRule && noticeCategories.length > 0) {
-      params.set('board', 'notice');
-      if (noticeCategories.length === 1) params.set('category', noticeCategories[0]);
-    } else if (hasRule && noticeCategories.length === 0) {
-      params.set('board', 'rule');
+    if (selectedCategories.length > 0) {
+      params.set('categories', selectedCategories.join(','));
     }
 
     if (search) params.set('search', search);
@@ -88,16 +82,7 @@ export default function PostTable() {
     try {
       const res = await fetch(`/api/posts?${params}`);
       const data = await res.json();
-      let filtered = data.posts;
-
-      if (selectedCategories.length > 0) {
-        filtered = filtered.filter((p: Post) => {
-          if (p.boardType === 'rule') return hasRule;
-          return noticeCategories.length === 0 || (p.category && noticeCategories.includes(p.category));
-        });
-      }
-
-      setPosts(filtered);
+      setPosts(data.posts);
       setTotalPages(data.totalPages);
       setTotal(data.total);
     } catch {
@@ -255,7 +240,7 @@ export default function PostTable() {
           </div>
           <button
             onClick={() => setPage(Math.min(totalPages, page + 1))}
-            disabled={page === totalPages}
+            disabled={page >= totalPages}
             className="px-3 py-1.5 text-sm rounded border border-gray-200 disabled:opacity-50 hover:bg-gray-50 transition cursor-pointer"
           >
             다음

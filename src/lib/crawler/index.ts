@@ -16,7 +16,7 @@ async function fetchPage(boardCode: string, page: number): Promise<string> {
   return res.text();
 }
 
-function upsertPost(db: ReturnType<typeof getDb>, post: ParsedPost, boardType: BoardType): boolean {
+function upsertPost(db: ReturnType<typeof getDb>, post: ParsedPost, boardType: BoardType): number | false {
   try {
     // Check if post already exists
     const existing = db
@@ -38,7 +38,7 @@ function upsertPost(db: ReturnType<typeof getDb>, post: ParsedPost, boardType: B
       return false; // Not a new post
     }
 
-    db.insert(posts)
+    const result = db.insert(posts)
       .values({
         boardType,
         postNumber: post.postNumber,
@@ -50,10 +50,20 @@ function upsertPost(db: ReturnType<typeof getDb>, post: ParsedPost, boardType: B
       })
       .run();
 
-    return true;
-  } catch {
+    return Number(result.lastInsertRowid);
+  } catch (error) {
+    console.error(`[Crawler] upsertPost failed for ${boardType}/${post.postNumber}:`, error);
     return false;
   }
+}
+
+export function cleanupStaleCrawlLogs(): void {
+  const db = getDb();
+  const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  db.update(crawlLogs)
+    .set({ status: 'failed', finishedAt: new Date().toISOString() })
+    .where(and(eq(crawlLogs.status, 'running'), sql`${crawlLogs.startedAt} < ${tenMinutesAgo}`))
+    .run();
 }
 
 export async function crawlAll(): Promise<void> {
@@ -90,6 +100,10 @@ export async function crawlAll(): Promise<void> {
         }
 
         page++;
+        if (page > 50) {
+          console.warn(`[Crawler] Page cap reached for ${board.type}, stopping at page 50`);
+          break;
+        }
         await new Promise((r) => setTimeout(r, 500));
       }
 
@@ -119,7 +133,7 @@ export async function crawlAll(): Promise<void> {
 
 export async function crawlLatest(): Promise<ParsedPost[]> {
   const db = getDb();
-  const allNewPosts: (ParsedPost & { boardType: BoardType })[] = [];
+  const allNewPosts: (ParsedPost & { id: number; boardType: BoardType })[] = [];
 
   for (const board of BOARDS) {
     const logId = db
@@ -137,9 +151,10 @@ export async function crawlLatest(): Promise<ParsedPost[]> {
       let newCount = 0;
 
       for (const post of pagePosts) {
-        if (upsertPost(db, post, board.type)) {
+        const postId = upsertPost(db, post, board.type);
+        if (postId) {
           newCount++;
-          allNewPosts.push({ ...post, boardType: board.type });
+          allNewPosts.push({ ...post, id: postId, boardType: board.type });
         }
       }
 

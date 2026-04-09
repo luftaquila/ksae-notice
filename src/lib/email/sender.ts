@@ -6,6 +6,7 @@ import { sendEmail } from './brevo';
 import { newPostNotification } from './templates';
 
 interface NewPost {
+  id: number;
   postNumber: number;
   title: string;
   category: string | null;
@@ -139,7 +140,7 @@ export async function notifyNewPosts(newPosts: NewPost[]): Promise<void> {
       for (const post of userData.posts) {
         db.insert(emailLogs).values({
           userId,
-          postId: post.postNumber,
+          postId: post.id,
           type: 'notification',
           status: 'sent',
         }).run();
