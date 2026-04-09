@@ -341,26 +341,23 @@ export default function AdminPage() {
             <thead>
               <tr className="text-left text-gray-500 border-b">
                 <th className="pb-2 pr-4 whitespace-nowrap" style={{ width: '1%' }}>게시판</th>
+                <th className="pb-2 pr-4 whitespace-nowrap" style={{ width: '1%' }}>상태</th>
                 <th className="pb-2 pr-4 whitespace-nowrap" style={{ width: '1%' }}>시작</th>
                 <th className="pb-2 pr-4 whitespace-nowrap" style={{ width: '1%' }}>종료</th>
-                <th className="pb-2 pr-4 whitespace-nowrap">신규</th>
-                <th className="pb-2 whitespace-nowrap" style={{ width: '1%' }}>상태</th>
+                <th className="pb-2 whitespace-nowrap">신규</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {stats?.recentCrawls.map((crawl) => (
                 <tr key={crawl.id}>
-                  <td className="py-2 pr-4 whitespace-nowrap">{crawl.boardType === 'notice' ? '공지' : '규정'}</td>
-                  <td className="py-2 pr-4 text-gray-400 whitespace-nowrap">
-                    {new Date(crawl.startedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}
+                  <td className="py-2 pr-4 whitespace-nowrap">
+                    <span className={`inline-block px-1.5 py-0.5 rounded text-xs ${
+                      crawl.boardType === 'notice' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
+                    }`}>
+                      {crawl.boardType === 'notice' ? '공지' : '규정'}
+                    </span>
                   </td>
-                  <td className="py-2 pr-4 text-gray-400 whitespace-nowrap">
-                    {crawl.finishedAt
-                      ? new Date(crawl.finishedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })
-                      : '-'}
-                  </td>
-                  <td className="py-2 pr-4 whitespace-nowrap">{crawl.newPostsCount}</td>
-                  <td className="py-2 whitespace-nowrap">
+                  <td className="py-2 pr-4 whitespace-nowrap">
                     <span
                       className={`inline-block px-2 py-0.5 rounded text-xs ${
                         crawl.status === 'completed'
@@ -373,6 +370,15 @@ export default function AdminPage() {
                       {crawl.status}
                     </span>
                   </td>
+                  <td className="py-2 pr-4 text-gray-400 whitespace-nowrap">
+                    {new Date(crawl.startedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}
+                  </td>
+                  <td className="py-2 pr-4 text-gray-400 whitespace-nowrap">
+                    {crawl.finishedAt
+                      ? new Date(crawl.finishedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })
+                      : '-'}
+                  </td>
+                  <td className="py-2 whitespace-nowrap">{crawl.newPostsCount}</td>
                 </tr>
               ))}
             </tbody>
@@ -434,7 +440,7 @@ export default function AdminPage() {
                     <td className="py-3 pr-4 whitespace-nowrap">{user.emailsSent}건</td>
                     <td className="py-3 whitespace-nowrap">
                       {isDeleted ? null : user.email === session?.user?.email ? (
-                        <span className="text-xs text-gray-400">본인</span>
+                        <span className="text-xs text-gray-400">관리자</span>
                       ) : (
                         <div className="flex gap-1">
                           {hasActive ? (

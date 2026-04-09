@@ -124,7 +124,7 @@ export default function PostTable() {
 
   return (
     <div>
-      <div className="sticky top-14 z-10 bg-gray-50 pt-1 pb-4 -mx-4 px-4">
+      <div className="sticky top-14 z-10 bg-white pt-1 pb-4 -mx-4 px-4 border-b border-gray-200">
       {/* Category filter */}
       <div className="mb-3">
         <CategoryFilter
@@ -215,7 +215,7 @@ export default function PostTable() {
       </div>
 
       {/* Pagination */}
-      <div className="flex flex-col sm:flex-row justify-center items-center gap-2 mt-4">
+      <div className="flex flex-col items-center gap-2 mt-4">
         <div className="flex items-center gap-2">
           <button
             onClick={() => setPage(Math.max(1, page - 1))}
