@@ -106,7 +106,7 @@ export default function PostTable() {
 
   return (
     <div>
-      <div className="sticky top-14 z-10 bg-white dark:bg-gray-950 pt-1 pb-4 -mx-4 px-4 border-b border-gray-200 dark:border-gray-800">
+      <div className="sticky top-14 z-10 bg-gray-50 dark:bg-gray-950 pt-4 pb-4 -mx-4 px-4">
       {/* Category filter */}
       <div className="mb-3">
         <CategoryFilter
