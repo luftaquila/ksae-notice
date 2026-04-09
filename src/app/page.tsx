@@ -37,7 +37,7 @@ export default function Home() {
               ? new Date(stats.lastCrawl.finishedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })
               : '-'}
           </div>
-          <div className="text-xs text-gray-400 mt-1">매일 07:00 ~ 19:00 / 5분 주기</div>
+          <div className="text-xs text-gray-400 mt-1">7AM ~ 7PM / 5분 주기</div>
         </div>
       </div>
 

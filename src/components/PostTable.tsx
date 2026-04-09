@@ -47,7 +47,7 @@ export default function PostTable() {
   const [searchInput, setSearchInput] = useState('');
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
   const [page, setPage] = useState(1);
-  const [perPage, setPerPage] = useState(30);
+  const [perPage, setPerPage] = useState(25);
   const [pinnedFirst, setPinnedFirst] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('pinnedFirst') !== 'false';
@@ -142,13 +142,11 @@ export default function PostTable() {
           className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border transition ${
             pinnedFirst
               ? 'bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100'
-              : 'bg-gray-50 text-gray-400 border-gray-200 hover:bg-gray-100'
+              : 'bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100'
           }`}
-          title={pinnedFirst ? '공지를 상단에 고정합니다' : '시간순으로 정렬합니다'}
+          title={pinnedFirst ? '공지 상단 고정 중 (클릭하면 시간순)' : '시간순 정렬 중 (클릭하면 공지 고정)'}
         >
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
-            <path d="M10.97 2.22a.75.75 0 0 1 1.06 0l1.75 1.75a.75.75 0 0 1-.177 1.206l-2.16 1.08-.486.486 1.293 1.293a.75.75 0 0 1-1.06 1.06L9.912 7.853l-1.72 1.72a3.328 3.328 0 0 1-.607 3.18.75.75 0 0 1-1.133-.068L4.463 9.87l-2.21 2.21a.75.75 0 1 1-1.06-1.06l2.21-2.21-2.816-3.99a.75.75 0 0 1-.068-1.133 3.328 3.328 0 0 1 3.18-.607l1.72-1.72L4.098 .937a.75.75 0 0 1 1.06-1.06L6.45 1.17l.486-.486 1.08-2.16a.75.75 0 0 1 1.206-.177Z" />
-          </svg>
+          <span className="text-base leading-none">{pinnedFirst ? '\u{1F4CC}' : '\u{1F552}'}</span>
           <span className="hidden sm:inline">{pinnedFirst ? '고정' : '시간순'}</span>
         </button>
       </div>
@@ -251,10 +249,9 @@ export default function PostTable() {
             onChange={(e) => setPerPage(Number(e.target.value))}
             className="px-2 py-1.5 text-sm border border-gray-200 rounded bg-white"
           >
-            <option value={20}>20개</option>
-            <option value={30}>30개</option>
+            <option value={10}>10개</option>
+            <option value={25}>25개</option>
             <option value={50}>50개</option>
-            <option value={100}>100개</option>
           </select>
           <span className="text-sm text-gray-400">총 {total}건</span>
         </div>
