@@ -4,10 +4,7 @@ import { auth } from '@/lib/auth';
 import { getDb } from '@/lib/db';
 import { subscriptions, settings } from '@/lib/db/schema';
 import { SUBSCRIPTION_CATEGORIES } from '@/lib/constants';
-
-function getEndOfYear(): string {
-  return `${new Date().getFullYear()}-12-31T23:59:59.000Z`;
-}
+import { upsertSubscription } from '@/lib/subscription/upsert';
 
 function getActiveSubscriberCount(): number {
   const db = getDb();
@@ -79,28 +76,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Upsert subscription
-  const existing = db
-    .select()
-    .from(subscriptions)
-    .where(and(
-      eq(subscriptions.userId, session.user.id),
-      eq(subscriptions.category, category),
-    ))
-    .get();
-
-  if (existing) {
-    db.update(subscriptions)
-      .set({ isActive: 1, expiresAt: getEndOfYear(), renewedAt: new Date().toISOString() })
-      .where(eq(subscriptions.id, existing.id))
-      .run();
-  } else {
-    db.insert(subscriptions).values({
-      userId: session.user.id,
-      category,
-      isActive: 1,
-      expiresAt: getEndOfYear(),
-    }).run();
-  }
+  upsertSubscription(session.user.id, category);
 
   return NextResponse.json({ ok: true });
 }

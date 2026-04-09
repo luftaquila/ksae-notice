@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { requireAdmin } from '@/lib/auth';
 import { sendEmail } from '@/lib/email/brevo';
 import { newPostNotification } from '@/lib/email/templates';
 
 export async function POST() {
-  const session = await auth();
-  if (!session?.user?.isAdmin) {
+  const session = await requireAdmin();
+  if (!session) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 

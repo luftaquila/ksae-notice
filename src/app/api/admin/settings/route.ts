@@ -1,16 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { eq } from 'drizzle-orm';
-import { auth } from '@/lib/auth';
+import { requireAdmin } from '@/lib/auth';
 import { getDb } from '@/lib/db';
 import { settings } from '@/lib/db/schema';
-
-async function requireAdmin() {
-  const session = await auth();
-  if (!session?.user?.isAdmin) {
-    return null;
-  }
-  return session;
-}
 
 export async function GET() {
   if (!(await requireAdmin())) {

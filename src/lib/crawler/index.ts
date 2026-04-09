@@ -5,6 +5,21 @@ import { BOARDS, type BoardType } from '../constants';
 import { parseBoardPage, type ParsedPost } from './parser';
 import { notifyNewPosts } from '../email/sender';
 
+function startCrawlLog(db: ReturnType<typeof getDb>, boardType: string) {
+  return db.insert(crawlLogs).values({
+    boardType,
+    startedAt: new Date().toISOString(),
+    status: 'running',
+  }).run().lastInsertRowid;
+}
+
+function finishCrawlLog(db: ReturnType<typeof getDb>, logId: bigint | number, status: 'completed' | 'failed', newPostsCount = 0) {
+  db.update(crawlLogs)
+    .set({ finishedAt: new Date().toISOString(), newPostsCount, status })
+    .where(eq(crawlLogs.id, Number(logId)))
+    .run();
+}
+
 async function fetchPage(boardCode: string, page: number): Promise<string> {
   const url = `https://www.ksae.org/jajak/bbs/index.php?page=${page}&code=${boardCode}`;
   const res = await fetch(url, {
@@ -71,14 +86,7 @@ export async function crawlAll(): Promise<void> {
   console.log('[Crawler] Starting full crawl...');
 
   for (const board of BOARDS) {
-    const logId = db
-      .insert(crawlLogs)
-      .values({
-        boardType: board.type,
-        startedAt: new Date().toISOString(),
-        status: 'running',
-      })
-      .run().lastInsertRowid;
+    const logId = startCrawlLog(db, board.type);
 
     try {
       let newCount = 0;
@@ -107,25 +115,10 @@ export async function crawlAll(): Promise<void> {
         await new Promise((r) => setTimeout(r, 500));
       }
 
-      db.update(crawlLogs)
-        .set({
-          finishedAt: new Date().toISOString(),
-          newPostsCount: newCount,
-          status: 'completed',
-        })
-        .where(eq(crawlLogs.id, Number(logId)))
-        .run();
-
+      finishCrawlLog(db, logId, 'completed', newCount);
       console.log(`[Crawler] Full crawl for ${board.type}: ${newCount} posts inserted (${page - 1} pages)`);
     } catch (error) {
-      db.update(crawlLogs)
-        .set({
-          finishedAt: new Date().toISOString(),
-          status: 'failed',
-        })
-        .where(eq(crawlLogs.id, Number(logId)))
-        .run();
-
+      finishCrawlLog(db, logId, 'failed');
       console.error(`[Crawler] Full crawl failed for ${board.type}:`, error);
     }
   }
@@ -136,14 +129,7 @@ export async function crawlLatest(): Promise<ParsedPost[]> {
   const allNewPosts: (ParsedPost & { id: number; boardType: BoardType })[] = [];
 
   for (const board of BOARDS) {
-    const logId = db
-      .insert(crawlLogs)
-      .values({
-        boardType: board.type,
-        startedAt: new Date().toISOString(),
-        status: 'running',
-      })
-      .run().lastInsertRowid;
+    const logId = startCrawlLog(db, board.type);
 
     try {
       const html = await fetchPage(board.code, 1);
@@ -158,27 +144,12 @@ export async function crawlLatest(): Promise<ParsedPost[]> {
         }
       }
 
-      db.update(crawlLogs)
-        .set({
-          finishedAt: new Date().toISOString(),
-          newPostsCount: newCount,
-          status: 'completed',
-        })
-        .where(eq(crawlLogs.id, Number(logId)))
-        .run();
-
+      finishCrawlLog(db, logId, 'completed', newCount);
       if (newCount > 0) {
         console.log(`[Crawler] Incremental crawl for ${board.type}: ${newCount} new posts`);
       }
     } catch (error) {
-      db.update(crawlLogs)
-        .set({
-          finishedAt: new Date().toISOString(),
-          status: 'failed',
-        })
-        .where(eq(crawlLogs.id, Number(logId)))
-        .run();
-
+      finishCrawlLog(db, logId, 'failed');
       console.error(`[Crawler] Incremental crawl failed for ${board.type}:`, error);
     }
   }

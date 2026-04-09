@@ -4,7 +4,7 @@ import Google from 'next-auth/providers/google';
 import { eq } from 'drizzle-orm';
 import { getDb } from './db';
 import { users, subscriptions } from './db/schema';
-import { SUBSCRIPTION_CATEGORIES } from './constants';
+import { SUBSCRIPTION_CATEGORIES, getEndOfYear } from './constants';
 
 declare module 'next-auth' {
   interface Session {
@@ -44,7 +44,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         }).run();
 
         const userId = Number(result.lastInsertRowid);
-        const endOfYear = `${new Date().getFullYear()}-12-31T23:59:59.000Z`;
+        const endOfYear = getEndOfYear();
         for (const cat of SUBSCRIPTION_CATEGORIES) {
           db.insert(subscriptions).values({
             userId,
@@ -55,7 +55,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         }
       } else if (existing.deletedAt) {
         // Re-register: clear deletedAt and reactivate all subscriptions
-        const endOfYear = `${new Date().getFullYear()}-12-31T23:59:59.000Z`;
+        const endOfYear = getEndOfYear();
         db.update(users)
           .set({
             deletedAt: null,
@@ -99,12 +99,16 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     },
 
     async session({ session, token }) {
-      if (token.userId) {
-        (session.user as { id: number }).id = token.userId;
-      }
-      (session.user as { isAdmin: boolean }).isAdmin =
-        session.user.email?.toLowerCase() === process.env.ADMIN_EMAIL?.toLowerCase();
+      const user = session.user as { id?: number; isAdmin: boolean };
+      if (token.userId) user.id = token.userId;
+      user.isAdmin = session.user.email?.toLowerCase() === process.env.ADMIN_EMAIL?.toLowerCase();
       return session;
     },
   },
 });
+
+export async function requireAdmin() {
+  const session = await auth();
+  if (!session?.user?.isAdmin) return null;
+  return session;
+}

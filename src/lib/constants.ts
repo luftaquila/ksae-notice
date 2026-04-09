@@ -1,11 +1,11 @@
 export const BOARDS = [
   {
-    type: 'notice' as const,
+    type: 'notice',
     code: 'J_notice',
     baseUrl: 'https://www.ksae.org/jajak/bbs/index.php',
   },
   {
-    type: 'rule' as const,
+    type: 'rule',
     code: 'J_rule',
     baseUrl: 'https://www.ksae.org/jajak/bbs/index.php',
   },
@@ -35,6 +35,6 @@ export const SUBSCRIPTION_CATEGORIES = [
   { id: 'rule', label: '규정' },
 ] as const;
 
-export type SubscriptionCategoryId = (typeof SUBSCRIPTION_CATEGORIES)[number]['id'];
-
-export const POST_BASE_URL = 'https://www.ksae.org/jajak/bbs/';
+export function getEndOfYear(): string {
+  return `${new Date().getFullYear()}-12-31T23:59:59.000Z`;
+}

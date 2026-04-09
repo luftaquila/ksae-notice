@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, uniqueIndex, index } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
 
 export const users = sqliteTable('users', {
@@ -44,6 +44,7 @@ export const posts = sqliteTable(
   },
   (table) => [
     uniqueIndex('posts_board_number_idx').on(table.boardType, table.postNumber),
+    index('posts_date_idx').on(table.date),
   ],
 );
 
@@ -57,7 +58,10 @@ export const emailLogs = sqliteTable('email_logs', {
   status: text('status').notNull(),
   error: text('error'),
   sentAt: text('sent_at').notNull().default(sql`(datetime('now'))`),
-});
+}, (table) => [
+  index('email_logs_status_sent_at_idx').on(table.status, table.sentAt),
+  index('email_logs_user_id_idx').on(table.userId),
+]);
 
 export const crawlLogs = sqliteTable('crawl_logs', {
   id: integer('id').primaryKey({ autoIncrement: true }),
@@ -66,7 +70,9 @@ export const crawlLogs = sqliteTable('crawl_logs', {
   finishedAt: text('finished_at'),
   newPostsCount: integer('new_posts_count').notNull().default(0),
   status: text('status').notNull(),
-});
+}, (table) => [
+  index('crawl_logs_status_started_at_idx').on(table.status, table.startedAt),
+]);
 
 export const settings = sqliteTable('settings', {
   key: text('key').primaryKey(),
