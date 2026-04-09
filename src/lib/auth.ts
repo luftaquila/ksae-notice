@@ -3,7 +3,8 @@ import { type JWT } from 'next-auth/jwt';
 import Google from 'next-auth/providers/google';
 import { eq } from 'drizzle-orm';
 import { getDb } from './db';
-import { users } from './db/schema';
+import { users, subscriptions } from './db/schema';
+import { SUBSCRIPTION_CATEGORIES } from './constants';
 
 declare module 'next-auth' {
   interface Session {
@@ -35,12 +36,23 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         .get();
 
       if (!existing) {
-        db.insert(users).values({
+        const result = db.insert(users).values({
           googleId: profile.sub,
           email: profile.email,
           name: profile.name || null,
           avatar: profile.picture || null,
         }).run();
+
+        const userId = Number(result.lastInsertRowid);
+        const endOfYear = `${new Date().getFullYear()}-12-31T23:59:59.000Z`;
+        for (const cat of SUBSCRIPTION_CATEGORIES) {
+          db.insert(subscriptions).values({
+            userId,
+            category: cat.id,
+            isActive: 1,
+            expiresAt: endOfYear,
+          }).run();
+        }
       } else {
         db.update(users)
           .set({

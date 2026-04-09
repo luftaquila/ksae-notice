@@ -113,9 +113,7 @@ export default function DashboardPage() {
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
       <h1 className="text-2xl font-bold text-gray-900 mb-2">구독 관리</h1>
-      <p className="text-sm text-gray-500 mb-6">
-        {session?.user?.email} 계정으로 로그인됨
-      </p>
+      <p className="text-sm text-gray-500 mb-6">{session?.user?.email}</p>
 
       {error && (
         <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">
@@ -183,8 +181,9 @@ export default function DashboardPage() {
         })}
       </div>
 
-      <div className="mt-6 text-sm text-gray-400 text-center">
-        구독은 매년 12월 31일에 만료되며, 12월에 갱신 안내 메일이 발송됩니다.
+      <div className="mt-6 text-sm text-gray-400 text-center space-y-1">
+        <p>구독은 매년 12월 31일에 만료되며, 12월에 갱신 안내 메일이 발송됩니다.</p>
+        <p>무료 이메일 API 제한으로 구독자 수가 한정되어 있습니다. 졸업 등으로 알림이 불필요한 경우 구독을 해제해 주세요.</p>
       </div>
 
       {/* Account deletion (not for admin) */}

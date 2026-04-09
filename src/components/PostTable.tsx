@@ -118,6 +118,7 @@ export default function PostTable() {
 
   return (
     <div>
+      <div className="sticky top-0 z-10 bg-gray-50 pb-4 -mx-4 px-4">
       {/* Category filter */}
       <div className="mb-3">
         <CategoryFilter
@@ -128,7 +129,7 @@ export default function PostTable() {
       </div>
 
       {/* Search + pinned toggle */}
-      <div className="flex gap-2 mb-4">
+      <div className="flex gap-2">
         <input
           type="text"
           value={searchInput}
@@ -152,6 +153,7 @@ export default function PostTable() {
           <span className="text-base leading-none">{pinnedFirst ? '\u{1F4CC}' : '\u{1F552}'}</span>
           <span className="hidden sm:inline">{pinnedFirst ? '고정' : '시간순'}</span>
         </button>
+      </div>
       </div>
 
       {/* Post list */}
