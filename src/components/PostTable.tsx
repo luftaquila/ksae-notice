@@ -185,7 +185,7 @@ export default function PostTable() {
                   'Baja': 'bg-orange-100 text-orange-700',
                   'Formula': 'bg-blue-100 text-blue-700',
                   'EV': 'bg-purple-100 text-purple-700',
-                  '자율주행': 'bg-cyan-100 text-cyan-700',
+                  '자율주행': 'bg-rose-100 text-rose-700',
                   '규정': 'bg-green-100 text-green-700',
                 };
                 const chipColor = chipColors[chipLabel] || 'bg-gray-100 text-gray-700';

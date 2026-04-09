@@ -220,7 +220,7 @@ export default function AdminPage() {
       'notice_A': 'bg-orange-100 text-orange-700 hover:bg-orange-200',
       'notice_B': 'bg-blue-100 text-blue-700 hover:bg-blue-200',
       'notice_C': 'bg-purple-100 text-purple-700 hover:bg-purple-200',
-      'notice_D': 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200',
+      'notice_D': 'bg-rose-100 text-rose-700 hover:bg-rose-200',
       'rule': 'bg-green-100 text-green-700 hover:bg-green-200',
     };
     return colors[id] || 'bg-blue-100 text-blue-700 hover:bg-blue-200';
