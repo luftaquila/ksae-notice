@@ -220,10 +220,7 @@ export default function AdminPage() {
         <StatCard label="전체 유저" value={stats?.totalUsers ?? 0} />
         <StatCard label="활성 구독자" value={stats?.activeSubscribers ?? 0} />
         <StatCard label="총 게시글" value={stats?.totalPosts ?? 0} />
-        <StatCard
-          label="오늘 발송"
-          value={`${stats?.emails.todaySent ?? 0} / ${stats?.emails.dailyLimit ?? 300}`}
-        />
+        <StatCard label="오늘 발송" value={stats?.emails.todaySent ?? 0} />
       </div>
 
       {/* Email stats */}
