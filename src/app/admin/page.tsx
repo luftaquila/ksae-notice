@@ -260,7 +260,7 @@ export default function AdminPage() {
           <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between p-6 border-b border-gray-200">
               <h2 className="text-lg font-semibold text-gray-900">최근 발송 실패</h2>
-              <button onClick={() => setShowFailedModal(false)} className="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
+              <button onClick={() => setShowFailedModal(false)} className="text-gray-400 hover:text-gray-600 text-xl cursor-pointer">&times;</button>
             </div>
             <div className="overflow-auto p-6">
               <table className="w-full text-sm">
@@ -314,7 +314,7 @@ export default function AdminPage() {
                     registrationOpen: settings.registrationOpen === 'true' ? 'false' : 'true',
                   })
                 }
-                className={`relative w-12 h-6 rounded-full transition ${
+                className={`relative w-12 h-6 rounded-full transition cursor-pointer ${
                   settings.registrationOpen === 'true' ? 'bg-blue-600' : 'bg-gray-300'
                 }`}
               >
@@ -333,14 +333,14 @@ export default function AdminPage() {
             <button
               onClick={sendTestEmail}
               disabled={sendingTestEmail}
-              className="px-4 py-2 bg-gray-100 text-gray-600 text-sm font-medium rounded-lg hover:bg-gray-200 transition disabled:opacity-50"
+              className="px-4 py-2 bg-gray-100 text-gray-600 text-sm font-medium rounded-lg hover:bg-gray-200 transition cursor-pointer disabled:opacity-50"
             >
               {sendingTestEmail ? '발송 중...' : '테스트 메일'}
             </button>
             <button
               onClick={saveSettings}
               disabled={saving}
-              className="px-6 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
+              className="px-6 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition cursor-pointer disabled:opacity-50"
             >
               {saving ? '저장 중...' : '설정 저장'}
             </button>
@@ -461,21 +461,21 @@ export default function AdminPage() {
                           {hasActive ? (
                             <button
                               onClick={() => deactivateUser(user.id)}
-                              className="text-xs px-3 py-1 rounded bg-red-50 text-red-600 hover:bg-red-100 transition"
+                              className="text-xs px-3 py-1 rounded bg-red-50 text-red-600 hover:bg-red-100 transition cursor-pointer"
                             >
                               구독 중단
                             </button>
                           ) : (
                             <button
                               onClick={() => subscribeAll(user.id)}
-                              className="text-xs px-3 py-1 rounded bg-green-50 text-green-600 hover:bg-green-100 transition"
+                              className="text-xs px-3 py-1 rounded bg-green-50 text-green-600 hover:bg-green-100 transition cursor-pointer"
                             >
                               전체 구독
                             </button>
                           )}
                           <button
                             onClick={() => deleteUser(user.id)}
-                            className="text-xs px-3 py-1 rounded bg-gray-50 text-gray-500 hover:bg-gray-200 transition"
+                            className="text-xs px-3 py-1 rounded bg-gray-50 text-gray-500 hover:bg-gray-200 transition cursor-pointer"
                           >
                             삭제
                           </button>

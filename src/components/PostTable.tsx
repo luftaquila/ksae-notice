@@ -154,10 +154,9 @@ export default function PostTable() {
               ? 'bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100'
               : 'bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100'
           }`}
-          title={pinnedFirst ? '공지 상단 고정 중 (클릭하면 시간순)' : '시간순 정렬 중 (클릭하면 공지 고정)'}
+          title={pinnedFirst ? '고정 공지 우선 정렬 (클릭하면 시간순)' : '시간순 정렬 (클릭하면 고정 공지 우선)'}
         >
           <span className="text-base leading-none">{pinnedFirst ? '\u{1F4CC}' : '\u{1F552}'}</span>
-          <span className="hidden sm:inline">{pinnedFirst ? '고정' : '시간순'}</span>
         </button>
       </div>
       </div>
