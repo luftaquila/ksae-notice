@@ -209,7 +209,7 @@ export default function DashboardPage() {
           <button
             onClick={unsubscribeAll}
             disabled={actionLoading === 'unsubscribe_all'}
-            className="text-sm text-gray-400 hover:text-red-500 transition disabled:opacity-50"
+            className="text-sm px-4 py-2 border border-gray-200 rounded-lg text-gray-500 hover:border-red-300 hover:text-red-500 transition cursor-pointer disabled:opacity-50"
           >
             {actionLoading === 'unsubscribe_all' ? '처리 중...' : '전체 구독 해제'}
           </button>

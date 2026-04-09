@@ -185,7 +185,7 @@ export default function PostTable() {
                   'Baja': 'bg-orange-100 text-orange-700',
                   'Formula': 'bg-blue-100 text-blue-700',
                   'EV': 'bg-purple-100 text-purple-700',
-                  '자율주행': 'bg-teal-100 text-teal-700',
+                  '자율주행': 'bg-indigo-100 text-indigo-700',
                   '규정': 'bg-green-100 text-green-700',
                 };
                 const chipColor = chipColors[chipLabel] || 'bg-gray-100 text-gray-700';
@@ -207,8 +207,8 @@ export default function PostTable() {
                         className="text-sm text-gray-900 hover:text-blue-600 transition"
                       >
                         {post.isPinned ? <span className="mr-1">📌</span> : null}
+                        {(() => { const d = new Date(post.date); const now = new Date(); return (now.getTime() - d.getTime()) < 3 * 86400000 ? <span className="mr-1">💡</span> : null; })()}
                         {post.title}
-                        {(() => { const d = new Date(post.date); const now = new Date(); return (now.getTime() - d.getTime()) < 3 * 86400000 ? ' 💡' : null; })()}
                       </a>
                       <div className="text-xs text-gray-400 mt-0.5 sm:hidden">{post.date}</div>
                     </td>
