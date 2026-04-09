@@ -63,14 +63,14 @@ export default function DashboardPage() {
     setActionLoading('renew');
     setError(null);
 
-    for (const sub of subs.filter((s) => s.isActive)) {
-      try {
-        await fetch('/api/subscriptions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ category: sub.category }),
-        });
-      } catch {}
+    try {
+      const res = await fetch('/api/subscriptions/renew', { method: 'POST' });
+      if (!res.ok) {
+        const data = await res.json();
+        setError(data.error || '갱신에 실패했습니다.');
+      }
+    } catch {
+      setError('갱신에 실패했습니다.');
     }
 
     await fetchSubs();
@@ -102,10 +102,13 @@ export default function DashboardPage() {
     );
   }
 
-  const currentYear = new Date().getFullYear();
-  const isDecember = new Date().getMonth() === 11;
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const isDecember = now.getMonth() === 11;
   const hasActiveSubs = subs.some((s) => s.isActive);
   const expiresAt = subs.find((s) => s.isActive)?.expiresAt;
+  const isExpired = expiresAt ? new Date(expiresAt) < now : false;
+  const showRenewal = hasActiveSubs && (isDecember || isExpired);
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
@@ -128,21 +131,23 @@ export default function DashboardPage() {
       )}
 
       {/* Renewal banner */}
-      {isDecember && hasActiveSubs && (
+      {showRenewal && (
         <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
           <div className="flex items-start justify-between">
             <div>
               <div className="font-medium text-amber-800">구독 갱신 안내</div>
               <div className="text-sm text-amber-600 mt-1">
-                현재 구독은 {currentYear}년 12월 31일에 만료됩니다. 아래 버튼을 눌러 갱신하세요.
+                {isExpired
+                  ? '구독이 만료되었습니다. 아래 버튼을 눌러 갱신하세요.'
+                  : `현재 구독은 ${currentYear}년 12월 31일에 만료됩니다. 아래 버튼을 눌러 갱신하세요.`}
               </div>
             </div>
             <button
               onClick={renewAll}
               disabled={actionLoading === 'renew'}
-              className="px-4 py-2 bg-amber-600 text-white text-sm rounded-lg hover:bg-amber-700 transition disabled:opacity-50"
+              className="shrink-0 ml-4 px-4 py-2 bg-amber-600 text-white text-sm rounded-lg hover:bg-amber-700 transition disabled:opacity-50"
             >
-              {actionLoading === 'renew' ? '갱신 중...' : '전체 갱신'}
+              {actionLoading === 'renew' ? '갱신 중...' : `${currentYear + 1}년까지 갱신`}
             </button>
           </div>
         </div>
@@ -182,16 +187,18 @@ export default function DashboardPage() {
         구독은 매년 12월 31일에 만료되며, 12월에 갱신 안내 메일이 발송됩니다.
       </div>
 
-      {/* Account deletion */}
-      <div className="mt-12 pt-6 border-t border-gray-200">
-        <button
-          onClick={deleteAccount}
-          disabled={actionLoading === 'delete'}
-          className="text-sm text-red-400 hover:text-red-600 transition disabled:opacity-50"
-        >
-          {actionLoading === 'delete' ? '처리 중...' : '회원 탈퇴'}
-        </button>
-      </div>
+      {/* Account deletion (not for admin) */}
+      {!session?.user?.isAdmin && (
+        <div className="mt-12 pt-6 border-t border-gray-200">
+          <button
+            onClick={deleteAccount}
+            disabled={actionLoading === 'delete'}
+            className="text-sm text-red-400 hover:text-red-600 transition disabled:opacity-50"
+          >
+            {actionLoading === 'delete' ? '처리 중...' : '회원 탈퇴'}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

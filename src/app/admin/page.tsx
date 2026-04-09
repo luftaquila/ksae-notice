@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSession } from 'next-auth/react';
 import { SUBSCRIPTION_CATEGORIES } from '@/lib/constants';
 
 interface UserInfo {
@@ -12,6 +13,14 @@ interface UserInfo {
   emailsSent: number;
 }
 
+interface FailedEmail {
+  id: number;
+  userId: number;
+  email: string;
+  error: string | null;
+  sentAt: string;
+}
+
 interface AdminStats {
   totalUsers: number;
   activeSubscribers: number;
@@ -21,6 +30,7 @@ interface AdminStats {
     totalFailed: number;
     todaySent: number;
     dailyLimit: number;
+    recentFailed: FailedEmail[];
   };
   recentCrawls: {
     id: number;
@@ -38,6 +48,7 @@ interface Settings {
 }
 
 export default function AdminPage() {
+  const { data: session } = useSession();
   const [users, setUsers] = useState<UserInfo[]>([]);
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [settings, setSettings] = useState<Settings>({ maxSubscribers: '50', registrationOpen: 'true' });
@@ -79,15 +90,76 @@ export default function AdminPage() {
     setSaving(false);
   };
 
-  const toggleUser = async (userId: number, currentlyActive: boolean) => {
+  const deactivateUser = async (userId: number) => {
+    // Optimistic update
+    setUsers((prev) =>
+      prev.map((u) =>
+        u.id === userId
+          ? { ...u, subscriptions: u.subscriptions.map((s) => ({ ...s, isActive: 0 })) }
+          : u,
+      ),
+    );
     try {
       await fetch('/api/admin/users', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, action: currentlyActive ? 'deactivate' : 'activate' }),
+        body: JSON.stringify({ userId, action: 'deactivate' }),
       });
+    } catch {
       await fetchAll();
-    } catch {}
+    }
+  };
+
+  const deleteUser = async (userId: number) => {
+    if (!confirm('이 유저를 삭제하시겠습니까? 모든 데이터가 삭제됩니다.')) return;
+    setUsers((prev) => prev.filter((u) => u.id !== userId));
+    try {
+      await fetch('/api/admin/users', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, action: 'delete' }),
+      });
+    } catch {
+      await fetchAll();
+    }
+  };
+
+  const toggleUserSubscription = async (userId: number, category: string, currentlyActive: boolean) => {
+    // Optimistic update
+    setUsers((prev) =>
+      prev.map((u) => {
+        if (u.id !== userId) return u;
+        const existing = u.subscriptions.find((s) => s.category === category);
+        if (existing) {
+          return {
+            ...u,
+            subscriptions: u.subscriptions.map((s) =>
+              s.category === category ? { ...s, isActive: currentlyActive ? 0 : 1 } : s,
+            ),
+          };
+        }
+        return {
+          ...u,
+          subscriptions: [
+            ...u.subscriptions,
+            { category, isActive: 1, expiresAt: `${new Date().getFullYear()}-12-31T23:59:59.000Z` },
+          ],
+        };
+      }),
+    );
+    try {
+      await fetch('/api/admin/users', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          action: currentlyActive ? 'unsubscribe' : 'subscribe',
+          category,
+        }),
+      });
+    } catch {
+      await fetchAll();
+    }
   };
 
   if (loading) {
@@ -123,10 +195,42 @@ export default function AdminPage() {
         </div>
       </div>
 
+      {/* Failed email logs */}
+      {stats && (
+        <div className="bg-white rounded-lg border border-gray-200 p-6 mb-8">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">최근 발송 실패</h2>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-gray-500 border-b">
+                  <th className="pb-2 pr-4 whitespace-nowrap" style={{ width: '1%' }}>시각</th>
+                  <th className="pb-2 pr-4 whitespace-nowrap" style={{ width: '1%' }}>이메일</th>
+                  <th className="pb-2 whitespace-nowrap">에러</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {(!stats.emails.recentFailed || stats.emails.recentFailed.length === 0) && (
+                  <tr><td colSpan={3} className="py-4 text-center text-gray-400">실패 기록 없음</td></tr>
+                )}
+                {stats.emails.recentFailed?.map((log) => (
+                  <tr key={log.id}>
+                    <td className="py-2 pr-4 text-gray-400 whitespace-nowrap">
+                      {new Date(log.sentAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}
+                    </td>
+                    <td className="py-2 pr-4 font-mono text-xs whitespace-nowrap">{log.email}</td>
+                    <td className="py-2 text-red-600 text-xs">{log.error || '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {/* Settings */}
       <div className="bg-white rounded-lg border border-gray-200 p-6 mb-8">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">설정</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-[auto_auto_1fr] gap-4 sm:items-end">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">최대 구독자 수</label>
             <input
@@ -161,14 +265,16 @@ export default function AdminPage() {
               </span>
             </div>
           </div>
+          <div className="sm:text-right">
+            <button
+              onClick={saveSettings}
+              disabled={saving}
+              className="px-6 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
+            >
+              {saving ? '저장 중...' : '설정 저장'}
+            </button>
+          </div>
         </div>
-        <button
-          onClick={saveSettings}
-          disabled={saving}
-          className="mt-4 px-6 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
-        >
-          {saving ? '저장 중...' : '설정 저장'}
-        </button>
       </div>
 
       {/* Recent crawls */}
@@ -178,27 +284,27 @@ export default function AdminPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-gray-500 border-b">
-                <th className="pb-2 pr-4">게시판</th>
-                <th className="pb-2 pr-4">시작</th>
-                <th className="pb-2 pr-4">종료</th>
-                <th className="pb-2 pr-4">신규</th>
-                <th className="pb-2">상태</th>
+                <th className="pb-2 pr-4 whitespace-nowrap" style={{ width: '1%' }}>게시판</th>
+                <th className="pb-2 pr-4 whitespace-nowrap" style={{ width: '1%' }}>시작</th>
+                <th className="pb-2 pr-4 whitespace-nowrap" style={{ width: '1%' }}>종료</th>
+                <th className="pb-2 pr-4 whitespace-nowrap">신규</th>
+                <th className="pb-2 whitespace-nowrap" style={{ width: '1%' }}>상태</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {stats?.recentCrawls.map((crawl) => (
                 <tr key={crawl.id}>
-                  <td className="py-2 pr-4">{crawl.boardType === 'notice' ? '공지' : '규정'}</td>
-                  <td className="py-2 pr-4 text-gray-400">
+                  <td className="py-2 pr-4 whitespace-nowrap">{crawl.boardType === 'notice' ? '공지' : '규정'}</td>
+                  <td className="py-2 pr-4 text-gray-400 whitespace-nowrap">
                     {new Date(crawl.startedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}
                   </td>
-                  <td className="py-2 pr-4 text-gray-400">
+                  <td className="py-2 pr-4 text-gray-400 whitespace-nowrap">
                     {crawl.finishedAt
                       ? new Date(crawl.finishedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })
                       : '-'}
                   </td>
-                  <td className="py-2 pr-4">{crawl.newPostsCount}</td>
-                  <td className="py-2">
+                  <td className="py-2 pr-4 whitespace-nowrap">{crawl.newPostsCount}</td>
+                  <td className="py-2 whitespace-nowrap">
                     <span
                       className={`inline-block px-2 py-0.5 rounded text-xs ${
                         crawl.status === 'completed'
@@ -227,12 +333,12 @@ export default function AdminPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-gray-500 border-b">
-                <th className="pb-2 pr-4">이메일</th>
-                <th className="pb-2 pr-4">이름</th>
-                <th className="pb-2 pr-4">가입일</th>
-                <th className="pb-2 pr-4">구독 카테고리</th>
-                <th className="pb-2 pr-4">발송</th>
-                <th className="pb-2">관리</th>
+                <th className="pb-2 pr-4 whitespace-nowrap" style={{ width: '1%' }}>이메일</th>
+                <th className="pb-2 pr-4 whitespace-nowrap" style={{ width: '1%' }}>이름</th>
+                <th className="pb-2 pr-4 whitespace-nowrap" style={{ width: '1%' }}>가입일</th>
+                <th className="pb-2 pr-4 whitespace-nowrap">구독</th>
+                <th className="pb-2 pr-4 whitespace-nowrap" style={{ width: '1%' }}>발송</th>
+                <th className="pb-2 whitespace-nowrap" style={{ width: '1%' }}>관리</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -240,40 +346,52 @@ export default function AdminPage() {
                 const hasActive = user.subscriptions.some((s) => s.isActive);
                 return (
                   <tr key={user.id}>
-                    <td className="py-3 pr-4 font-mono text-xs">{user.email}</td>
-                    <td className="py-3 pr-4">{user.name || '-'}</td>
-                    <td className="py-3 pr-4 text-gray-400">{user.createdAt.slice(0, 10)}</td>
-                    <td className="py-3 pr-4">
-                      <div className="flex flex-wrap gap-1">
-                        {user.subscriptions.map((s) => (
-                          <span
-                            key={s.category}
-                            className={`text-xs px-2 py-0.5 rounded ${
-                              s.isActive
-                                ? 'bg-blue-100 text-blue-700'
-                                : 'bg-gray-100 text-gray-400 line-through'
-                            }`}
-                          >
-                            {catLabel(s.category)}
-                          </span>
-                        ))}
-                        {user.subscriptions.length === 0 && (
-                          <span className="text-xs text-gray-300">없음</span>
-                        )}
+                    <td className="py-3 pr-4 font-mono text-xs whitespace-nowrap">{user.email}</td>
+                    <td className="py-3 pr-4 whitespace-nowrap">{user.name || '-'}</td>
+                    <td className="py-3 pr-4 text-gray-400 whitespace-nowrap">{user.createdAt.slice(0, 10)}</td>
+                    <td className="py-3 pr-4 whitespace-nowrap">
+                      <div className="flex gap-1">
+                        {SUBSCRIPTION_CATEGORIES.map((cat) => {
+                          const sub = user.subscriptions.find((s) => s.category === cat.id);
+                          const isActive = sub?.isActive === 1;
+                          return (
+                            <button
+                              key={cat.id}
+                              onClick={() => toggleUserSubscription(user.id, cat.id, isActive)}
+                              className={`text-xs px-2 py-0.5 rounded transition cursor-pointer ${
+                                isActive
+                                  ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                                  : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+                              }`}
+                            >
+                              {catLabel(cat.id)}
+                            </button>
+                          );
+                        })}
                       </div>
                     </td>
-                    <td className="py-3 pr-4">{user.emailsSent}건</td>
-                    <td className="py-3">
-                      <button
-                        onClick={() => toggleUser(user.id, hasActive)}
-                        className={`text-xs px-3 py-1 rounded transition ${
-                          hasActive
-                            ? 'bg-red-50 text-red-600 hover:bg-red-100'
-                            : 'bg-green-50 text-green-600 hover:bg-green-100'
-                        }`}
-                      >
-                        {hasActive ? '구독 중단' : '구독 활성화'}
-                      </button>
+                    <td className="py-3 pr-4 whitespace-nowrap">{user.emailsSent}건</td>
+                    <td className="py-3 whitespace-nowrap">
+                      {user.email === session?.user?.email ? (
+                        <span className="text-xs text-gray-400">본인</span>
+                      ) : (
+                        <div className="flex gap-1">
+                          {hasActive && (
+                            <button
+                              onClick={() => deactivateUser(user.id)}
+                              className="text-xs px-3 py-1 rounded bg-red-50 text-red-600 hover:bg-red-100 transition"
+                            >
+                              구독 중단
+                            </button>
+                          )}
+                          <button
+                            onClick={() => deleteUser(user.id)}
+                            className="text-xs px-3 py-1 rounded bg-gray-50 text-gray-500 hover:bg-gray-200 transition"
+                          >
+                            삭제
+                          </button>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 );

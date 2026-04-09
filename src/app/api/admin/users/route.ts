@@ -3,6 +3,11 @@ import { eq, sql, and } from 'drizzle-orm';
 import { auth } from '@/lib/auth';
 import { getDb } from '@/lib/db';
 import { users, subscriptions, emailLogs } from '@/lib/db/schema';
+import { SUBSCRIPTION_CATEGORIES } from '@/lib/constants';
+
+function getEndOfYear(): string {
+  return `${new Date().getFullYear()}-12-31T23:59:59.000Z`;
+}
 
 async function requireAdmin() {
   const session = await auth();
@@ -17,7 +22,6 @@ export async function GET() {
 
   const db = getDb();
 
-  // Get all users with subscription and email stats
   const allUsers = db.select().from(users).all();
 
   const result = allUsers.map((user) => {
@@ -50,14 +54,13 @@ export async function GET() {
   return NextResponse.json({ users: result });
 }
 
-// PATCH: admin actions on a specific user
 export async function PATCH(request: NextRequest) {
   if (!(await requireAdmin())) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
   const body = await request.json();
-  const { userId, action } = body;
+  const { userId, action, category } = body;
 
   if (!userId || !action) {
     return NextResponse.json({ error: 'Missing userId or action' }, { status: 400 });
@@ -66,7 +69,6 @@ export async function PATCH(request: NextRequest) {
   const db = getDb();
 
   if (action === 'deactivate') {
-    // Deactivate all subscriptions for this user
     db.update(subscriptions)
       .set({ isActive: 0 })
       .where(eq(subscriptions.userId, userId))
@@ -74,11 +76,43 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ ok: true });
   }
 
-  if (action === 'activate') {
-    // Re-activate all subscriptions for this user
+  if (action === 'delete') {
+    db.delete(emailLogs).where(eq(emailLogs.userId, userId)).run();
+    db.delete(subscriptions).where(eq(subscriptions.userId, userId)).run();
+    db.delete(users).where(eq(users.id, userId)).run();
+    return NextResponse.json({ ok: true });
+  }
+
+  if (action === 'subscribe' && category) {
+    if (!SUBSCRIPTION_CATEGORIES.some((c) => c.id === category)) {
+      return NextResponse.json({ error: 'Invalid category' }, { status: 400 });
+    }
+    const existing = db
+      .select()
+      .from(subscriptions)
+      .where(and(eq(subscriptions.userId, userId), eq(subscriptions.category, category)))
+      .get();
+
+    if (existing) {
+      db.update(subscriptions)
+        .set({ isActive: 1, expiresAt: getEndOfYear(), renewedAt: new Date().toISOString() })
+        .where(eq(subscriptions.id, existing.id))
+        .run();
+    } else {
+      db.insert(subscriptions).values({
+        userId,
+        category,
+        isActive: 1,
+        expiresAt: getEndOfYear(),
+      }).run();
+    }
+    return NextResponse.json({ ok: true });
+  }
+
+  if (action === 'unsubscribe' && category) {
     db.update(subscriptions)
-      .set({ isActive: 1 })
-      .where(eq(subscriptions.userId, userId))
+      .set({ isActive: 0 })
+      .where(and(eq(subscriptions.userId, userId), eq(subscriptions.category, category)))
       .run();
     return NextResponse.json({ ok: true });
   }

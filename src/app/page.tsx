@@ -36,7 +36,7 @@ export default function Home() {
           <div className="text-xs text-gray-400 mt-1">
             매일 07:00 ~ 19:00 (KST)
             {stats?.lastCrawl?.finishedAt && (
-              <> · 마지막: {new Date(stats.lastCrawl.finishedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}</>
+              <div>마지막: {new Date(stats.lastCrawl.finishedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}</div>
             )}
           </div>
         </div>
