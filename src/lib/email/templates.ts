@@ -55,10 +55,6 @@ export function newPostNotification(postsByCategory: PostInfo[], siteUrl: string
         <a href="${siteUrl}/dashboard" class="btn">구독 설정 관리</a>
       </p>
     </div>
-    <div class="footer">
-      <p>이 메일은 KSAE 공지봇에서 발송되었습니다.</p>
-      <p><a href="${siteUrl}/dashboard">구독 해제</a></p>
-    </div>
   </div>
 </body>
 </html>`;
@@ -81,9 +77,6 @@ export function renewalReminder(userName: string, siteUrl: string): string {
         <a href="${siteUrl}/dashboard" class="btn">구독 갱신하기</a>
       </p>
       <p style="color: #a0aec0; font-size: 13px; margin-top: 16px;">갱신하지 않으면 12월 31일 이후 알림이 중단됩니다.</p>
-    </div>
-    <div class="footer">
-      <p>이 메일은 KSAE 공지봇에서 발송되었습니다.</p>
     </div>
   </div>
 </body>
