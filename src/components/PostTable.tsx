@@ -58,8 +58,10 @@ export default function PostTable() {
   const [total, setTotal] = useState(0);
   const isMobile = useIsMobile();
 
+  const isInitialLoad = useRef(true);
+
   const fetchPosts = useCallback(async () => {
-    setLoading(true);
+    if (isInitialLoad.current) setLoading(true);
     const params = new URLSearchParams();
 
     const hasRule = selectedCategories.includes('규정');
@@ -96,6 +98,7 @@ export default function PostTable() {
       console.error('Failed to fetch posts');
     } finally {
       setLoading(false);
+      isInitialLoad.current = false;
     }
   }, [selectedCategories, search, page, perPage, pinnedFirst]);
 
@@ -152,7 +155,7 @@ export default function PostTable() {
       </div>
 
       {/* Post list */}
-      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden" style={{ minHeight: loading ? 400 : undefined }}>
+      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
         {loading ? (
           <div className="p-8 text-center text-gray-400">불러오는 중...</div>
         ) : posts.length === 0 ? (
@@ -161,8 +164,8 @@ export default function PostTable() {
           <table className="w-full">
             <thead>
               <tr className="bg-gray-50 text-left text-sm text-gray-500">
-                <th className="px-4 py-3 whitespace-nowrap text-center" style={{ width: '1%' }}>분류</th>
-                <th className="px-4 py-3">제목</th>
+                <th className="pl-4 pr-2 py-3 whitespace-nowrap text-center" style={{ width: '1%' }}>분류</th>
+                <th className="px-2 py-3">제목</th>
                 <th className="px-4 py-3 w-28 hidden sm:table-cell">등록일</th>
               </tr>
             </thead>
@@ -175,20 +178,21 @@ export default function PostTable() {
                 return (
                   <tr
                     key={`${post.boardType}-${post.postNumber}`}
-                    className={`hover:bg-gray-50 transition ${post.isPinned ? 'bg-blue-50/50' : ''}`}
+                    className="hover:bg-gray-50 transition"
                   >
-                    <td className="px-4 py-3 whitespace-nowrap text-center">
-                      <span className={`inline-block text-xs px-2 py-0.5 rounded whitespace-nowrap ${chipColor}`}>
+                    <td className="pl-4 pr-2 py-3 whitespace-nowrap text-center">
+                      <span className={`inline-block text-xs px-1.5 py-0.5 rounded whitespace-nowrap ${chipColor}`}>
                         {chipLabel}
                       </span>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-2 py-3">
                       <a
                         href={isMobile ? getMobileUrl(post) : post.url}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-sm text-gray-900 hover:text-blue-600 transition"
                       >
+                        {post.isPinned ? <span className="mr-1">📌</span> : null}
                         {post.title}
                       </a>
                       <div className="text-xs text-gray-400 mt-0.5 sm:hidden">{post.date}</div>
