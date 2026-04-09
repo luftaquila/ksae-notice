@@ -1,19 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { eq, desc, and, sql, like } from 'drizzle-orm';
+import { eq, desc, asc, and, sql, like } from 'drizzle-orm';
 import { getDb } from '@/lib/db';
 import { posts } from '@/lib/db/schema';
 
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
-  const board = searchParams.get('board'); // 'notice' | 'rule' | null (all)
-  const category = searchParams.get('category'); // category text filter
-  const pinned = searchParams.get('pinned'); // 'true' | 'false' | null
+  const board = searchParams.get('board');
+  const category = searchParams.get('category');
+  const pinned = searchParams.get('pinned');
+  const pinnedFirst = searchParams.get('pinnedFirst') !== 'false';
   const page = parseInt(searchParams.get('page') || '1', 10);
   const limit = Math.min(parseInt(searchParams.get('limit') || '20', 10), 100);
+  const search = searchParams.get('search');
 
   const db = getDb();
-
-  const search = searchParams.get('search');
 
   const conditions = [];
   if (board) conditions.push(eq(posts.boardType, board));
@@ -24,12 +24,17 @@ export async function GET(request: NextRequest) {
 
   const where = conditions.length > 0 ? and(...conditions) : undefined;
 
+  // pinnedFirst: pinned DESC → boardType ASC (notice before rule) → date DESC
+  const order = pinnedFirst
+    ? [desc(posts.isPinned), asc(posts.boardType), desc(posts.date), desc(posts.postNumber)]
+    : [desc(posts.date), desc(posts.postNumber)];
+
   const [items, countResult] = await Promise.all([
     db
       .select()
       .from(posts)
       .where(where)
-      .orderBy(desc(posts.isPinned), desc(posts.date), desc(posts.postNumber))
+      .orderBy(...order)
       .limit(limit)
       .offset((page - 1) * limit)
       .all(),

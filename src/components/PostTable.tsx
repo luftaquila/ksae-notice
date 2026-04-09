@@ -47,6 +47,12 @@ export default function PostTable() {
   const [searchInput, setSearchInput] = useState('');
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(30);
+  const [pinnedFirst, setPinnedFirst] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('pinnedFirst') !== 'false';
+    }
+    return true;
+  });
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
   const isMobile = useIsMobile();
@@ -66,6 +72,7 @@ export default function PostTable() {
     }
 
     if (search) params.set('search', search);
+    if (!pinnedFirst) params.set('pinnedFirst', 'false');
     params.set('page', String(page));
     params.set('limit', String(perPage));
 
@@ -89,7 +96,7 @@ export default function PostTable() {
     } finally {
       setLoading(false);
     }
-  }, [selectedCategories, search, page, perPage]);
+  }, [selectedCategories, search, page, perPage, pinnedFirst]);
 
   useEffect(() => {
     fetchPosts();
@@ -97,7 +104,7 @@ export default function PostTable() {
 
   useEffect(() => {
     setPage(1);
-  }, [selectedCategories, search, perPage]);
+  }, [selectedCategories, search, perPage, pinnedFirst]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -113,6 +120,24 @@ export default function PostTable() {
           selected={selectedCategories}
           onChange={setSelectedCategories}
         />
+      </div>
+
+      {/* Options */}
+      <div className="flex items-center gap-3 mb-3">
+        <button
+          onClick={() => {
+            const next = !pinnedFirst;
+            setPinnedFirst(next);
+            localStorage.setItem('pinnedFirst', String(next));
+          }}
+          className={`text-xs px-2.5 py-1 rounded-full border transition ${
+            pinnedFirst
+              ? 'bg-blue-50 text-blue-600 border-blue-200'
+              : 'bg-gray-50 text-gray-500 border-gray-200'
+          }`}
+        >
+          {pinnedFirst ? '📌 공지 상단 고정' : '공지 상단 고정 해제'}
+        </button>
       </div>
 
       {/* Search */}
