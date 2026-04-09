@@ -224,7 +224,7 @@ export default function AdminPage() {
       </div>
 
       {/* Email stats */}
-      <div className="grid grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-2 gap-4 mb-8">
         <div className="bg-white rounded-lg border border-gray-200 p-4">
           <div className="text-sm text-gray-500">누적 발송 성공</div>
           <div className="text-xl font-bold text-green-600 mt-1">{stats?.emails.totalSent ?? 0}건</div>
@@ -236,15 +236,6 @@ export default function AdminPage() {
           <div className="text-sm text-gray-500">누적 발송 실패</div>
           <div className="text-xl font-bold text-red-600 mt-1">{stats?.emails.totalFailed ?? 0}건</div>
           <div className="text-xs text-gray-400 mt-1">클릭하여 상세 보기</div>
-        </button>
-        <button
-          onClick={sendTestEmail}
-          disabled={sendingTestEmail}
-          className="bg-white rounded-lg border border-gray-200 p-4 text-left hover:border-blue-300 transition cursor-pointer disabled:opacity-50"
-        >
-          <div className="text-sm text-gray-500">테스트 메일</div>
-          <div className="text-sm font-medium text-blue-600 mt-1">{sendingTestEmail ? '발송 중...' : '관리자에게 발송'}</div>
-          <div className="text-xs text-gray-400 mt-1">실제 알림과 동일 형식</div>
         </button>
       </div>
 
@@ -323,7 +314,14 @@ export default function AdminPage() {
               </span>
             </div>
           </div>
-          <div className="sm:text-right">
+          <div className="sm:text-right flex gap-2 sm:justify-end">
+            <button
+              onClick={sendTestEmail}
+              disabled={sendingTestEmail}
+              className="px-4 py-2 bg-gray-100 text-gray-600 text-sm font-medium rounded-lg hover:bg-gray-200 transition disabled:opacity-50"
+            >
+              {sendingTestEmail ? '발송 중...' : '테스트 메일'}
+            </button>
             <button
               onClick={saveSettings}
               disabled={saving}
@@ -449,7 +447,7 @@ export default function AdminPage() {
                           ) : (
                             <button
                               onClick={() => subscribeAll(user.id)}
-                              className="text-xs px-3 py-1 rounded bg-blue-50 text-blue-600 hover:bg-blue-100 transition"
+                              className="text-xs px-3 py-1 rounded bg-green-50 text-green-600 hover:bg-green-100 transition"
                             >
                               전체 구독
                             </button>
