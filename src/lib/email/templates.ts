@@ -1,3 +1,5 @@
+import { CATEGORY_COLORS } from '../constants';
+
 interface PostInfo {
   id: number;
   title: string;
@@ -27,20 +29,13 @@ function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-const CATEGORY_EMAIL_COLORS: Record<string, { bg: string; text: string }> = {
-  '공통': { bg: '#e5e7eb', text: '#374151' },
-  'Baja': { bg: '#ffedd5', text: '#c2410c' },
-  'Formula': { bg: '#dbeafe', text: '#1d4ed8' },
-  'EV': { bg: '#f3e8ff', text: '#7e22ce' },
-  '자율주행': { bg: '#ffe4e6', text: '#be123c' },
-  '규정': { bg: '#dcfce7', text: '#15803d' },
-};
+const DEFAULT_EMAIL_COLORS = { bg: '#e5e7eb', text: '#374151' };
 
 export function newPostNotification(postsByCategory: PostInfo[], siteUrl: string): string {
   const postsHtml = postsByCategory
     .map((post) => {
       const categoryLabel = post.boardType === 'rule' ? '규정' : (post.category || '공통');
-      const colors = CATEGORY_EMAIL_COLORS[categoryLabel] || CATEGORY_EMAIL_COLORS['공통'];
+      const colors = CATEGORY_COLORS[categoryLabel]?.email || DEFAULT_EMAIL_COLORS;
       const postUrl = `${siteUrl}/go/${post.id}`;
       return `
         <a href="${escapeHtml(postUrl)}" class="post-item">

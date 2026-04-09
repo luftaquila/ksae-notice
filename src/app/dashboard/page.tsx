@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import { SUBSCRIPTION_CATEGORIES } from '@/lib/constants';
+import ToggleSwitch from '@/components/ToggleSwitch';
 
 interface Subscription {
   id: number;
@@ -169,7 +170,7 @@ export default function DashboardPage() {
             <button
               onClick={renewAll}
               disabled={actionLoading === 'renew'}
-              className="shrink-0 ml-4 px-4 py-2 bg-amber-600 text-white text-sm rounded-lg hover:bg-amber-700 transition cursor-pointer disabled:opacity-50"
+              className="shrink-0 ml-4 px-4 py-2 bg-amber-600 text-white text-sm rounded-lg hover:bg-amber-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 transition cursor-pointer disabled:opacity-50"
             >
               {actionLoading === 'renew' ? '갱신 중...' : `${currentYear + 1}년까지 갱신`}
             </button>
@@ -189,19 +190,11 @@ export default function DashboardPage() {
               className="flex items-center justify-between px-4 py-3"
             >
               <div className="text-sm font-medium text-gray-900">{cat.label.replace('공지 - ', '')}</div>
-              <button
-                onClick={() => toggleSubscription(cat.id, isActive)}
+              <ToggleSwitch
+                checked={isActive}
+                onChange={() => toggleSubscription(cat.id, isActive)}
                 disabled={actionLoading === cat.id}
-                className={`relative w-11 h-6 rounded-full transition cursor-pointer ${
-                  isActive ? 'bg-blue-600' : 'bg-gray-300'
-                } ${actionLoading === cat.id ? 'opacity-50' : ''}`}
-              >
-                <span
-                  className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
-                    isActive ? 'translate-x-5' : ''
-                  }`}
-                />
-              </button>
+              />
             </div>
           );
         })}
@@ -212,7 +205,7 @@ export default function DashboardPage() {
           <button
             onClick={unsubscribeAll}
             disabled={actionLoading === 'unsubscribe_all'}
-            className="text-sm px-4 py-2 border border-gray-200 rounded-lg text-gray-500 hover:border-red-300 hover:text-red-500 transition cursor-pointer disabled:opacity-50"
+            className="text-sm px-4 py-2 border border-gray-200 rounded-lg text-gray-500 hover:border-red-300 hover:text-red-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 transition cursor-pointer disabled:opacity-50"
           >
             {actionLoading === 'unsubscribe_all' ? '처리 중...' : '전체 구독 해제'}
           </button>
@@ -231,7 +224,7 @@ export default function DashboardPage() {
           <button
             onClick={deleteAccount}
             disabled={actionLoading === 'delete'}
-            className="text-sm text-red-400 hover:text-red-600 transition cursor-pointer disabled:opacity-50"
+            className="text-sm text-red-400 hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 transition cursor-pointer disabled:opacity-50"
           >
             {actionLoading === 'delete' ? '처리 중...' : '회원 탈퇴'}
           </button>

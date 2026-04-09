@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
-import { SUBSCRIPTION_CATEGORIES } from '@/lib/constants';
+import { SUBSCRIPTION_CATEGORIES, CATEGORY_COLORS, getCategoryLabel } from '@/lib/constants';
+import ToggleSwitch from '@/components/ToggleSwitch';
 
 interface UserInfo {
   id: number;
@@ -220,23 +221,6 @@ export default function AdminPage() {
     return <div className="max-w-6xl mx-auto px-4 py-12 text-center text-gray-400">불러오는 중...</div>;
   }
 
-  const catLabel = (id: string) => {
-    const label = SUBSCRIPTION_CATEGORIES.find((c) => c.id === id)?.label || id;
-    return label.replace('공지 - ', '');
-  };
-
-  const catActiveColor = (id: string): string => {
-    const colors: Record<string, string> = {
-      'notice_Z': 'bg-gray-200 text-gray-700 hover:bg-gray-300',
-      'notice_A': 'bg-orange-100 text-orange-700 hover:bg-orange-200',
-      'notice_B': 'bg-blue-100 text-blue-700 hover:bg-blue-200',
-      'notice_C': 'bg-purple-100 text-purple-700 hover:bg-purple-200',
-      'notice_D': 'bg-rose-100 text-rose-700 hover:bg-rose-200',
-      'rule': 'bg-green-100 text-green-700 hover:bg-green-200',
-    };
-    return colors[id] || 'bg-blue-100 text-blue-700 hover:bg-blue-200';
-  };
-
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
       <h1 className="text-2xl font-bold text-gray-900 mb-6">관리자 대시보드</h1>
@@ -261,7 +245,7 @@ export default function AdminPage() {
         </div>
         <button
           onClick={() => setShowFailedModal(true)}
-          className="bg-white rounded-lg border border-gray-200 p-4 text-left hover:border-red-300 transition cursor-pointer"
+          className="bg-white rounded-lg border border-gray-200 p-4 text-left hover:border-red-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition cursor-pointer"
         >
           <div className="text-sm text-gray-500">누적 발송 실패</div>
           <div className="text-xl font-bold text-red-600 mt-1">{stats?.emails.totalFailed ?? 0}건</div>
@@ -275,14 +259,14 @@ export default function AdminPage() {
           <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between p-6 border-b border-gray-200">
               <h2 className="text-lg font-semibold text-gray-900">최근 발송 실패</h2>
-              <button onClick={() => setShowFailedModal(false)} className="text-gray-400 hover:text-gray-600 text-xl cursor-pointer">&times;</button>
+              <button onClick={() => setShowFailedModal(false)} className="text-gray-400 hover:text-gray-600 text-xl cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 rounded">&times;</button>
             </div>
             <div className="overflow-auto p-6">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-gray-500 border-b">
-                    <th className="pb-2 pr-4 whitespace-nowrap" style={{ width: '1%' }}>시각</th>
-                    <th className="pb-2 pr-4 whitespace-nowrap" style={{ width: '1%' }}>이메일</th>
+                    <th className="pb-2 pr-4 whitespace-nowrap w-[1%]">시각</th>
+                    <th className="pb-2 pr-4 whitespace-nowrap w-[1%]">이메일</th>
                     <th className="pb-2 whitespace-nowrap">에러</th>
                   </tr>
                 </thead>
@@ -322,23 +306,15 @@ export default function AdminPage() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">신규 구독 접수</label>
             <div className="flex items-center gap-3 h-[38px]">
-              <button
-                onClick={() =>
+              <ToggleSwitch
+                checked={settings.registrationOpen === 'true'}
+                onChange={() =>
                   setSettings({
                     ...settings,
                     registrationOpen: settings.registrationOpen === 'true' ? 'false' : 'true',
                   })
                 }
-                className={`relative w-12 h-6 rounded-full transition cursor-pointer ${
-                  settings.registrationOpen === 'true' ? 'bg-blue-600' : 'bg-gray-300'
-                }`}
-              >
-                <span
-                  className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
-                    settings.registrationOpen === 'true' ? 'translate-x-6' : ''
-                  }`}
-                />
-              </button>
+              />
               <span className="text-sm text-gray-600">
                 {settings.registrationOpen === 'true' ? '접수 중' : '중단됨'}
               </span>
@@ -348,14 +324,14 @@ export default function AdminPage() {
             <button
               onClick={sendTestEmail}
               disabled={sendingTestEmail}
-              className="px-4 py-2 bg-gray-100 text-gray-600 text-sm font-medium rounded-lg hover:bg-gray-200 transition cursor-pointer disabled:opacity-50"
+              className="px-4 py-2 bg-gray-100 text-gray-600 text-sm font-medium rounded-lg hover:bg-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition cursor-pointer disabled:opacity-50"
             >
               {sendingTestEmail ? '발송 중...' : '테스트 메일'}
             </button>
             <button
               onClick={saveSettings}
               disabled={saving}
-              className="px-6 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition cursor-pointer disabled:opacity-50"
+              className="px-6 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition cursor-pointer disabled:opacity-50"
             >
               {saving ? '저장 중...' : '설정 저장'}
             </button>
@@ -370,10 +346,10 @@ export default function AdminPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-gray-500 border-b">
-                <th className="pb-2 pr-4 whitespace-nowrap" style={{ width: '1%' }}>게시판</th>
-                <th className="pb-2 pr-4 whitespace-nowrap" style={{ width: '1%' }}>상태</th>
-                <th className="pb-2 pr-4 whitespace-nowrap" style={{ width: '1%' }}>시작</th>
-                <th className="pb-2 pr-4 whitespace-nowrap" style={{ width: '1%' }}>종료</th>
+                <th className="pb-2 pr-4 whitespace-nowrap w-[1%]">게시판</th>
+                <th className="pb-2 pr-4 whitespace-nowrap w-[1%]">상태</th>
+                <th className="pb-2 pr-4 whitespace-nowrap w-[1%]">시작</th>
+                <th className="pb-2 pr-4 whitespace-nowrap w-[1%]">종료</th>
                 <th className="pb-2 whitespace-nowrap">신규</th>
               </tr>
             </thead>
@@ -425,12 +401,12 @@ export default function AdminPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-gray-500 border-b">
-                <th className="pb-2 pr-4 whitespace-nowrap" style={{ width: '1%' }}>이메일</th>
-                <th className="pb-2 pr-4 whitespace-nowrap" style={{ width: '1%' }}>이름</th>
-                <th className="pb-2 pr-4 whitespace-nowrap" style={{ width: '1%' }}>가입일</th>
+                <th className="pb-2 pr-4 whitespace-nowrap w-[1%]">이메일</th>
+                <th className="pb-2 pr-4 whitespace-nowrap w-[1%]">이름</th>
+                <th className="pb-2 pr-4 whitespace-nowrap w-[1%]">가입일</th>
                 <th className="pb-2 pr-4 whitespace-nowrap">구독</th>
-                <th className="pb-2 pr-4 whitespace-nowrap" style={{ width: '1%' }}>발송</th>
-                <th className="pb-2 whitespace-nowrap" style={{ width: '1%' }}>관리</th>
+                <th className="pb-2 pr-4 whitespace-nowrap w-[1%]">발송</th>
+                <th className="pb-2 whitespace-nowrap w-[1%]">관리</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -450,17 +426,18 @@ export default function AdminPage() {
                           {SUBSCRIPTION_CATEGORIES.map((cat) => {
                             const sub = user.subscriptions.find((s) => s.category === cat.id);
                             const isActive = sub?.isActive === 1;
+                            const label = getCategoryLabel(cat.id);
                             return (
                               <button
                                 key={cat.id}
                                 onClick={() => toggleUserSubscription(user.id, cat.id, isActive)}
-                                className={`text-xs px-2 py-0.5 rounded transition cursor-pointer ${
+                                className={`text-xs px-2 py-0.5 rounded transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${
                                   isActive
-                                    ? catActiveColor(cat.id)
+                                    ? (CATEGORY_COLORS[label]?.chipHover || 'bg-blue-100 text-blue-700 hover:bg-blue-200')
                                     : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
                                 }`}
                               >
-                                {catLabel(cat.id)}
+                                {label}
                               </button>
                             );
                           })}
@@ -476,21 +453,21 @@ export default function AdminPage() {
                           {hasActive ? (
                             <button
                               onClick={() => deactivateUser(user.id)}
-                              className="text-xs px-3 py-1 rounded bg-red-50 text-red-600 hover:bg-red-100 transition cursor-pointer"
+                              className="text-xs px-3 py-1 rounded bg-red-50 text-red-600 hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 transition cursor-pointer"
                             >
                               구독 중단
                             </button>
                           ) : (
                             <button
                               onClick={() => subscribeAll(user.id)}
-                              className="text-xs px-3 py-1 rounded bg-green-50 text-green-600 hover:bg-green-100 transition cursor-pointer"
+                              className="text-xs px-3 py-1 rounded bg-green-50 text-green-600 hover:bg-green-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 transition cursor-pointer"
                             >
                               전체 구독
                             </button>
                           )}
                           <button
                             onClick={() => deleteUser(user.id)}
-                            className="text-xs px-3 py-1 rounded bg-gray-50 text-gray-500 hover:bg-gray-200 transition cursor-pointer"
+                            className="text-xs px-3 py-1 rounded bg-gray-50 text-gray-500 hover:bg-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition cursor-pointer"
                           >
                             삭제
                           </button>

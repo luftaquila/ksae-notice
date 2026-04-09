@@ -6,7 +6,7 @@ export default function LoginButton() {
   const { data: session, status } = useSession();
 
   if (status === 'loading') {
-    return <div className="h-9 w-20 bg-gray-200 rounded animate-pulse" />;
+    return <div className="h-9 w-20 bg-gray-200 rounded-lg animate-pulse" />;
   }
 
   if (session) {
@@ -15,21 +15,21 @@ export default function LoginButton() {
         <span className="text-sm text-gray-600 hidden sm:block">{session.user?.name || session.user?.email}</span>
         <a
           href="/dashboard"
-          className="text-sm px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 transition"
+          className="text-sm px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition"
         >
           구독 관리
         </a>
         {session.user?.isAdmin && (
           <a
             href="/admin"
-            className="text-sm px-3 py-1.5 bg-gray-700 text-white rounded hover:bg-gray-800 transition"
+            className="text-sm px-3 py-1.5 bg-gray-700 text-white rounded-lg hover:bg-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition"
           >
             관리
           </a>
         )}
         <button
           onClick={() => signOut()}
-          className="text-sm px-3 py-1.5 border border-gray-300 rounded hover:bg-gray-50 transition cursor-pointer"
+          className="text-sm px-3 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition cursor-pointer"
         >
           로그아웃
         </button>
@@ -40,7 +40,7 @@ export default function LoginButton() {
   return (
     <button
       onClick={() => signIn('google')}
-      className="text-sm px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition cursor-pointer flex items-center gap-2"
+      className="text-sm px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition cursor-pointer flex items-center gap-2"
     >
       <svg className="w-4 h-4" viewBox="0 0 24 24">
         <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" />

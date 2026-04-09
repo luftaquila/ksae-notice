@@ -30,7 +30,7 @@ export default function RootLayout({
         <SessionProvider>
           <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
             <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
-              <a href="/" className="font-bold text-lg text-gray-900 hover:text-blue-600 transition">
+              <a href="/" className="font-bold text-lg text-gray-900 hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 rounded transition">
                 KSAE 공지봇
               </a>
               <LoginButton />
@@ -39,7 +39,7 @@ export default function RootLayout({
           <main className="flex-1">{children}</main>
           <footer className="border-t border-gray-200 bg-white py-6">
             <div className="max-w-6xl mx-auto px-4 text-center text-sm text-gray-400">
-              KSAE 대학생 자작자동차대회 공지사항 알림봇 &bull; <a href="https://github.com/luftaquila/ksae-notice" target="_blank" rel="noopener noreferrer" className="hover:text-gray-600 transition">GitHub</a>
+              KSAE 대학생 자작자동차대회 공지사항 알림봇 &bull; <a href="https://github.com/luftaquila/ksae-notice" target="_blank" rel="noopener noreferrer" className="hover:text-gray-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 rounded transition">GitHub</a>
             </div>
           </footer>
         </SessionProvider>

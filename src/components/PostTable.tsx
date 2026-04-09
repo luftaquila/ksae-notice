@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { CATEGORY_COLORS } from '@/lib/constants';
 import CategoryFilter from './CategoryFilter';
 
 interface Post {
@@ -47,19 +48,15 @@ export default function PostTable() {
   const [searchInput, setSearchInput] = useState('');
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
   const [page, setPage] = useState(1);
-  const [perPage, setPerPage] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('perPage');
-      if (saved) return Number(saved);
-    }
-    return 10;
-  });
-  const [pinnedFirst, setPinnedFirst] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('pinnedFirst') === 'true';
-    }
-    return true;
-  });
+  const [perPage, setPerPage] = useState(10);
+  const [pinnedFirst, setPinnedFirst] = useState(true);
+
+  useEffect(() => {
+    const savedPerPage = localStorage.getItem('perPage');
+    if (savedPerPage) setPerPage(Number(savedPerPage));
+    const savedPinned = localStorage.getItem('pinnedFirst');
+    if (savedPinned !== null) setPinnedFirst(savedPinned === 'true');
+  }, []);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
   const isMobile = useIsMobile();
@@ -134,7 +131,7 @@ export default function PostTable() {
             setPinnedFirst(next);
             localStorage.setItem('pinnedFirst', String(next));
           }}
-          className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border transition cursor-pointer ${
+          className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${
             pinnedFirst
               ? 'bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100'
               : 'bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100'
@@ -156,7 +153,7 @@ export default function PostTable() {
           <table className="w-full">
             <thead>
               <tr className="bg-gray-50 text-left text-sm text-gray-500">
-                <th className="pl-4 pr-2 py-3 whitespace-nowrap text-center" style={{ width: '1%' }}>분류</th>
+                <th className="pl-4 pr-2 py-3 whitespace-nowrap text-center w-[1%]">분류</th>
                 <th className="px-2 py-3">제목</th>
                 <th className="px-4 py-3 w-28 hidden sm:table-cell">등록일</th>
               </tr>
@@ -164,15 +161,7 @@ export default function PostTable() {
             <tbody className="divide-y divide-gray-100">
               {posts.map((post) => {
                 const chipLabel = post.boardType === 'rule' ? '규정' : (post.category || '공통');
-                const chipColors: Record<string, string> = {
-                  '공통': 'bg-gray-100 text-gray-700',
-                  'Baja': 'bg-orange-100 text-orange-700',
-                  'Formula': 'bg-blue-100 text-blue-700',
-                  'EV': 'bg-purple-100 text-purple-700',
-                  '자율주행': 'bg-rose-100 text-rose-700',
-                  '규정': 'bg-green-100 text-green-700',
-                };
-                const chipColor = chipColors[chipLabel] || 'bg-gray-100 text-gray-700';
+                const chipColor = CATEGORY_COLORS[chipLabel]?.chip || 'bg-gray-100 text-gray-700';
                 return (
                   <tr
                     key={`${post.boardType}-${post.postNumber}`}
@@ -211,7 +200,7 @@ export default function PostTable() {
           <button
             onClick={() => setPage(Math.max(1, page - 1))}
             disabled={page === 1}
-            className="px-3 py-1.5 text-sm rounded border border-gray-200 disabled:opacity-50 hover:bg-gray-50 transition cursor-pointer"
+            className="px-3 py-1.5 text-sm rounded border border-gray-200 disabled:opacity-50 hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition cursor-pointer"
           >
             이전
           </button>
@@ -227,7 +216,7 @@ export default function PostTable() {
                 <button
                   key={p}
                   onClick={() => setPage(p)}
-                  className={`w-9 py-1.5 text-sm text-center rounded border transition cursor-pointer ${
+                  className={`w-9 py-1.5 text-sm text-center rounded border transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${
                     p === page
                       ? 'bg-blue-600 text-white border-blue-600'
                       : 'border-gray-200 hover:bg-gray-50'
@@ -241,7 +230,7 @@ export default function PostTable() {
           <button
             onClick={() => setPage(Math.min(totalPages, page + 1))}
             disabled={page >= totalPages}
-            className="px-3 py-1.5 text-sm rounded border border-gray-200 disabled:opacity-50 hover:bg-gray-50 transition cursor-pointer"
+            className="px-3 py-1.5 text-sm rounded border border-gray-200 disabled:opacity-50 hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition cursor-pointer"
           >
             다음
           </button>
@@ -251,7 +240,7 @@ export default function PostTable() {
           <select
             value={perPage}
             onChange={(e) => { const v = Number(e.target.value); setPerPage(v); localStorage.setItem('perPage', String(v)); }}
-            className="px-2 py-1.5 text-sm border border-gray-200 rounded bg-white cursor-pointer"
+            className="px-2 py-1.5 text-sm border border-gray-200 rounded bg-white cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
           >
             <option value={10}>10개</option>
             <option value={25}>25개</option>

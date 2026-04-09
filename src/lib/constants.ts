@@ -38,3 +38,60 @@ export const SUBSCRIPTION_CATEGORIES = [
 export function getEndOfYear(): string {
   return `${new Date().getFullYear()}-12-31T23:59:59.000Z`;
 }
+
+export const CATEGORY_COLORS: Record<string, {
+  chip: string;
+  chipHover: string;
+  filterActive: string;
+  filterInactive: string;
+  email: { bg: string; text: string };
+}> = {
+  '공통': {
+    chip: 'bg-gray-100 text-gray-700',
+    chipHover: 'bg-gray-200 text-gray-700 hover:bg-gray-300',
+    filterActive: 'bg-gray-600 text-white',
+    filterInactive: 'bg-gray-100 text-gray-600 hover:bg-gray-200',
+    email: { bg: '#e5e7eb', text: '#374151' },
+  },
+  'Baja': {
+    chip: 'bg-orange-100 text-orange-700',
+    chipHover: 'bg-orange-100 text-orange-700 hover:bg-orange-200',
+    filterActive: 'bg-orange-500 text-white',
+    filterInactive: 'bg-orange-50 text-orange-600 hover:bg-orange-100',
+    email: { bg: '#ffedd5', text: '#c2410c' },
+  },
+  'Formula': {
+    chip: 'bg-blue-100 text-blue-700',
+    chipHover: 'bg-blue-100 text-blue-700 hover:bg-blue-200',
+    filterActive: 'bg-blue-600 text-white',
+    filterInactive: 'bg-blue-50 text-blue-600 hover:bg-blue-100',
+    email: { bg: '#dbeafe', text: '#1d4ed8' },
+  },
+  'EV': {
+    chip: 'bg-purple-100 text-purple-700',
+    chipHover: 'bg-purple-100 text-purple-700 hover:bg-purple-200',
+    filterActive: 'bg-purple-600 text-white',
+    filterInactive: 'bg-purple-50 text-purple-600 hover:bg-purple-100',
+    email: { bg: '#f3e8ff', text: '#7e22ce' },
+  },
+  '자율주행': {
+    chip: 'bg-rose-100 text-rose-700',
+    chipHover: 'bg-rose-100 text-rose-700 hover:bg-rose-200',
+    filterActive: 'bg-rose-500 text-white',
+    filterInactive: 'bg-rose-50 text-rose-500 hover:bg-rose-100',
+    email: { bg: '#ffe4e6', text: '#be123c' },
+  },
+  '규정': {
+    chip: 'bg-green-100 text-green-700',
+    chipHover: 'bg-green-100 text-green-700 hover:bg-green-200',
+    filterActive: 'bg-green-600 text-white',
+    filterInactive: 'bg-green-50 text-green-600 hover:bg-green-100',
+    email: { bg: '#dcfce7', text: '#15803d' },
+  },
+};
+
+export function getCategoryLabel(subscriptionId: string): string {
+  if (subscriptionId === 'rule') return '규정';
+  const code = subscriptionId.replace('notice_', '');
+  return NOTICE_CATEGORIES[code] || subscriptionId;
+}
