@@ -47,7 +47,13 @@ export default function PostTable() {
   const [searchInput, setSearchInput] = useState('');
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
   const [page, setPage] = useState(1);
-  const [perPage, setPerPage] = useState(25);
+  const [perPage, setPerPage] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('perPage');
+      if (saved) return Number(saved);
+    }
+    return 10;
+  });
   const [pinnedFirst, setPinnedFirst] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('pinnedFirst') !== 'false';
@@ -252,7 +258,7 @@ export default function PostTable() {
         <div className="flex items-center gap-2">
           <select
             value={perPage}
-            onChange={(e) => setPerPage(Number(e.target.value))}
+            onChange={(e) => { const v = Number(e.target.value); setPerPage(v); localStorage.setItem('perPage', String(v)); }}
             className="px-2 py-1.5 text-sm border border-gray-200 rounded bg-white"
           >
             <option value={10}>10개</option>
