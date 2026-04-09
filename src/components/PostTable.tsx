@@ -138,6 +138,9 @@ export default function PostTable() {
           }`}
           title={pinnedFirst ? '고정 공지 우선 정렬 (클릭하면 시간순)' : '시간순 정렬 (클릭하면 고정 공지 우선)'}
         >
+          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M4 6h16M7 12h10M10 18h4" />
+          </svg>
           <span className="text-base leading-none">{pinnedFirst ? '\u{1F4CC}' : '\u{1F552}'}</span>
         </button>
       </div>
