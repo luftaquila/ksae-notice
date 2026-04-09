@@ -76,6 +76,8 @@ npm run lint       # ESLint
 
 ## Environment Variables
 
+`.env.example`을 `.env.local`로 복사한 후 값을 채워서 사용.
+
 ```
 AUTH_SECRET          # Auth.js 시크릿 (npx auth secret 으로 생성)
 AUTH_GOOGLE_ID       # Google OAuth 클라이언트 ID
@@ -87,6 +89,10 @@ ADMIN_EMAIL          # 관리자 이메일 (이 이메일로 로그인하면 /ad
 SITE_URL             # 서비스 URL (이메일 내 링크용)
 DATABASE_PATH        # SQLite DB 경로 (기본: ./data/ksae.db)
 ```
+
+## Commit Convention
+
+English conventional commits: `feat:`, `fix:`, `refactor:`, `docs:`, `chore:`, etc.
 
 ## Key Design Decisions
 
