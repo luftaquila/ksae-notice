@@ -220,7 +220,7 @@ export default function AdminPage() {
       'notice_A': 'bg-orange-100 text-orange-700 hover:bg-orange-200',
       'notice_B': 'bg-blue-100 text-blue-700 hover:bg-blue-200',
       'notice_C': 'bg-purple-100 text-purple-700 hover:bg-purple-200',
-      'notice_D': 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200',
+      'notice_D': 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200',
       'rule': 'bg-green-100 text-green-700 hover:bg-green-200',
     };
     return colors[id] || 'bg-blue-100 text-blue-700 hover:bg-blue-200';
@@ -376,13 +376,13 @@ export default function AdminPage() {
                     <span
                       className={`inline-block px-2 py-0.5 rounded text-xs ${
                         crawl.status === 'completed'
-                          ? 'bg-green-100 text-green-700'
+                          ? 'bg-gray-100 text-gray-600'
                           : crawl.status === 'running'
                             ? 'bg-blue-100 text-blue-700'
                             : 'bg-red-100 text-red-700'
                       }`}
                     >
-                      {crawl.status}
+                      {crawl.status === 'completed' ? '완료' : crawl.status === 'running' ? '진행 중' : '실패'}
                     </span>
                   </td>
                   <td className="py-2 pr-4 text-gray-400 whitespace-nowrap">

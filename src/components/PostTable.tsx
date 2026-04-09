@@ -185,7 +185,7 @@ export default function PostTable() {
                   'Baja': 'bg-orange-100 text-orange-700',
                   'Formula': 'bg-blue-100 text-blue-700',
                   'EV': 'bg-purple-100 text-purple-700',
-                  '자율주행': 'bg-indigo-100 text-indigo-700',
+                  '자율주행': 'bg-cyan-100 text-cyan-700',
                   '규정': 'bg-green-100 text-green-700',
                 };
                 const chipColor = chipColors[chipLabel] || 'bg-gray-100 text-gray-700';
@@ -243,7 +243,7 @@ export default function PostTable() {
                 <button
                   key={p}
                   onClick={() => setPage(p)}
-                  className={`px-3 py-1.5 text-sm rounded border transition cursor-pointer ${
+                  className={`w-9 py-1.5 text-sm text-center rounded border transition cursor-pointer ${
                     p === page
                       ? 'bg-blue-600 text-white border-blue-600'
                       : 'border-gray-200 hover:bg-gray-50'

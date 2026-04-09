@@ -11,7 +11,7 @@ const CATEGORY_COLORS: Record<string, { active: string; inactive: string }> = {
   'Baja': { active: 'bg-orange-500 text-white', inactive: 'bg-orange-50 text-orange-600 hover:bg-orange-100' },
   'Formula': { active: 'bg-blue-600 text-white', inactive: 'bg-blue-50 text-blue-600 hover:bg-blue-100' },
   'EV': { active: 'bg-purple-600 text-white', inactive: 'bg-purple-50 text-purple-600 hover:bg-purple-100' },
-  '자율주행': { active: 'bg-indigo-500 text-white', inactive: 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100' },
+  '자율주행': { active: 'bg-cyan-600 text-white', inactive: 'bg-cyan-50 text-cyan-600 hover:bg-cyan-100' },
   '규정': { active: 'bg-green-600 text-white', inactive: 'bg-green-50 text-green-600 hover:bg-green-100' },
 };
 

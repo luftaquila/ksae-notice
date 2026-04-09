@@ -185,7 +185,7 @@ export default function DashboardPage() {
               key={cat.id}
               className="flex items-center justify-between px-4 py-3"
             >
-              <div className="text-sm font-medium text-gray-900">{cat.label}</div>
+              <div className="text-sm font-medium text-gray-900">{cat.label.replace('공지 - ', '')}</div>
               <button
                 onClick={() => toggleSubscription(cat.id, isActive)}
                 disabled={actionLoading === cat.id}
