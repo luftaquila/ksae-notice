@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useSession } from 'next-auth/react';
+import { useSession, signOut } from 'next-auth/react';
 import { SUBSCRIPTION_CATEGORIES } from '@/lib/constants';
 
 interface Subscription {
@@ -77,6 +77,25 @@ export default function DashboardPage() {
     setActionLoading(null);
   };
 
+  const deleteAccount = async () => {
+    if (!confirm('정말 탈퇴하시겠습니까? 모든 구독 정보가 삭제됩니다.')) return;
+
+    setActionLoading('delete');
+    try {
+      const res = await fetch('/api/user', { method: 'DELETE' });
+      if (res.ok) {
+        signOut({ callbackUrl: '/' });
+      } else {
+        const data = await res.json();
+        setError(data.error || '탈퇴에 실패했습니다.');
+      }
+    } catch {
+      setError('탈퇴에 실패했습니다.');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   if (loading) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-12 text-center text-gray-400">불러오는 중...</div>
@@ -86,6 +105,7 @@ export default function DashboardPage() {
   const currentYear = new Date().getFullYear();
   const isDecember = new Date().getMonth() === 11;
   const hasActiveSubs = subs.some((s) => s.isActive);
+  const expiresAt = subs.find((s) => s.isActive)?.expiresAt;
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
@@ -97,6 +117,13 @@ export default function DashboardPage() {
       {error && (
         <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">
           {error}
+        </div>
+      )}
+
+      {/* Expiry info */}
+      {hasActiveSubs && expiresAt && (
+        <div className="mb-4 p-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-600">
+          구독 만료일: <span className="font-medium text-gray-900">{expiresAt.slice(0, 10)}</span>
         </div>
       )}
 
@@ -132,15 +159,7 @@ export default function DashboardPage() {
               key={cat.id}
               className="flex items-center justify-between p-4 bg-white rounded-lg border border-gray-200"
             >
-              <div>
-                <div className="font-medium text-gray-900">{cat.label}</div>
-                {sub && (
-                  <div className="text-xs text-gray-400 mt-0.5">
-                    만료: {sub.expiresAt.slice(0, 10)}
-                    {sub.renewedAt && ` (갱신: ${sub.renewedAt.slice(0, 10)})`}
-                  </div>
-                )}
-              </div>
+              <div className="font-medium text-gray-900">{cat.label}</div>
               <button
                 onClick={() => toggleSubscription(cat.id, isActive)}
                 disabled={actionLoading === cat.id}
@@ -161,6 +180,17 @@ export default function DashboardPage() {
 
       <div className="mt-6 text-sm text-gray-400 text-center">
         구독은 매년 12월 31일에 만료되며, 12월에 갱신 안내 메일이 발송됩니다.
+      </div>
+
+      {/* Account deletion */}
+      <div className="mt-12 pt-6 border-t border-gray-200">
+        <button
+          onClick={deleteAccount}
+          disabled={actionLoading === 'delete'}
+          className="text-sm text-red-400 hover:text-red-600 transition disabled:opacity-50"
+        >
+          {actionLoading === 'delete' ? '처리 중...' : '회원 탈퇴'}
+        </button>
       </div>
     </div>
   );

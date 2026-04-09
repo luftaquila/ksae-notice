@@ -14,24 +14,18 @@ interface Post {
   url: string;
 }
 
-const BOARD_FILTERS = [
-  { id: 'all', label: '전체' },
-  { id: 'notice', label: '공지사항' },
-  { id: 'rule', label: '규정' },
-];
-
-const NOTICE_CATEGORIES = [
+const ALL_CATEGORIES = [
   { id: '공통', label: '공통' },
   { id: 'Baja', label: 'Baja' },
   { id: 'Formula', label: 'Formula' },
   { id: 'EV', label: 'EV' },
   { id: '자율주행', label: '자율주행' },
+  { id: '규정', label: '규정' },
 ];
 
 export default function PostTable() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
-  const [board, setBoard] = useState('all');
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -40,8 +34,19 @@ export default function PostTable() {
   const fetchPosts = useCallback(async () => {
     setLoading(true);
     const params = new URLSearchParams();
-    if (board !== 'all') params.set('board', board);
-    if (selectedCategories.length === 1) params.set('category', selectedCategories[0]);
+
+    // If only 규정 is selected, filter by board=rule
+    // If only notice categories selected, filter by board=notice
+    const hasRule = selectedCategories.includes('규정');
+    const noticeCategories = selectedCategories.filter((c) => c !== '규정');
+
+    if (selectedCategories.length > 0 && !hasRule && noticeCategories.length > 0) {
+      params.set('board', 'notice');
+      if (noticeCategories.length === 1) params.set('category', noticeCategories[0]);
+    } else if (hasRule && noticeCategories.length === 0) {
+      params.set('board', 'rule');
+    }
+
     params.set('page', String(page));
     params.set('limit', '30');
 
@@ -49,9 +54,15 @@ export default function PostTable() {
       const res = await fetch(`/api/posts?${params}`);
       const data = await res.json();
       let filtered = data.posts;
-      if (selectedCategories.length > 1) {
-        filtered = filtered.filter((p: Post) => p.category && selectedCategories.includes(p.category));
+
+      // Client-side filtering for mixed selections
+      if (selectedCategories.length > 0) {
+        filtered = filtered.filter((p: Post) => {
+          if (p.boardType === 'rule') return hasRule;
+          return noticeCategories.length === 0 || (p.category && noticeCategories.includes(p.category));
+        });
       }
+
       setPosts(filtered);
       setTotalPages(data.totalPages);
       setTotal(data.total);
@@ -60,7 +71,7 @@ export default function PostTable() {
     } finally {
       setLoading(false);
     }
-  }, [board, selectedCategories, page]);
+  }, [selectedCategories, page]);
 
   useEffect(() => {
     fetchPosts();
@@ -68,37 +79,18 @@ export default function PostTable() {
 
   useEffect(() => {
     setPage(1);
-  }, [board, selectedCategories]);
+  }, [selectedCategories]);
 
   return (
     <div>
-      {/* Board type tabs */}
-      <div className="flex gap-1 mb-4 border-b border-gray-200">
-        {BOARD_FILTERS.map((f) => (
-          <button
-            key={f.id}
-            onClick={() => setBoard(f.id)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition ${
-              board === f.id
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            {f.label}
-          </button>
-        ))}
+      {/* Category filter */}
+      <div className="mb-4">
+        <CategoryFilter
+          categories={ALL_CATEGORIES}
+          selected={selectedCategories}
+          onChange={setSelectedCategories}
+        />
       </div>
-
-      {/* Category filter (only for notice board or all) */}
-      {board !== 'rule' && (
-        <div className="mb-4">
-          <CategoryFilter
-            categories={NOTICE_CATEGORIES}
-            selected={selectedCategories}
-            onChange={setSelectedCategories}
-          />
-        </div>
-      )}
 
       {/* Post list */}
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
