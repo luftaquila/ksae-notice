@@ -54,6 +54,7 @@ export default function AdminPage() {
   const [settings, setSettings] = useState<Settings>({ maxSubscribers: '50', registrationOpen: 'true' });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [showFailedModal, setShowFailedModal] = useState(false);
 
   const fetchAll = async () => {
     setLoading(true);
@@ -91,7 +92,6 @@ export default function AdminPage() {
   };
 
   const deactivateUser = async (userId: number) => {
-    // Optimistic update
     setUsers((prev) =>
       prev.map((u) =>
         u.id === userId
@@ -125,7 +125,6 @@ export default function AdminPage() {
   };
 
   const toggleUserSubscription = async (userId: number, category: string, currentlyActive: boolean) => {
-    // Optimistic update
     setUsers((prev) =>
       prev.map((u) => {
         if (u.id !== userId) return u;
@@ -189,40 +188,49 @@ export default function AdminPage() {
           <div className="text-sm text-gray-500">누적 발송 성공</div>
           <div className="text-xl font-bold text-green-600 mt-1">{stats?.emails.totalSent ?? 0}건</div>
         </div>
-        <div className="bg-white rounded-lg border border-gray-200 p-4">
+        <button
+          onClick={() => setShowFailedModal(true)}
+          className="bg-white rounded-lg border border-gray-200 p-4 text-left hover:border-red-300 transition cursor-pointer"
+        >
           <div className="text-sm text-gray-500">누적 발송 실패</div>
           <div className="text-xl font-bold text-red-600 mt-1">{stats?.emails.totalFailed ?? 0}건</div>
-        </div>
+          <div className="text-xs text-gray-400 mt-1">클릭하여 상세 보기</div>
+        </button>
       </div>
 
-      {/* Failed email logs */}
-      {stats && (
-        <div className="bg-white rounded-lg border border-gray-200 p-6 mb-8">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">최근 발송 실패</h2>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-gray-500 border-b">
-                  <th className="pb-2 pr-4 whitespace-nowrap" style={{ width: '1%' }}>시각</th>
-                  <th className="pb-2 pr-4 whitespace-nowrap" style={{ width: '1%' }}>이메일</th>
-                  <th className="pb-2 whitespace-nowrap">에러</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {(!stats.emails.recentFailed || stats.emails.recentFailed.length === 0) && (
-                  <tr><td colSpan={3} className="py-4 text-center text-gray-400">실패 기록 없음</td></tr>
-                )}
-                {stats.emails.recentFailed?.map((log) => (
-                  <tr key={log.id}>
-                    <td className="py-2 pr-4 text-gray-400 whitespace-nowrap">
-                      {new Date(log.sentAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}
-                    </td>
-                    <td className="py-2 pr-4 font-mono text-xs whitespace-nowrap">{log.email}</td>
-                    <td className="py-2 text-red-600 text-xs">{log.error || '-'}</td>
+      {/* Failed email modal */}
+      {showFailedModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowFailedModal(false)}>
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <h2 className="text-lg font-semibold text-gray-900">최근 발송 실패</h2>
+              <button onClick={() => setShowFailedModal(false)} className="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
+            </div>
+            <div className="overflow-auto p-6">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-gray-500 border-b">
+                    <th className="pb-2 pr-4 whitespace-nowrap" style={{ width: '1%' }}>시각</th>
+                    <th className="pb-2 pr-4 whitespace-nowrap" style={{ width: '1%' }}>이메일</th>
+                    <th className="pb-2 whitespace-nowrap">에러</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {(!stats?.emails.recentFailed || stats.emails.recentFailed.length === 0) && (
+                    <tr><td colSpan={3} className="py-4 text-center text-gray-400">실패 기록 없음</td></tr>
+                  )}
+                  {stats?.emails.recentFailed?.map((log) => (
+                    <tr key={log.id}>
+                      <td className="py-2 pr-4 text-gray-400 whitespace-nowrap">
+                        {new Date(log.sentAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}
+                      </td>
+                      <td className="py-2 pr-4 font-mono text-xs whitespace-nowrap">{log.email}</td>
+                      <td className="py-2 text-red-600 text-xs">{log.error || '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}
@@ -242,7 +250,7 @@ export default function AdminPage() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">신규 구독 접수</label>
-            <div className="flex items-center gap-3 mt-2">
+            <div className="flex items-center gap-3 h-[38px]">
               <button
                 onClick={() =>
                   setSettings({

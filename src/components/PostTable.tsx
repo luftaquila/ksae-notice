@@ -46,6 +46,7 @@ export default function PostTable() {
   const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
   const [page, setPage] = useState(1);
+  const [perPage, setPerPage] = useState(30);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
   const isMobile = useIsMobile();
@@ -66,7 +67,7 @@ export default function PostTable() {
 
     if (search) params.set('search', search);
     params.set('page', String(page));
-    params.set('limit', '30');
+    params.set('limit', String(perPage));
 
     try {
       const res = await fetch(`/api/posts?${params}`);
@@ -88,7 +89,7 @@ export default function PostTable() {
     } finally {
       setLoading(false);
     }
-  }, [selectedCategories, search, page]);
+  }, [selectedCategories, search, page, perPage]);
 
   useEffect(() => {
     fetchPosts();
@@ -96,7 +97,7 @@ export default function PostTable() {
 
   useEffect(() => {
     setPage(1);
-  }, [selectedCategories, search]);
+  }, [selectedCategories, search, perPage]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -141,8 +142,8 @@ export default function PostTable() {
           <table className="w-full">
             <thead>
               <tr className="bg-gray-50 text-left text-sm text-gray-500">
-                <th className="px-4 py-3 w-16">구분</th>
-                <th className="px-4 py-3 w-20">분류</th>
+                <th className="px-4 py-3 whitespace-nowrap" style={{ width: '1%' }}>구분</th>
+                <th className="px-4 py-3 whitespace-nowrap" style={{ width: '1%' }}>분류</th>
                 <th className="px-4 py-3">제목</th>
                 <th className="px-4 py-3 w-28 hidden sm:table-cell">등록일</th>
               </tr>
@@ -187,8 +188,8 @@ export default function PostTable() {
       </div>
 
       {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex justify-center items-center gap-2 mt-4">
+      <div className="flex flex-col sm:flex-row justify-center items-center gap-2 mt-4">
+        <div className="flex items-center gap-2">
           <button
             onClick={() => setPage(Math.max(1, page - 1))}
             disabled={page === 1}
@@ -227,10 +228,19 @@ export default function PostTable() {
             다음
           </button>
         </div>
-      )}
-
-      <div className="text-center text-sm text-gray-400 mt-2">
-        총 {total}건
+        <div className="flex items-center gap-2">
+          <select
+            value={perPage}
+            onChange={(e) => setPerPage(Number(e.target.value))}
+            className="px-2 py-1.5 text-sm border border-gray-200 rounded bg-white"
+          >
+            <option value={20}>20개</option>
+            <option value={30}>30개</option>
+            <option value={50}>50개</option>
+            <option value={100}>100개</option>
+          </select>
+          <span className="text-sm text-gray-400">총 {total}건</span>
+        </div>
       </div>
     </div>
   );

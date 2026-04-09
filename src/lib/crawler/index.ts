@@ -1,4 +1,4 @@
-import { eq, sql, and } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { getDb } from '../db';
 import { posts, crawlLogs } from '../db/schema';
 import { BOARDS, type BoardType } from '../constants';
@@ -55,27 +55,25 @@ export async function crawlAll(): Promise<void> {
       .run().lastInsertRowid;
 
     try {
-      // Fetch page 1 to get total pages
-      const html1 = await fetchPage(board.code, 1);
-      const result1 = parseBoardPage(html1, board.type);
       let newCount = 0;
+      let page = 1;
 
-      for (const post of result1.posts) {
-        if (insertPost(db, post, board.type)) newCount++;
-      }
-
-      // Fetch remaining pages
-      for (let page = 2; page <= result1.totalPages; page++) {
+      while (true) {
         const html = await fetchPage(board.code, page);
-        const result = parseBoardPage(html, board.type);
+        const pagePosts = parseBoardPage(html, board.type);
 
-        for (const post of result.posts) {
+        // No posts found (or only pinned on subsequent pages) → done
+        const nonPinned = pagePosts.filter((p) => !p.isPinned);
+        if (page > 1 && nonPinned.length === 0) break;
+        if (pagePosts.length === 0) break;
+
+        for (const post of pagePosts) {
           // Skip pinned posts on subsequent pages (already inserted from page 1)
-          if (post.isPinned) continue;
+          if (page > 1 && post.isPinned) continue;
           if (insertPost(db, post, board.type)) newCount++;
         }
 
-        // Small delay to be polite
+        page++;
         await new Promise((r) => setTimeout(r, 500));
       }
 
@@ -88,7 +86,7 @@ export async function crawlAll(): Promise<void> {
         .where(eq(crawlLogs.id, Number(logId)))
         .run();
 
-      console.log(`[Crawler] Full crawl for ${board.type}: ${newCount} posts inserted`);
+      console.log(`[Crawler] Full crawl for ${board.type}: ${newCount} posts inserted (${page - 1} pages)`);
     } catch (error) {
       db.update(crawlLogs)
         .set({
@@ -119,10 +117,10 @@ export async function crawlLatest(): Promise<ParsedPost[]> {
 
     try {
       const html = await fetchPage(board.code, 1);
-      const result = parseBoardPage(html, board.type);
+      const pagePosts = parseBoardPage(html, board.type);
       let newCount = 0;
 
-      for (const post of result.posts) {
+      for (const post of pagePosts) {
         if (insertPost(db, post, board.type)) {
           newCount++;
           allNewPosts.push({ ...post, boardType: board.type });
@@ -154,7 +152,6 @@ export async function crawlLatest(): Promise<ParsedPost[]> {
     }
   }
 
-  // Send notifications for new posts
   if (allNewPosts.length > 0) {
     try {
       await notifyNewPosts(allNewPosts);
