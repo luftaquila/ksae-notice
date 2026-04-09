@@ -13,10 +13,10 @@ export async function POST() {
 
   const testPosts = [
     {
+      id: 0,
       title: '[테스트] KSAE 공지봇 테스트 메일입니다',
       category: '공통',
       date: new Date().toISOString().slice(0, 10),
-      url: siteUrl,
       boardType: 'notice',
     },
   ];

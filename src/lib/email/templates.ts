@@ -1,8 +1,8 @@
 interface PostInfo {
+  id: number;
   title: string;
   category: string | null;
   date: string;
-  url: string;
   boardType: string;
 }
 
@@ -41,8 +41,9 @@ export function newPostNotification(postsByCategory: PostInfo[], siteUrl: string
     .map((post) => {
       const categoryLabel = post.boardType === 'rule' ? '규정' : (post.category || '공통');
       const colors = CATEGORY_EMAIL_COLORS[categoryLabel] || CATEGORY_EMAIL_COLORS['공통'];
+      const postUrl = `${siteUrl}/go/${post.id}`;
       return `
-        <a href="${escapeHtml(post.url)}" class="post-item">
+        <a href="${escapeHtml(postUrl)}" class="post-item">
           <span class="category" style="background: ${colors.bg}; color: ${colors.text};">${escapeHtml(categoryLabel)}</span>
           <div class="title">${escapeHtml(post.title)}</div>
           <div class="date">${escapeHtml(post.date)}</div>

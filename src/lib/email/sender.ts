@@ -121,10 +121,10 @@ export async function notifyNewPosts(newPosts: NewPost[]): Promise<void> {
     try {
       const htmlContent = newPostNotification(
         userData.posts.map((p) => ({
+          id: p.id,
           title: p.title,
           category: p.category,
           date: p.date,
-          url: p.url,
           boardType: p.boardType,
         })),
         SITE_URL,
