@@ -35,8 +35,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         .where(eq(users.googleId, profile.sub))
         .get();
 
-      if (existing?.deletedAt) return false;
-
       if (!existing) {
         const result = db.insert(users).values({
           googleId: profile.sub,
@@ -55,6 +53,22 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             expiresAt: endOfYear,
           }).run();
         }
+      } else if (existing.deletedAt) {
+        // Re-register: clear deletedAt and reactivate all subscriptions
+        const endOfYear = `${new Date().getFullYear()}-12-31T23:59:59.000Z`;
+        db.update(users)
+          .set({
+            deletedAt: null,
+            name: profile.name || existing.name,
+            avatar: profile.picture || existing.avatar,
+            email: profile.email,
+          })
+          .where(eq(users.id, existing.id))
+          .run();
+        db.update(subscriptions)
+          .set({ isActive: 1, expiresAt: endOfYear })
+          .where(eq(subscriptions.userId, existing.id))
+          .run();
       } else {
         db.update(users)
           .set({

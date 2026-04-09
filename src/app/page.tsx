@@ -24,9 +24,9 @@ export default function Home() {
     <div className="max-w-6xl mx-auto px-4 py-8">
       {/* Stats banner */}
       <div className="bg-white rounded-lg border border-gray-200 p-4 mb-8 sm:hidden">
-        <div className="flex items-center justify-between mb-3">
+        <div className="mb-3">
           <div className="text-sm text-gray-500">구독자</div>
-          <div className="text-lg font-bold text-gray-900">
+          <div className="text-lg font-bold text-gray-900 mt-1">
             {stats ? `${stats.activeSubscribers} / ${stats.maxSubscribers}` : '-'}
           </div>
         </div>
