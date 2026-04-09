@@ -35,6 +35,29 @@ export default function DashboardPage() {
     fetchSubs();
   }, []);
 
+  const unsubscribeAll = async () => {
+    if (!confirm('모든 카테고리의 구독을 해제하시겠습니까?')) return;
+    setActionLoading('unsubscribe_all');
+    setError(null);
+    try {
+      for (const cat of SUBSCRIPTION_CATEGORIES) {
+        const sub = subs.find((s) => s.category === cat.id);
+        if (sub?.isActive) {
+          await fetch('/api/subscriptions', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ category: cat.id }),
+          });
+        }
+      }
+      await fetchSubs();
+    } catch {
+      setError('요청에 실패했습니다.');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const toggleSubscription = async (categoryId: string, currentlyActive: boolean) => {
     setActionLoading(categoryId);
     setError(null);
@@ -143,7 +166,7 @@ export default function DashboardPage() {
             <button
               onClick={renewAll}
               disabled={actionLoading === 'renew'}
-              className="shrink-0 ml-4 px-4 py-2 bg-amber-600 text-white text-sm rounded-lg hover:bg-amber-700 transition disabled:opacity-50"
+              className="shrink-0 ml-4 px-4 py-2 bg-amber-600 text-white text-sm rounded-lg hover:bg-amber-700 transition cursor-pointer disabled:opacity-50"
             >
               {actionLoading === 'renew' ? '갱신 중...' : `${currentYear + 1}년까지 갱신`}
             </button>
@@ -166,7 +189,7 @@ export default function DashboardPage() {
               <button
                 onClick={() => toggleSubscription(cat.id, isActive)}
                 disabled={actionLoading === cat.id}
-                className={`relative w-11 h-6 rounded-full transition ${
+                className={`relative w-11 h-6 rounded-full transition cursor-pointer ${
                   isActive ? 'bg-blue-600' : 'bg-gray-300'
                 } ${actionLoading === cat.id ? 'opacity-50' : ''}`}
               >
@@ -181,9 +204,22 @@ export default function DashboardPage() {
         })}
       </div>
 
+      {hasActiveSubs && (
+        <div className="mt-4 text-center">
+          <button
+            onClick={unsubscribeAll}
+            disabled={actionLoading === 'unsubscribe_all'}
+            className="text-sm text-gray-400 hover:text-red-500 transition disabled:opacity-50"
+          >
+            {actionLoading === 'unsubscribe_all' ? '처리 중...' : '전체 구독 해제'}
+          </button>
+        </div>
+      )}
+
       <div className="mt-6 text-sm text-gray-400 text-center space-y-1">
         <p>구독은 매년 12월 31일에 만료되며, 12월에 갱신 안내 메일이 발송됩니다.</p>
-        <p>매일 발송 가능한 이메일 수가 한정되어 있습니다. 졸업 등으로 알림이 불필요한 경우 구독을 해제해 주세요.</p>
+        <p>매일 발송 가능한 이메일 수가 한정되어 있습니다.</p>
+        <p>졸업 등으로 알림이 불필요한 경우 구독을 해제해 주세요.</p>
       </div>
 
       {/* Account deletion (not for admin) */}
@@ -192,7 +228,7 @@ export default function DashboardPage() {
           <button
             onClick={deleteAccount}
             disabled={actionLoading === 'delete'}
-            className="text-sm text-red-400 hover:text-red-600 transition disabled:opacity-50"
+            className="text-sm text-red-400 hover:text-red-600 transition cursor-pointer disabled:opacity-50"
           >
             {actionLoading === 'delete' ? '처리 중...' : '회원 탈퇴'}
           </button>

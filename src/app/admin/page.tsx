@@ -209,7 +209,22 @@ export default function AdminPage() {
     return <div className="max-w-6xl mx-auto px-4 py-12 text-center text-gray-400">불러오는 중...</div>;
   }
 
-  const catLabel = (id: string) => SUBSCRIPTION_CATEGORIES.find((c) => c.id === id)?.label || id;
+  const catLabel = (id: string) => {
+    const label = SUBSCRIPTION_CATEGORIES.find((c) => c.id === id)?.label || id;
+    return label.replace('공지 - ', '');
+  };
+
+  const catActiveColor = (id: string): string => {
+    const colors: Record<string, string> = {
+      'notice_Z': 'bg-gray-200 text-gray-700 hover:bg-gray-300',
+      'notice_A': 'bg-orange-100 text-orange-700 hover:bg-orange-200',
+      'notice_B': 'bg-blue-100 text-blue-700 hover:bg-blue-200',
+      'notice_C': 'bg-purple-100 text-purple-700 hover:bg-purple-200',
+      'notice_D': 'bg-teal-100 text-teal-700 hover:bg-teal-200',
+      'rule': 'bg-green-100 text-green-700 hover:bg-green-200',
+    };
+    return colors[id] || 'bg-blue-100 text-blue-700 hover:bg-blue-200';
+  };
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
@@ -426,7 +441,7 @@ export default function AdminPage() {
                                 onClick={() => toggleUserSubscription(user.id, cat.id, isActive)}
                                 className={`text-xs px-2 py-0.5 rounded transition cursor-pointer ${
                                   isActive
-                                    ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                                    ? catActiveColor(cat.id)
                                     : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
                                 }`}
                               >
