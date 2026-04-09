@@ -6,7 +6,7 @@ KSAE 대학생 자작자동차대회 공지사항 및 규정 페이지를 크롤
 
 - **Framework**: Next.js 16 (App Router, TypeScript)
 - **Database**: SQLite (Drizzle ORM + better-sqlite3)
-- **Auth**: Auth.js v5 (Google OAuth, JWT session)
+- **Auth**: next-auth v5 beta (Google OAuth, JWT session)
 - **Email**: Brevo API (일 300통 무료 제한)
 - **Crawling**: cheerio + node-cron
 - **UI**: Tailwind CSS v4
@@ -20,12 +20,14 @@ src/
 │   ├── page.tsx            # 메인 페이지 (공개, 게시글 목록 + 필터)
 │   ├── dashboard/page.tsx  # 구독 관리 (로그인 필요)
 │   ├── admin/page.tsx      # 관리자 대시보드
+│   ├── go/[id]/route.ts    # 게시글 리다이렉트 (모바일 UA 감지)
 │   └── api/
 │       ├── auth/           # NextAuth
+│       ├── user/           # 계정 삭제 API
 │       ├── posts/          # 게시글 조회 API
-│       ├── subscriptions/  # 구독 관리 API
+│       ├── subscriptions/  # 구독 관리 API (renew/ 하위 라우트 포함)
 │       ├── stats/          # 공개 통계 API
-│       └── admin/          # 관리자 전용 API (settings, users, stats)
+│       └── admin/          # 관리자 전용 API (settings, users, stats, test-email)
 ├── lib/
 │   ├── db/
 │   │   ├── schema.ts       # Drizzle 스키마 (users, subscriptions, posts, emailLogs, crawlLogs, settings)
@@ -42,8 +44,10 @@ src/
 │   │   ├── templates.ts    # 이메일 HTML 템플릿
 │   │   └── sender.ts       # 알림 발송 + 로깅
 │   └── subscription/
-│       └── renewal.ts      # 12월 구독 갱신 리마인더
+│       ├── renewal.ts      # 12월 구독 갱신 리마인더
+│       └── upsert.ts       # 구독 upsert 유틸리티
 ├── components/             # React 컴포넌트
+├── __tests__/              # vitest API 단위 테스트
 └── middleware.ts            # /dashboard, /admin 라우트 보호
 server.ts                   # 커스텀 서버 (Next.js + node-cron)
 drizzle/                    # 자동 생성 마이그레이션 SQL
@@ -57,6 +61,7 @@ npm run build      # Next.js 빌드
 npm run start      # 프로덕션 서버
 npm run migrate    # DB 마이그레이션 실행
 npm run lint       # ESLint
+npm run test       # vitest 단위 테스트
 ```
 
 ## 크롤링 대상
@@ -67,7 +72,7 @@ npm run lint       # ESLint
 | 규정 | `J_rule` | (전체 단일 구독) |
 
 - 크롤링 주기: 5분 (`*/5 7-18 * * *`, KST)
-- 게시글 중복 방지: `(boardType, postNumber)` unique index + `INSERT OR IGNORE`
+- 게시글 중복 방지: `(boardType, postNumber)` unique index + SELECT→UPDATE/INSERT upsert
 - 공지(상단고정) 게시글: `notice.png` 아이콘으로 감지, 별도 isPinned 플래그
 
 ## 구독 카테고리 ID
