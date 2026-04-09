@@ -113,7 +113,7 @@ export default function PostTable() {
   const handleSearchInput = (value: string) => {
     setSearchInput(value);
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => setSearch(value), 300);
+    debounceRef.current = setTimeout(() => setSearch(value), 150);
   };
 
   return (
