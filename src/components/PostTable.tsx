@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import CategoryFilter from './CategoryFilter';
 
 interface Post {
@@ -45,6 +45,7 @@ export default function PostTable() {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(30);
   const [pinnedFirst, setPinnedFirst] = useState(() => {
@@ -106,9 +107,10 @@ export default function PostTable() {
     setPage(1);
   }, [selectedCategories, search, perPage, pinnedFirst]);
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    setSearch(searchInput);
+  const handleSearchInput = (value: string) => {
+    setSearchInput(value);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => setSearch(value), 300);
   };
 
   return (
@@ -122,43 +124,37 @@ export default function PostTable() {
         />
       </div>
 
-      {/* Options */}
-      <div className="flex items-center gap-3 mb-3">
+      {/* Search + pinned toggle */}
+      <div className="flex gap-2 mb-4">
+        <input
+          type="text"
+          value={searchInput}
+          onChange={(e) => handleSearchInput(e.target.value)}
+          placeholder="제목 검색"
+          className="flex-1 px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
         <button
           onClick={() => {
             const next = !pinnedFirst;
             setPinnedFirst(next);
             localStorage.setItem('pinnedFirst', String(next));
           }}
-          className={`text-xs px-2.5 py-1 rounded-full border transition ${
+          className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border transition ${
             pinnedFirst
-              ? 'bg-blue-50 text-blue-600 border-blue-200'
-              : 'bg-gray-50 text-gray-500 border-gray-200'
+              ? 'bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100'
+              : 'bg-gray-50 text-gray-400 border-gray-200 hover:bg-gray-100'
           }`}
+          title={pinnedFirst ? '공지를 상단에 고정합니다' : '시간순으로 정렬합니다'}
         >
-          {pinnedFirst ? '📌 공지 상단 고정' : '공지 상단 고정 해제'}
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
+            <path d="M10.97 2.22a.75.75 0 0 1 1.06 0l1.75 1.75a.75.75 0 0 1-.177 1.206l-2.16 1.08-.486.486 1.293 1.293a.75.75 0 0 1-1.06 1.06L9.912 7.853l-1.72 1.72a3.328 3.328 0 0 1-.607 3.18.75.75 0 0 1-1.133-.068L4.463 9.87l-2.21 2.21a.75.75 0 1 1-1.06-1.06l2.21-2.21-2.816-3.99a.75.75 0 0 1-.068-1.133 3.328 3.328 0 0 1 3.18-.607l1.72-1.72L4.098 .937a.75.75 0 0 1 1.06-1.06L6.45 1.17l.486-.486 1.08-2.16a.75.75 0 0 1 1.206-.177Z" />
+          </svg>
+          <span className="hidden sm:inline">{pinnedFirst ? '고정' : '시간순'}</span>
         </button>
       </div>
 
-      {/* Search */}
-      <form onSubmit={handleSearch} className="flex gap-2 mb-4">
-        <input
-          type="text"
-          value={searchInput}
-          onChange={(e) => setSearchInput(e.target.value)}
-          placeholder="제목 검색"
-          className="flex-1 px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-        <button
-          type="submit"
-          className="shrink-0 px-3 py-1.5 text-sm bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition"
-        >
-          검색
-        </button>
-      </form>
-
       {/* Post list */}
-      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden" style={{ minHeight: loading ? 400 : undefined }}>
         {loading ? (
           <div className="p-8 text-center text-gray-400">불러오는 중...</div>
         ) : posts.length === 0 ? (
