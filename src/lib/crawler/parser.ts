@@ -62,13 +62,9 @@ export function parseBoardPage(html: string, boardType: BoardType): ParseResult 
 
     const postNumber = parseInt(numberMatch[1], 10);
 
-    // Extract title text (remove "new" icon text)
-    const title = link.contents()
-      .filter(function () {
-        return this.type === 'text';
-      })
-      .text()
-      .trim();
+    // Extract title text from span (or direct text node)
+    const titleSpan = link.find('span').first();
+    const title = (titleSpan.length ? titleSpan.text() : link.text()).trim();
 
     if (!title) continue;
 
