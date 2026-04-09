@@ -256,6 +256,7 @@ export default function PostTable() {
           </button>
         </div>
         <div className="flex items-center gap-2">
+          <span className="text-sm text-gray-400">총 {total}건</span>
           <select
             value={perPage}
             onChange={(e) => { const v = Number(e.target.value); setPerPage(v); localStorage.setItem('perPage', String(v)); }}
@@ -265,7 +266,6 @@ export default function PostTable() {
             <option value={25}>25개</option>
             <option value={50}>50개</option>
           </select>
-          <span className="text-sm text-gray-400">총 {total}건</span>
         </div>
       </div>
     </div>
