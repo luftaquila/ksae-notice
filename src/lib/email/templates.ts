@@ -17,7 +17,7 @@ function getBaseStyle() {
     .content { padding: 24px; }
     .post-item { display: block; border-left: 4px solid #3182ce; padding: 12px 16px; margin-bottom: 12px; background: #f7fafc; text-decoration: none; color: inherit; }
     .post-item:hover { background: #edf2f7; }
-    .post-item .category { display: inline-block; font-size: 12px; color: #718096; background: #e2e8f0; padding: 2px 8px; border-radius: 4px; margin-bottom: 4px; }
+    .post-item .category { display: inline-block; font-size: 12px; padding: 2px 8px; border-radius: 4px; margin-bottom: 4px; }
     .post-item .title { font-size: 15px; color: #1a202c; font-weight: 600; }
     .post-item .date { font-size: 12px; color: #a0aec0; margin-top: 4px; }
     .footer { padding: 16px 24px; text-align: center; font-size: 12px; color: #a0aec0; border-top: 1px solid #e2e8f0; }
@@ -25,14 +25,23 @@ function getBaseStyle() {
   `;
 }
 
+const CATEGORY_EMAIL_COLORS: Record<string, { bg: string; text: string }> = {
+  '공통': { bg: '#e5e7eb', text: '#374151' },
+  'Baja': { bg: '#ffedd5', text: '#c2410c' },
+  'Formula': { bg: '#dbeafe', text: '#1d4ed8' },
+  'EV': { bg: '#f3e8ff', text: '#7e22ce' },
+  '자율주행': { bg: '#ffe4e6', text: '#be123c' },
+  '규정': { bg: '#dcfce7', text: '#15803d' },
+};
+
 export function newPostNotification(postsByCategory: PostInfo[], siteUrl: string): string {
   const postsHtml = postsByCategory
     .map((post) => {
-      const boardLabel = post.boardType === 'notice' ? '공지' : '규정';
-      const categoryLabel = post.category ? `${boardLabel} - ${post.category}` : boardLabel;
+      const categoryLabel = post.boardType === 'rule' ? '규정' : (post.category || '공통');
+      const colors = CATEGORY_EMAIL_COLORS[categoryLabel] || CATEGORY_EMAIL_COLORS['공통'];
       return `
         <a href="${post.url}" class="post-item">
-          <span class="category">${categoryLabel}</span>
+          <span class="category" style="background: ${colors.bg}; color: ${colors.text};">${categoryLabel}</span>
           <div class="title">${post.title}</div>
           <div class="date">${post.date}</div>
         </a>
