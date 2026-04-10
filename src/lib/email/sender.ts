@@ -14,6 +14,7 @@ interface NewPost {
   url: string;
   isPinned: boolean;
   boardType: BoardType;
+  previousTitle?: string;
 }
 
 function getSubscriptionCategory(post: NewPost): string | null {
@@ -121,13 +122,20 @@ export async function notifyNewPosts(newPosts: NewPost[]): Promise<void> {
           category: p.category,
           date: p.date,
           boardType: p.boardType,
+          previousTitle: p.previousTitle,
         })),
         SITE_URL,
       );
 
+      const newCount = userData.posts.filter((p) => !p.previousTitle).length;
+      const updatedCount = userData.posts.filter((p) => p.previousTitle).length;
+      const subjectParts: string[] = [];
+      if (newCount > 0) subjectParts.push(`새 게시글 ${newCount}건`);
+      if (updatedCount > 0) subjectParts.push(`수정된 게시글 ${updatedCount}건`);
+
       await sendEmail({
         to: { email: userData.email, name: userData.name || undefined },
-        subject: `[KSAE 공지봇] 새 게시글 ${userData.posts.length}건`,
+        subject: `[KSAE 공지봇] ${subjectParts.join(', ')}`,
         htmlContent,
       });
 

@@ -6,6 +6,7 @@ interface PostInfo {
   category: string | null;
   date: string;
   boardType: string;
+  previousTitle?: string;
 }
 
 function getBaseStyle() {
@@ -32,15 +33,20 @@ function escapeHtml(s: string): string {
 const DEFAULT_EMAIL_COLORS = { bg: '#e5e7eb', text: '#374151' };
 
 export function newPostNotification(postsByCategory: PostInfo[], siteUrl: string): string {
+  const hasNew = postsByCategory.some((p) => !p.previousTitle);
+  const hasUpdated = postsByCategory.some((p) => p.previousTitle);
+
   const postsHtml = postsByCategory
     .map((post) => {
       const categoryLabel = post.boardType === 'rule' ? '규정' : (post.category || '공통');
       const colors = CATEGORY_COLORS[categoryLabel]?.email || DEFAULT_EMAIL_COLORS;
       const postUrl = `${siteUrl}/go/${post.id}`;
+      const isUpdated = !!post.previousTitle;
+      const borderColor = isUpdated ? '#ed8936' : '#3182ce';
       return `
-        <a href="${escapeHtml(postUrl)}" class="post-item">
-          <span class="category" style="background: ${colors.bg}; color: ${colors.text};">${escapeHtml(categoryLabel)}</span>
-          <div class="title">${escapeHtml(post.title)}</div>
+        <a href="${escapeHtml(postUrl)}" class="post-item" style="border-left-color: ${borderColor};">
+          <span class="category" style="background: ${colors.bg}; color: ${colors.text};">${escapeHtml(categoryLabel)}</span>${isUpdated ? ' <span style="font-size: 12px; color: #ed8936; font-weight: 600;">수정됨</span>' : ''}
+          <div class="title">${escapeHtml(post.title)}</div>${isUpdated ? `\n          <div style="font-size: 12px; color: #a0aec0; margin-top: 2px; text-decoration: line-through;">${escapeHtml(post.previousTitle!)}</div>` : ''}
           <div class="date">${escapeHtml(post.date)}</div>
         </a>
       `;
@@ -53,10 +59,10 @@ export function newPostNotification(postsByCategory: PostInfo[], siteUrl: string
 <body>
   <div class="container">
     <div class="header">
-      <h1>KSAE 공지봇 - 새 게시글 알림</h1>
+      <h1>KSAE 공지봇 - ${hasNew && hasUpdated ? '게시글 알림' : hasUpdated ? '게시글 수정 알림' : '새 게시글 알림'}</h1>
     </div>
     <div class="content">
-      <p style="color: #4a5568;">구독 중인 카테고리에 새 게시글이 등록되었습니다.</p>
+      <p style="color: #4a5568;">${hasNew && hasUpdated ? '구독 중인 카테고리에 새 게시글이 등록되고, 기존 게시글이 수정되었습니다.' : hasUpdated ? '구독 중인 카테고리의 게시글이 수정되었습니다.' : '구독 중인 카테고리에 새 게시글이 등록되었습니다.'}</p>
       ${postsHtml}
       <p style="text-align: center; margin-top: 24px;">
         <a href="${siteUrl}/dashboard" class="btn" style="color: #ffffff;">구독 설정 관리</a>

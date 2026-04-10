@@ -6,6 +6,11 @@ import { BOARDS, type BoardType } from '../constants';
 import { parseBoardPage, type ParsedPost } from './parser';
 import { notifyNewPosts } from '../email/sender';
 
+type UpsertResult =
+  | { type: 'new'; id: number }
+  | { type: 'updated'; id: number; previousTitle: string }
+  | false;
+
 // KSAE server uses weak DH parameters rejected by OpenSSL 3.x default SECLEVEL
 const tlsAgent = new Agent({ connect: { ciphers: 'DEFAULT:@SECLEVEL=0' } });
 
@@ -34,16 +39,17 @@ async function fetchPage(boardCode: string, page: number): Promise<string> {
   return res.text();
 }
 
-function upsertPost(db: ReturnType<typeof getDb>, post: ParsedPost, boardType: BoardType): number | false {
+function upsertPost(db: ReturnType<typeof getDb>, post: ParsedPost, boardType: BoardType): UpsertResult {
   try {
     // Check if post already exists
     const existing = db
-      .select({ id: posts.id })
+      .select({ id: posts.id, title: posts.title })
       .from(posts)
       .where(and(eq(posts.boardType, boardType), eq(posts.postNumber, post.postNumber)))
       .get();
 
     if (existing) {
+      const titleChanged = existing.title !== post.title;
       // Update isPinned/title/category if changed
       db.update(posts)
         .set({
@@ -53,7 +59,9 @@ function upsertPost(db: ReturnType<typeof getDb>, post: ParsedPost, boardType: B
         })
         .where(eq(posts.id, existing.id))
         .run();
-      return false; // Not a new post
+      return titleChanged
+        ? { type: 'updated', id: existing.id, previousTitle: existing.title }
+        : false;
     }
 
     const result = db.insert(posts)
@@ -68,7 +76,7 @@ function upsertPost(db: ReturnType<typeof getDb>, post: ParsedPost, boardType: B
       })
       .run();
 
-    return Number(result.lastInsertRowid);
+    return { type: 'new', id: Number(result.lastInsertRowid) };
   } catch (error) {
     console.error(`[Crawler] upsertPost failed for ${boardType}/${post.postNumber}:`, error);
     return false;
@@ -107,7 +115,8 @@ export async function crawlAll(): Promise<void> {
         for (const post of pagePosts) {
           // Skip pinned posts on subsequent pages (already inserted from page 1)
           if (page > 1 && post.isPinned) continue;
-          if (upsertPost(db, post, board.type)) newCount++;
+          const result = upsertPost(db, post, board.type);
+          if (result && result.type === 'new') newCount++;
         }
 
         page++;
@@ -129,7 +138,7 @@ export async function crawlAll(): Promise<void> {
 
 export async function crawlLatest(): Promise<ParsedPost[]> {
   const db = getDb();
-  const allNewPosts: (ParsedPost & { id: number; boardType: BoardType })[] = [];
+  const allNewPosts: (ParsedPost & { id: number; boardType: BoardType; previousTitle?: string })[] = [];
 
   for (const board of BOARDS) {
     const logId = startCrawlLog(db, board.type);
@@ -140,10 +149,15 @@ export async function crawlLatest(): Promise<ParsedPost[]> {
       let newCount = 0;
 
       for (const post of pagePosts) {
-        const postId = upsertPost(db, post, board.type);
-        if (postId) {
-          newCount++;
-          allNewPosts.push({ ...post, id: postId, boardType: board.type });
+        const result = upsertPost(db, post, board.type);
+        if (result) {
+          if (result.type === 'new') newCount++;
+          allNewPosts.push({
+            ...post,
+            id: result.id,
+            boardType: board.type,
+            ...(result.type === 'updated' && { previousTitle: result.previousTitle }),
+          });
         }
       }
 
