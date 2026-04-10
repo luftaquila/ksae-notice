@@ -2,7 +2,7 @@ import { eq, and, sql, gte, isNull } from 'drizzle-orm';
 import { getDb } from '../db';
 import { users, subscriptions, emailLogs } from '../db/schema';
 import { NOTICE_CATEGORY_CODES, type BoardType } from '../constants';
-import { sendEmail } from './brevo';
+import { sendEmail, getRemainingCredits } from './brevo';
 import { newPostNotification } from './templates';
 
 interface NewPost {
@@ -27,22 +27,6 @@ function getSubscriptionCategory(post: NewPost): string | null {
   }
   return null;
 }
-
-function getTodayEmailCount(): number {
-  const db = getDb();
-  const today = new Date().toISOString().slice(0, 10);
-  const result = db
-    .select({ count: sql<number>`count(*)` })
-    .from(emailLogs)
-    .where(and(
-      gte(emailLogs.sentAt, today),
-      eq(emailLogs.status, 'sent'),
-    ))
-    .get();
-  return result?.count || 0;
-}
-
-const DAILY_LIMIT = 300;
 
 const SITE_URL = process.env.SITE_URL || 'http://localhost:3000';
 
@@ -102,22 +86,33 @@ export async function notifyNewPosts(newPosts: NewPost[]): Promise<void> {
     }
   }
 
-  // Send one email per user
-  let todayCount = getTodayEmailCount();
+  const recipientCount = userPosts.size;
+  if (recipientCount === 0) return;
 
-  for (const [userId, userData] of userPosts) {
-    if (todayCount >= DAILY_LIMIT) {
-      console.warn(`[Email] Daily limit (${DAILY_LIMIT}) reached, skipping remaining notifications`);
-      // Log skipped emails
+  // Check Brevo remaining credits before sending
+  let remaining: number;
+  try {
+    remaining = await getRemainingCredits();
+  } catch (error) {
+    console.error('[Email] Failed to check Brevo remaining credits:', error);
+    return;
+  }
+
+  if (remaining < recipientCount) {
+    console.warn(`[Email] Brevo remaining credits (${remaining}) < recipients (${recipientCount}), skipping all notifications`);
+    for (const [userId] of userPosts) {
       db.insert(emailLogs).values({
         userId,
         type: 'notification',
         status: 'failed',
-        error: 'Daily email limit reached',
+        error: `Insufficient Brevo credits: ${remaining} remaining, ${recipientCount} needed`,
       }).run();
-      continue;
     }
+    return;
+  }
 
+  // Send one email per user
+  for (const [userId, userData] of userPosts) {
     try {
       const htmlContent = newPostNotification(
         userData.posts.map((p) => ({
@@ -146,7 +141,6 @@ export async function notifyNewPosts(newPosts: NewPost[]): Promise<void> {
         }).run();
       }
 
-      todayCount++;
       console.log(`[Email] Notification sent to ${userData.email} (${userData.posts.length} posts)`);
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : String(error);

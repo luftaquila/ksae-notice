@@ -4,6 +4,7 @@ import { getDb } from '@/lib/db';
 import { posts } from '@/lib/db/schema';
 
 const MOBILE_UA = /Android|iPhone|iPad|iPod|Mobile|Opera Mini|IEMobile/i;
+const SITE_URL = process.env.SITE_URL || 'https://ksae-notice.luftaquila.io';
 
 function getMobileUrl(postNumber: number, boardType: string): string {
   const code = boardType === 'notice' ? 'J_notice' : 'J_rule';
@@ -11,13 +12,13 @@ function getMobileUrl(postNumber: number, boardType: string): string {
 }
 
 export async function GET(
-  req: NextRequest,
+  _req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
   const postId = parseInt(id, 10);
   if (isNaN(postId)) {
-    return NextResponse.redirect(new URL('/', req.url));
+    return NextResponse.redirect(SITE_URL);
   }
 
   const db = getDb();
@@ -28,10 +29,10 @@ export async function GET(
     .get();
 
   if (!post) {
-    return NextResponse.redirect(new URL('/', req.url));
+    return NextResponse.redirect(SITE_URL);
   }
 
-  const ua = req.headers.get('user-agent') || '';
+  const ua = _req.headers.get('user-agent') || '';
   const isMobile = MOBILE_UA.test(ua);
 
   const target = isMobile ? getMobileUrl(post.postNumber, post.boardType) : post.url;

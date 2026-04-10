@@ -53,7 +53,6 @@ describe('GET /api/admin/stats', () => {
     expect(data.totalPosts).toBe(3);
     expect(data.emails.totalSent).toBe(2);
     expect(data.emails.totalFailed).toBe(1);
-    expect(data.emails.dailyLimit).toBe(300);
     expect(data.recentCrawls.length).toBe(2);
     expect(data.emails.recentFailed.length).toBe(1);
     expect(data.emails.recentFailed[0].error).toBe('timeout');

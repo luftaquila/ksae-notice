@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { eq, sql, and, gte, desc } from 'drizzle-orm';
+import { eq, sql, and, gte, desc, isNotNull } from 'drizzle-orm';
 import { requireAdmin } from '@/lib/auth';
 import { getDb } from '@/lib/db';
 import { users, subscriptions, emailLogs, crawlLogs, posts } from '@/lib/db/schema';
@@ -14,6 +14,12 @@ export async function GET() {
   const totalUsers = db
     .select({ count: sql<number>`count(*)` })
     .from(users)
+    .get();
+
+  const deletedUsers = db
+    .select({ count: sql<number>`count(*)` })
+    .from(users)
+    .where(isNotNull(users.deletedAt))
     .get();
 
   const activeSubscribers = db
@@ -71,13 +77,13 @@ export async function GET() {
 
   return NextResponse.json({
     totalUsers: totalUsers?.count || 0,
+    deletedUsers: deletedUsers?.count || 0,
     activeSubscribers: activeSubscribers?.count || 0,
     totalPosts: totalPosts?.count || 0,
     emails: {
       totalSent: totalEmailsSent?.count || 0,
       totalFailed: totalEmailsFailed?.count || 0,
       todaySent: todayEmails?.count || 0,
-      dailyLimit: 300,
       recentFailed,
     },
     recentCrawls,

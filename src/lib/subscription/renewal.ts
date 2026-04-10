@@ -1,7 +1,7 @@
 import { eq, and, sql, gte, lt, isNull, or } from 'drizzle-orm';
 import { getDb } from '../db';
 import { users, subscriptions, emailLogs } from '../db/schema';
-import { sendEmail } from '../email/brevo';
+import { sendEmail, getRemainingCredits } from '../email/brevo';
 import { renewalReminder } from '../email/templates';
 
 const SITE_URL = process.env.SITE_URL || 'http://localhost:3000';
@@ -42,16 +42,31 @@ export async function checkAndSendRenewalReminders(): Promise<void> {
     .groupBy(users.id)
     .all();
 
-  const today = now.toISOString().slice(0, 10);
-
-  for (const user of subscribedUsers) {
-    // Distribute across the 7-day window using userId % 7
+  // Filter to today's recipients first
+  const todayRecipients = subscribedUsers.filter((user) => {
     const assignedDay = windowStart + (user.userId % 7);
-    if (day !== assignedDay) continue;
+    return day === assignedDay;
+  });
 
-    // Check if we already sent a reminder in this window
-    const windowStartDate = `${year}-12-${String(windowStart).padStart(2, '0')}`;
-    const windowEndDate = `${year}-12-${String(windowStart + 6).padStart(2, '0')}`;
+  if (todayRecipients.length === 0) return;
+
+  // Check Brevo remaining credits before sending
+  let remaining: number;
+  try {
+    remaining = await getRemainingCredits();
+  } catch (error) {
+    console.error('[Renewal] Failed to check Brevo remaining credits:', error);
+    return;
+  }
+
+  if (remaining < todayRecipients.length) {
+    console.warn(`[Renewal] Brevo remaining credits (${remaining}) < recipients (${todayRecipients.length}), skipping all reminders`);
+    return;
+  }
+
+  const windowStartDate = `${year}-12-${String(windowStart).padStart(2, '0')}`;
+
+  for (const user of todayRecipients) {
 
     const existingReminder = db
       .select({ id: emailLogs.id })

@@ -25,13 +25,13 @@ interface FailedEmail {
 
 interface AdminStats {
   totalUsers: number;
+  deletedUsers: number;
   activeSubscribers: number;
   totalPosts: number;
   emails: {
     totalSent: number;
     totalFailed: number;
     todaySent: number;
-    dailyLimit: number;
     recentFailed: FailedEmail[];
   };
   recentCrawls: {
@@ -54,6 +54,7 @@ export default function AdminPage() {
   const [users, setUsers] = useState<UserInfo[]>([]);
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [settings, setSettings] = useState<Settings>({ maxSubscribers: '50', registrationOpen: 'true' });
+  const [brevoRemaining, setBrevoRemaining] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showFailedModal, setShowFailedModal] = useState(false);
@@ -81,6 +82,7 @@ export default function AdminPage() {
 
   useEffect(() => {
     fetchAll();
+    fetch('/api/admin/brevo').then((r) => r.json()).then((d) => setBrevoRemaining(d.remaining)).catch(() => {});
   }, []);
 
   const saveSettings = async () => {
@@ -231,10 +233,10 @@ export default function AdminPage() {
 
       {/* Stats cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
-        <StatCard label="전체 유저" value={stats?.totalUsers ?? 0} />
-        <StatCard label="활성 구독자" value={stats?.activeSubscribers ?? 0} />
+        <StatCard label="유저 (활성/탈퇴/전체)" value={`${stats?.activeSubscribers ?? 0}/${stats?.deletedUsers ?? 0}/${stats?.totalUsers ?? 0}`} />
         <StatCard label="총 게시글" value={stats?.totalPosts ?? 0} />
         <StatCard label="오늘 발송" value={stats?.emails.todaySent ?? 0} />
+        <StatCard label="Brevo 잔량" value={brevoRemaining ?? '...'} />
       </div>
 
       {/* Email stats */}
