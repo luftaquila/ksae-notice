@@ -352,6 +352,7 @@ export default function AdminPage() {
                 <th className="pb-2 pr-4 whitespace-nowrap w-[1%]">상태</th>
                 <th className="pb-2 pr-4 whitespace-nowrap w-[1%]">시작</th>
                 <th className="pb-2 pr-4 whitespace-nowrap w-[1%]">종료</th>
+                <th className="pb-2 pr-4 whitespace-nowrap w-[1%] text-center">소요</th>
                 <th className="pb-2 whitespace-nowrap">신규</th>
               </tr>
             </thead>
@@ -386,6 +387,11 @@ export default function AdminPage() {
                       ? new Date(crawl.finishedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })
                       : '-'}
                   </td>
+                  <td className="py-2 pr-4 text-gray-400 dark:text-gray-500 whitespace-nowrap text-center">
+                    {crawl.finishedAt
+                      ? `${Math.round((new Date(crawl.finishedAt).getTime() - new Date(crawl.startedAt).getTime()) / 1000)}s`
+                      : '-'}
+                  </td>
                   <td className="py-2 whitespace-nowrap">{crawl.newPostsCount}</td>
                 </tr>
               ))}
@@ -406,8 +412,8 @@ export default function AdminPage() {
                 <th className="pb-2 pr-4 whitespace-nowrap w-[1%]">이메일</th>
                 <th className="pb-2 pr-4 whitespace-nowrap w-[1%]">이름</th>
                 <th className="pb-2 pr-4 whitespace-nowrap w-[1%]">가입일</th>
-                <th className="pb-2 pr-4 whitespace-nowrap">구독</th>
-                <th className="pb-2 pr-4 whitespace-nowrap w-[1%]">발송</th>
+                <th className="pb-2 pr-4 whitespace-nowrap text-center">구독</th>
+                <th className="pb-2 pr-4 whitespace-nowrap w-[1%] text-center">발송</th>
                 <th className="pb-2 whitespace-nowrap w-[1%]">관리</th>
               </tr>
             </thead>
@@ -420,11 +426,11 @@ export default function AdminPage() {
                     <td className="py-3 pr-4 font-mono text-xs whitespace-nowrap">{user.email}</td>
                     <td className="py-3 pr-4 whitespace-nowrap">{user.name || '-'}</td>
                     <td className="py-3 pr-4 whitespace-nowrap">{user.createdAt.slice(0, 10)}</td>
-                    <td className="py-3 pr-4 whitespace-nowrap">
+                    <td className="py-3 pr-4 whitespace-nowrap text-center">
                       {isDeleted ? (
                         <span className="text-xs text-gray-300 dark:text-gray-600">탈퇴 ({user.deletedAt!.slice(0, 10)})</span>
                       ) : (
-                        <div className="flex gap-1">
+                        <div className="flex justify-center gap-1.5">
                           {SUBSCRIPTION_CATEGORIES.map((cat) => {
                             const sub = user.subscriptions.find((s) => s.category === cat.id);
                             const isActive = sub?.isActive === 1;
@@ -446,7 +452,7 @@ export default function AdminPage() {
                         </div>
                       )}
                     </td>
-                    <td className="py-3 pr-4 whitespace-nowrap">{user.emailsSent}건</td>
+                    <td className="py-3 pr-4 whitespace-nowrap text-center">{user.emailsSent}</td>
                     <td className="py-3 whitespace-nowrap">
                       {isDeleted ? null : user.email === session?.user?.email ? (
                         <span className="text-xs text-gray-400 dark:text-gray-500">관리자</span>
