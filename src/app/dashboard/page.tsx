@@ -251,8 +251,8 @@ export default function DashboardPage() {
         <ul className="list-disc list-outside pl-5 text-sm text-gray-500 dark:text-gray-400 space-y-1.5 leading-relaxed">
           <li>매일 발송 가능한 이메일 수가 한정되어 있습니다.
             <ul className="list-disc list-outside pl-5 mt-1.5 space-y-1.5">
-              <li>하루에 3개 이상의 공지가 올라오는 경우 나중 공지는 알림이 누락될 수 있습니다.</li>
-              <li>졸업 등으로 알림이 불필요한 경우 구독을 해제해 주세요.</li>
+              <li>하루에 3개 이상의 공지가 올라오는 경우 알림이 누락될 수 있습니다.</li>
+              <li>졸업 등으로 알림이 불필요한 경우 후배들을 위해 구독을 해제해 주세요.</li>
             </ul>
           </li>
           <li>구독은 매년 12월 31일에 만료되며, 12월에 갱신 안내 메일이 발송됩니다.</li>
