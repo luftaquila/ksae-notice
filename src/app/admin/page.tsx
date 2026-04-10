@@ -220,11 +220,11 @@ export default function AdminPage() {
   };
 
   if (loading) {
-    return <div className="max-w-6xl mx-auto px-4 py-12 text-center text-gray-400 dark:text-gray-500">불러오는 중...</div>;
+    return <div className="max-w-screen-xl mx-auto px-4 py-12 text-center text-gray-400 dark:text-gray-500">불러오는 중...</div>;
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8">
+    <div className="max-w-screen-xl mx-auto px-4 py-8">
       <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">관리자 대시보드</h1>
 
       {error && (
@@ -233,7 +233,7 @@ export default function AdminPage() {
 
       {/* Stats cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
-        <StatCard label="유저 (활성/탈퇴/전체)" value={`${stats?.activeSubscribers ?? 0}/${stats?.deletedUsers ?? 0}/${stats?.totalUsers ?? 0}`} />
+        <StatCard label="활성/비활성/탈퇴/전체" value={`${stats?.activeSubscribers ?? 0}/${(stats?.totalUsers ?? 0) - (stats?.activeSubscribers ?? 0) - (stats?.deletedUsers ?? 0)}/${stats?.deletedUsers ?? 0}/${stats?.totalUsers ?? 0}`} />
         <StatCard label="총 게시글" value={stats?.totalPosts ?? 0} />
         <StatCard label="오늘 발송" value={stats?.emails.todaySent ?? 0} />
         <StatCard label="Brevo 잔량" value={brevoRemaining ?? '...'} />
@@ -409,6 +409,7 @@ export default function AdminPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-gray-500 dark:text-gray-400 border-b dark:border-gray-800">
+                <th className="pb-2 pr-4 whitespace-nowrap w-[1%]">#</th>
                 <th className="pb-2 pr-4 whitespace-nowrap w-[1%]">이메일</th>
                 <th className="pb-2 pr-4 whitespace-nowrap w-[1%]">이름</th>
                 <th className="pb-2 pr-4 whitespace-nowrap w-[1%]">가입일</th>
@@ -418,11 +419,12 @@ export default function AdminPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
-              {users.map((user) => {
+              {users.map((user, index) => {
                 const isDeleted = !!user.deletedAt;
                 const hasActive = user.subscriptions.some((s) => s.isActive);
                 return (
                   <tr key={user.id} className={isDeleted ? 'text-gray-300 dark:text-gray-600 line-through' : ''}>
+                    <td className="py-3 pr-4 text-gray-400 dark:text-gray-500 whitespace-nowrap">{index + 1}</td>
                     <td className="py-3 pr-4 font-mono text-xs whitespace-nowrap">{user.email}</td>
                     <td className="py-3 pr-4 whitespace-nowrap">{user.name || '-'}</td>
                     <td className="py-3 pr-4 whitespace-nowrap">{user.createdAt.slice(0, 10)}</td>

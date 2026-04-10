@@ -63,8 +63,8 @@ export default function Home() {
           </div>
           <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
             {stats?.lastCrawl?.finishedAt
-              ? `${new Date(stats.lastCrawl.finishedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })} (7AM ~ 7PM / 5분 주기)`
-              : '7AM ~ 7PM / 5분 주기'}
+              ? `${new Date(stats.lastCrawl.finishedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })} (오전 7시 ~ 오후 7시 / 5분 간격)`
+              : '오전 7시 ~ 오후 7시 / 5분 간격'}
           </div>
         </div>
       </div>
@@ -84,8 +84,8 @@ export default function Home() {
           </div>
           <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
             {stats?.lastCrawl?.finishedAt
-              ? `${new Date(stats.lastCrawl.finishedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })} (7AM ~ 7PM / 5분 주기)`
-              : '7AM ~ 7PM / 5분 주기'}
+              ? `${new Date(stats.lastCrawl.finishedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })} (오전 7시 ~ 오후 7시 / 5분 간격)`
+              : '오전 7시 ~ 오후 7시 / 5분 간격'}
           </div>
         </div>
       </div>
