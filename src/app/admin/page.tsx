@@ -245,7 +245,7 @@ export default function AdminPage() {
         </div>
         <button
           onClick={() => setShowFailedModal(true)}
-          className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-4 text-left hover:border-red-300 dark:hover:border-red-500/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition cursor-pointer"
+          className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-4 text-left hover:border-red-300 active:border-red-300 dark:hover:border-red-500/50 dark:active:border-red-500/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition cursor-pointer"
         >
           <div className="text-sm text-gray-500 dark:text-gray-400">누적 발송 실패</div>
           <div className="text-xl font-bold text-red-600 dark:text-red-400 mt-1">{stats?.emails.totalFailed ?? 0}건</div>
@@ -259,7 +259,7 @@ export default function AdminPage() {
           <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-800">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">최근 발송 실패</h2>
-              <button onClick={() => setShowFailedModal(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-xl cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 rounded">&times;</button>
+              <button onClick={() => setShowFailedModal(false)} className="text-gray-400 hover:text-gray-600 active:text-gray-600 dark:hover:text-gray-300 dark:active:text-gray-300 text-xl cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 rounded">&times;</button>
             </div>
             <div className="overflow-auto p-6">
               <table className="w-full text-sm">
@@ -324,14 +324,14 @@ export default function AdminPage() {
             <button
               onClick={sendTestEmail}
               disabled={sendingTestEmail}
-              className="px-4 py-2 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-sm font-medium rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition cursor-pointer disabled:opacity-50"
+              className="px-4 py-2 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-sm font-medium rounded-lg hover:bg-gray-200 active:bg-gray-200 dark:hover:bg-gray-700 dark:active:bg-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition cursor-pointer disabled:opacity-50"
             >
               {sendingTestEmail ? '발송 중...' : '테스트 메일'}
             </button>
             <button
               onClick={saveSettings}
               disabled={saving}
-              className="px-6 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition cursor-pointer disabled:opacity-50"
+              className="px-6 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 active:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition cursor-pointer disabled:opacity-50"
             >
               {saving ? '저장 중...' : '설정 저장'}
             </button>
@@ -434,7 +434,7 @@ export default function AdminPage() {
                                 className={`text-xs px-2 py-0.5 rounded transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${
                                   isActive
                                     ? (CATEGORY_COLORS[label]?.chipHover || 'bg-blue-100 text-blue-700 hover:bg-blue-200')
-                                    : 'bg-gray-100 text-gray-400 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-500 dark:hover:bg-gray-700'
+                                    : 'bg-gray-100 text-gray-400 hover:bg-gray-200 active:bg-gray-200 dark:bg-gray-800 dark:text-gray-500 dark:hover:bg-gray-700 dark:active:bg-gray-700'
                                 }`}
                               >
                                 {label}
@@ -453,21 +453,21 @@ export default function AdminPage() {
                           {hasActive ? (
                             <button
                               onClick={() => deactivateUser(user.id)}
-                              className="text-xs px-3 py-1 rounded bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-500/10 dark:text-red-400 dark:hover:bg-red-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 transition cursor-pointer"
+                              className="text-xs px-3 py-1 rounded bg-red-50 text-red-600 hover:bg-red-100 active:bg-red-100 dark:bg-red-500/10 dark:text-red-400 dark:hover:bg-red-500/20 dark:active:bg-red-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 transition cursor-pointer"
                             >
                               구독 중단
                             </button>
                           ) : (
                             <button
                               onClick={() => subscribeAll(user.id)}
-                              className="text-xs px-3 py-1 rounded bg-green-50 text-green-600 hover:bg-green-100 dark:bg-green-500/10 dark:text-green-400 dark:hover:bg-green-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 transition cursor-pointer"
+                              className="text-xs px-3 py-1 rounded bg-green-50 text-green-600 hover:bg-green-100 active:bg-green-100 dark:bg-green-500/10 dark:text-green-400 dark:hover:bg-green-500/20 dark:active:bg-green-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 transition cursor-pointer"
                             >
                               전체 구독
                             </button>
                           )}
                           <button
                             onClick={() => deleteUser(user.id)}
-                            className="text-xs px-3 py-1 rounded bg-gray-50 text-gray-500 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition cursor-pointer"
+                            className="text-xs px-3 py-1 rounded bg-gray-50 text-gray-500 hover:bg-gray-200 active:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:active:bg-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition cursor-pointer"
                           >
                             삭제
                           </button>

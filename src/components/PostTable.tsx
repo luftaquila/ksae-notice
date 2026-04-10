@@ -133,8 +133,8 @@ export default function PostTable() {
           }}
           className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${
             pinnedFirst
-              ? 'bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/30 dark:hover:bg-blue-500/20'
-              : 'bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700 dark:hover:bg-gray-700'
+              ? 'bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100 active:bg-blue-100 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/30 dark:hover:bg-blue-500/20 dark:active:bg-blue-500/20'
+              : 'bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100 active:bg-gray-100 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700 dark:hover:bg-gray-700 dark:active:bg-gray-700'
           }`}
           title={pinnedFirst ? '고정 공지 우선 정렬 (클릭하면 시간순)' : '시간순 정렬 (클릭하면 고정 공지 우선)'}
         >
@@ -168,7 +168,11 @@ export default function PostTable() {
                 return (
                   <tr
                     key={`${post.boardType}-${post.postNumber}`}
-                    className="hover:bg-gray-50 dark:hover:bg-gray-800 transition"
+                    onClick={(e) => {
+                      if ((e.target as HTMLElement).closest('a')) return;
+                      window.open(isMobile ? getMobileUrl(post) : post.url, '_blank', 'noopener,noreferrer');
+                    }}
+                    className="group hover:bg-gray-50 dark:hover:bg-gray-800 active:bg-gray-50 dark:active:bg-gray-800 transition cursor-pointer"
                   >
                     <td className="pl-4 pr-2 py-3 whitespace-nowrap text-center">
                       <span className={`inline-block text-xs px-1.5 py-0.5 rounded whitespace-nowrap ${chipColor}`}>
@@ -180,7 +184,7 @@ export default function PostTable() {
                         href={isMobile ? getMobileUrl(post) : post.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-sm text-gray-900 dark:text-gray-100 hover:text-blue-600 dark:hover:text-blue-400 transition"
+                        className="text-sm text-gray-900 dark:text-gray-100 hover:text-blue-600 dark:hover:text-blue-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 active:text-blue-600 dark:active:text-blue-400 group-active:text-blue-600 dark:group-active:text-blue-400 transition"
                       >
                         {post.isPinned ? <span className="mr-1">📌</span> : null}
                         {(() => { const d = new Date(post.date); const now = new Date(); return (now.getTime() - d.getTime()) < 3 * 86400000 ? <span className="mr-1">💡</span> : null; })()}
@@ -203,7 +207,7 @@ export default function PostTable() {
           <button
             onClick={() => setPage(Math.max(1, page - 1))}
             disabled={page === 1}
-            className="px-3 py-1.5 text-sm rounded border border-gray-200 dark:border-gray-700 disabled:opacity-50 hover:bg-gray-50 dark:hover:bg-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition cursor-pointer"
+            className="px-3 py-1.5 text-sm rounded border border-gray-200 dark:border-gray-700 disabled:opacity-50 hover:bg-gray-50 active:bg-gray-50 dark:hover:bg-gray-800 dark:active:bg-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition cursor-pointer"
           >
             이전
           </button>
@@ -222,7 +226,7 @@ export default function PostTable() {
                   className={`w-9 py-1.5 text-sm text-center rounded border transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${
                     p === page
                       ? 'bg-blue-600 text-white border-blue-600'
-                      : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'
+                      : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 active:bg-gray-50 dark:hover:bg-gray-800 dark:active:bg-gray-800'
                   }`}
                 >
                   {p}
@@ -233,7 +237,7 @@ export default function PostTable() {
           <button
             onClick={() => setPage(Math.min(totalPages, page + 1))}
             disabled={page >= totalPages}
-            className="px-3 py-1.5 text-sm rounded border border-gray-200 dark:border-gray-700 disabled:opacity-50 hover:bg-gray-50 dark:hover:bg-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition cursor-pointer"
+            className="px-3 py-1.5 text-sm rounded border border-gray-200 dark:border-gray-700 disabled:opacity-50 hover:bg-gray-50 active:bg-gray-50 dark:hover:bg-gray-800 dark:active:bg-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition cursor-pointer"
           >
             다음
           </button>
