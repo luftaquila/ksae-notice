@@ -40,11 +40,23 @@ export async function GET() {
     .where(eq(emailLogs.status, 'failed'))
     .get();
 
+  const totalEmailsSkipped = db
+    .select({ count: sql<number>`count(*)` })
+    .from(emailLogs)
+    .where(eq(emailLogs.status, 'skipped'))
+    .get();
+
   const today = new Date().toISOString().slice(0, 10);
   const todayEmails = db
     .select({ count: sql<number>`count(*)` })
     .from(emailLogs)
     .where(and(gte(emailLogs.sentAt, today), eq(emailLogs.status, 'sent')))
+    .get();
+
+  const todaySkipped = db
+    .select({ count: sql<number>`count(*)` })
+    .from(emailLogs)
+    .where(and(gte(emailLogs.sentAt, today), eq(emailLogs.status, 'skipped')))
     .get();
 
   const totalPosts = db
@@ -83,7 +95,9 @@ export async function GET() {
     emails: {
       totalSent: totalEmailsSent?.count || 0,
       totalFailed: totalEmailsFailed?.count || 0,
+      totalSkipped: totalEmailsSkipped?.count || 0,
       todaySent: todayEmails?.count || 0,
+      todaySkipped: todaySkipped?.count || 0,
       recentFailed,
     },
     recentCrawls,

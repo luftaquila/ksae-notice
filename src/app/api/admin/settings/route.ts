@@ -28,7 +28,7 @@ export async function PUT(request: NextRequest) {
   const body = await request.json();
   const db = getDb();
 
-  const allowedKeys = ['maxSubscribers', 'registrationOpen'];
+  const allowedKeys = ['maxSubscribers', 'registrationOpen', 'maxEmailsPerUserPerDay'];
 
   for (const [key, value] of Object.entries(body)) {
     if (!allowedKeys.includes(key)) continue;

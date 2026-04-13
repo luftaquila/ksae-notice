@@ -6,9 +6,7 @@ import ThemeToggle from './ThemeToggle';
 export default function LoginButton() {
   const { data: session, status } = useSession();
 
-  if (status === 'loading') {
-    return <div className="h-9 w-20 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />;
-  }
+  if (status === 'loading') return null;
 
   if (session) {
     return (

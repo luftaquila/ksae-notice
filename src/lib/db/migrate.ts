@@ -18,6 +18,7 @@ export function runMigrations() {
   const defaults: [string, string][] = [
     ['maxSubscribers', '50'],
     ['registrationOpen', 'true'],
+    ['maxEmailsPerUserPerDay', '2'],
   ];
 
   for (const [key, value] of defaults) {

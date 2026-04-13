@@ -1,6 +1,6 @@
 import { eq, and, sql, gte, isNull } from 'drizzle-orm';
 import { getDb } from '../db';
-import { users, subscriptions, emailLogs } from '../db/schema';
+import { users, subscriptions, emailLogs, settings } from '../db/schema';
 import { NOTICE_CATEGORY_CODES, type BoardType } from '../constants';
 import { sendEmail, getRemainingCredits } from './brevo';
 import { newPostNotification } from './templates';
@@ -112,8 +112,34 @@ export async function notifyNewPosts(newPosts: NewPost[]): Promise<void> {
     return;
   }
 
+  // Get per-user daily email limit
+  const maxPerUserSetting = db.select().from(settings).where(eq(settings.key, 'maxEmailsPerUserPerDay')).get();
+  const maxEmailsPerUserPerDay = parseInt(maxPerUserSetting?.value || '2', 10);
+  const today = new Date().toISOString().slice(0, 10);
+
   // Send one email per user
   for (const [userId, userData] of userPosts) {
+    // Check per-user daily email limit
+    const todaySentCount = db
+      .select({ count: sql<number>`count(*)` })
+      .from(emailLogs)
+      .where(and(eq(emailLogs.userId, userId), eq(emailLogs.status, 'sent'), gte(emailLogs.sentAt, today)))
+      .get();
+
+    if ((todaySentCount?.count || 0) >= maxEmailsPerUserPerDay) {
+      for (const post of userData.posts) {
+        db.insert(emailLogs).values({
+          userId,
+          postId: post.id,
+          type: 'notification',
+          status: 'skipped',
+          error: `Daily per-user limit reached: ${maxEmailsPerUserPerDay}`,
+        }).run();
+      }
+      console.log(`[Email] Skipped ${userData.email}: daily limit (${maxEmailsPerUserPerDay}) reached`);
+      continue;
+    }
+
     try {
       const htmlContent = newPostNotification(
         userData.posts.map((p) => ({

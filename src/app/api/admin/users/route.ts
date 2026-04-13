@@ -22,6 +22,13 @@ export async function GET() {
     .groupBy(emailLogs.userId)
     .all();
 
+  const skippedCounts = db
+    .select({ userId: emailLogs.userId, count: sql<number>`count(*)` })
+    .from(emailLogs)
+    .where(eq(emailLogs.status, 'skipped'))
+    .groupBy(emailLogs.userId)
+    .all();
+
   const subsByUser = new Map<number, { category: string; isActive: number; expiresAt: string }[]>();
   for (const sub of allSubs) {
     if (!subsByUser.has(sub.userId)) subsByUser.set(sub.userId, []);
@@ -29,6 +36,7 @@ export async function GET() {
   }
 
   const emailCountMap = new Map(emailCounts.map((e) => [e.userId, e.count]));
+  const skippedCountMap = new Map(skippedCounts.map((e) => [e.userId, e.count]));
 
   const result = allUsers.map((user) => ({
     id: user.id,
@@ -38,6 +46,7 @@ export async function GET() {
     deletedAt: user.deletedAt,
     subscriptions: subsByUser.get(user.id) || [],
     emailsSent: emailCountMap.get(user.id) || 0,
+    emailsSkipped: skippedCountMap.get(user.id) || 0,
   }));
 
   result.sort((a, b) => {

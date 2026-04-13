@@ -13,6 +13,7 @@ interface UserInfo {
   deletedAt: string | null;
   subscriptions: { category: string; isActive: number; expiresAt: string }[];
   emailsSent: number;
+  emailsSkipped: number;
 }
 
 interface FailedEmail {
@@ -31,7 +32,9 @@ interface AdminStats {
   emails: {
     totalSent: number;
     totalFailed: number;
+    totalSkipped: number;
     todaySent: number;
+    todaySkipped: number;
     recentFailed: FailedEmail[];
   };
   recentCrawls: {
@@ -47,13 +50,14 @@ interface AdminStats {
 interface Settings {
   maxSubscribers: string;
   registrationOpen: string;
+  maxEmailsPerUserPerDay: string;
 }
 
 export default function AdminPage() {
   const { data: session } = useSession();
   const [users, setUsers] = useState<UserInfo[]>([]);
   const [stats, setStats] = useState<AdminStats | null>(null);
-  const [settings, setSettings] = useState<Settings>({ maxSubscribers: '50', registrationOpen: 'true' });
+  const [settings, setSettings] = useState<Settings>({ maxSubscribers: '50', registrationOpen: 'true', maxEmailsPerUserPerDay: '2' });
   const [brevoRemaining, setBrevoRemaining] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -232,18 +236,22 @@ export default function AdminPage() {
       )}
 
       {/* Stats cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
         <StatCard label="활성/비활성/탈퇴/전체" value={`${stats?.activeSubscribers ?? 0}/${(stats?.totalUsers ?? 0) - (stats?.activeSubscribers ?? 0) - (stats?.deletedUsers ?? 0)}/${stats?.deletedUsers ?? 0}/${stats?.totalUsers ?? 0}`} />
-        <StatCard label="총 게시글" value={stats?.totalPosts ?? 0} />
+        <StatCard label="오늘 생략" value={stats?.emails.todaySkipped ?? 0} />
         <StatCard label="오늘 발송" value={stats?.emails.todaySent ?? 0} />
         <StatCard label="Brevo 잔량" value={brevoRemaining ?? '...'} />
       </div>
 
       {/* Email stats */}
-      <div className="grid grid-cols-2 gap-4 mb-8">
+      <div className="grid grid-cols-3 gap-4 mb-8">
         <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-4">
           <div className="text-sm text-gray-500 dark:text-gray-400">누적 발송 성공</div>
           <div className="text-xl font-bold text-green-600 dark:text-green-400 mt-1">{stats?.emails.totalSent ?? 0}건</div>
+        </div>
+        <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-4">
+          <div className="text-sm text-gray-500 dark:text-gray-400">누적 발송 생략</div>
+          <div className="text-xl font-bold text-yellow-600 dark:text-yellow-400 mt-1">{stats?.emails.totalSkipped ?? 0}건</div>
         </div>
         <button
           onClick={() => setShowFailedModal(true)}
@@ -295,13 +303,22 @@ export default function AdminPage() {
       {/* Settings */}
       <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-6 mb-8">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">설정</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-[auto_auto_1fr] gap-4 sm:items-end">
+        <div className="grid grid-cols-1 sm:grid-cols-[auto_auto_auto_1fr] gap-4 sm:items-end">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">최대 구독자 수</label>
             <input
               type="number"
               value={settings.maxSubscribers}
               onChange={(e) => setSettings({ ...settings, maxSubscribers: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm bg-white dark:bg-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">유저별 일일 최대 발송</label>
+            <input
+              type="number"
+              value={settings.maxEmailsPerUserPerDay}
+              onChange={(e) => setSettings({ ...settings, maxEmailsPerUserPerDay: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm bg-white dark:bg-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
@@ -415,6 +432,7 @@ export default function AdminPage() {
                 <th className="pb-2 pr-4 whitespace-nowrap w-[1%]">가입일</th>
                 <th className="pb-2 pr-4 whitespace-nowrap text-center">구독</th>
                 <th className="pb-2 pr-4 whitespace-nowrap w-[1%] text-center">발송</th>
+                <th className="pb-2 pr-4 whitespace-nowrap w-[1%] text-center">생략</th>
                 <th className="pb-2 whitespace-nowrap w-[1%]">관리</th>
               </tr>
             </thead>
@@ -455,6 +473,7 @@ export default function AdminPage() {
                       )}
                     </td>
                     <td className="py-3 pr-4 whitespace-nowrap text-center">{user.emailsSent}</td>
+                    <td className="py-3 pr-4 whitespace-nowrap text-center">{user.emailsSkipped}</td>
                     <td className="py-3 whitespace-nowrap">
                       {isDeleted ? null : user.email === session?.user?.email ? (
                         <span className="text-xs text-gray-400 dark:text-gray-500">관리자</span>
