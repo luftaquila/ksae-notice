@@ -9,6 +9,7 @@ import {
   isCountedSubscriber,
   isRegistrationOpen,
 } from '@/lib/subscription/capacity';
+import { endOfYear, renewalTargetYear } from '@/lib/subscription/period';
 
 export async function POST() {
   const session = await auth();
@@ -48,15 +49,12 @@ export async function POST() {
       .where(eq(users.id, session.user.id))
       .get();
 
-    // A period always ends on 12/31 and renewal buys exactly one calendar year:
-    // the current one when it is not covered yet, otherwise the next. Handing a
-    // lapsed account year + 1 would give it two years in one click.
-    const now = new Date().toISOString();
-    const covered = !!account?.expiresAt && account.expiresAt >= now;
-    const renewedTo = `${new Date().getFullYear() + (covered ? 1 : 0)}-12-31T23:59:59.000Z`;
+    // Same rule the dashboard labels the button with — see lib/subscription/period.
+    const now = new Date();
+    const renewedTo = endOfYear(renewalTargetYear(now, account?.expiresAt ?? null));
 
     db.update(users)
-      .set({ subscriptionExpiresAt: renewedTo, subscriptionRenewedAt: now })
+      .set({ subscriptionExpiresAt: renewedTo, subscriptionRenewedAt: now.toISOString() })
       .where(eq(users.id, session.user.id))
       .run();
   }
