@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { createTestDb, seedUser, seedSubscription, seedSetting, type TestDb } from '../helpers';
 import { users, subscriptions, settings } from '@/lib/db/schema';
-import { SUBSCRIPTION_CATEGORIES } from '@/lib/constants';
+import { SUBSCRIPTION_CATEGORIES, getEndOfYear } from '@/lib/constants';
 
 let db: TestDb;
 let capturedConfig: any;
@@ -70,6 +70,7 @@ describe('signIn callback - new user', () => {
     const subs = subsOf(user!.id);
     expect(subs.length).toBe(SUBSCRIPTION_CATEGORIES.length);
     expect(subs.every((s) => s.isActive === 1)).toBe(true);
+    expect(user!.subscriptionExpiresAt).toBe(getEndOfYear());
   });
 
   it('creates the user with every subscription inactive when the limit is reached', async () => {
@@ -82,6 +83,8 @@ describe('signIn callback - new user', () => {
     const subs = subsOf(user!.id);
     expect(subs.length).toBe(SUBSCRIPTION_CATEGORIES.length);
     expect(subs.every((s) => s.isActive === 0)).toBe(true);
+    // No subscription means no period either
+    expect(user!.subscriptionExpiresAt).toBeNull();
   });
 
   it('does not let a sign-up push the active subscriber count past the limit', async () => {
@@ -132,8 +135,10 @@ describe('signIn callback - returning user', () => {
 
     expect(await signInCallback({ profile: googleProfile({ sub: 'google-back', email: 'back@test.com' }) })).toBe(true);
 
-    expect(db.select().from(users).where(eq(users.id, id)).get()!.deletedAt).toBeNull();
+    const user = db.select().from(users).where(eq(users.id, id)).get()!;
+    expect(user.deletedAt).toBeNull();
     expect(subsOf(id).every((s) => s.isActive === 1)).toBe(true);
+    expect(user.subscriptionExpiresAt).toBe(getEndOfYear());
   });
 
   it('leaves subscriptions inactive on re-register when the limit is reached', async () => {
@@ -142,8 +147,10 @@ describe('signIn callback - returning user', () => {
 
     expect(await signInCallback({ profile: googleProfile({ sub: 'google-back', email: 'back@test.com' }) })).toBe(true);
 
-    expect(db.select().from(users).where(eq(users.id, id)).get()!.deletedAt).toBeNull();
+    const user = db.select().from(users).where(eq(users.id, id)).get()!;
+    expect(user.deletedAt).toBeNull();
     expect(subsOf(id).every((s) => s.isActive === 0)).toBe(true);
+    expect(user.subscriptionExpiresAt).toBeNull();
   });
 
   it('only refreshes the profile for an active user, even past the limit', async () => {

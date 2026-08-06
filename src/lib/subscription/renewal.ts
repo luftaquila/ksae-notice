@@ -23,7 +23,6 @@ export async function checkAndSendRenewalReminders(): Promise<void> {
   const db = getDb();
 
   // Find users with active subscriptions expiring this year who haven't renewed
-  const expiryDate = `${year}-12-31`;
   const nextYearExpiry = `${year + 1}-01-01`;
 
   const subscribedUsers = db
@@ -36,8 +35,8 @@ export async function checkAndSendRenewalReminders(): Promise<void> {
     .innerJoin(subscriptions, eq(users.id, subscriptions.userId))
     .where(and(
       eq(subscriptions.isActive, 1),
-      gte(subscriptions.expiresAt, new Date().toISOString()),
-      lt(subscriptions.expiresAt, nextYearExpiry),
+      gte(users.subscriptionExpiresAt, new Date().toISOString()),
+      lt(users.subscriptionExpiresAt, nextYearExpiry),
     ))
     .groupBy(users.id)
     .all();

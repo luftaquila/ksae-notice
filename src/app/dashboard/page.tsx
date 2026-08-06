@@ -9,13 +9,13 @@ interface Subscription {
   id: number;
   category: string;
   isActive: number;
-  expiresAt: string;
-  renewedAt: string | null;
 }
 
 export default function DashboardPage() {
   const { data: session } = useSession();
   const [subs, setSubs] = useState<Subscription[]>([]);
+  // One expiry for the whole account, not one per category.
+  const [expiresAt, setExpiresAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -25,6 +25,7 @@ export default function DashboardPage() {
       const res = await fetch('/api/subscriptions');
       const data = await res.json();
       setSubs(data.subscriptions || []);
+      setExpiresAt(data.expiresAt ?? null);
     } catch {
       setError('구독 정보를 불러오는데 실패했습니다.');
     } finally {
@@ -164,7 +165,6 @@ export default function DashboardPage() {
   const currentYear = now.getFullYear();
   const isDecember = now.getMonth() === 11;
   const hasActiveSubs = subs.some((s) => s.isActive);
-  const expiresAt = subs.find((s) => s.isActive)?.expiresAt;
   const isExpired = expiresAt ? new Date(expiresAt) < now : false;
   const showRenewal = hasActiveSubs && (isDecember || isExpired);
 

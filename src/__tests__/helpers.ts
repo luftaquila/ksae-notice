@@ -1,8 +1,7 @@
 import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
-import { sql } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import * as schema from '@/lib/db/schema';
-import { vi } from 'vitest';
 
 // ── In-memory DB ──────────────────────────────────────────────
 export function createTestDb() {
@@ -19,16 +18,16 @@ export function createTestDb() {
       name TEXT,
       avatar TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      deleted_at TEXT
+      deleted_at TEXT,
+      subscription_expires_at TEXT,
+      subscription_renewed_at TEXT
     );
     CREATE TABLE subscriptions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL REFERENCES users(id),
       category TEXT NOT NULL,
       is_active INTEGER NOT NULL DEFAULT 1,
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      expires_at TEXT NOT NULL,
-      renewed_at TEXT
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
     CREATE UNIQUE INDEX subscriptions_user_category_idx ON subscriptions(user_id, category);
     CREATE TABLE posts (
@@ -86,11 +85,16 @@ export function mockSession(userId: number, email: string, isAdmin = false) {
 }
 
 // ── Seed helpers ──────────────────────────────────────────────
+// Defaults to a subscription period that has not lapsed, whenever the suite runs.
+export const UNEXPIRED = `${new Date().getFullYear() + 1}-12-31T23:59:59.000Z`;
+export const EXPIRED = `${new Date().getFullYear() - 1}-12-31T23:59:59.000Z`;
+
 export function seedUser(db: TestDb, overrides: Partial<typeof schema.users.$inferInsert> = {}) {
   const result = db.insert(schema.users).values({
     googleId: `google-${Date.now()}-${Math.random()}`,
     email: `user-${Date.now()}@test.com`,
     name: 'Test User',
+    subscriptionExpiresAt: UNEXPIRED,
     ...overrides,
   }).run();
   return Number(result.lastInsertRowid);
@@ -109,16 +113,11 @@ export function seedPost(db: TestDb, overrides: Partial<typeof schema.posts.$inf
   return Number(result.lastInsertRowid);
 }
 
-// Defaults to a subscription that has not lapsed, whenever the suite happens to run.
-export const UNEXPIRED = `${new Date().getFullYear() + 1}-12-31T23:59:59.000Z`;
-export const EXPIRED = `${new Date().getFullYear() - 1}-12-31T23:59:59.000Z`;
-
 export function seedSubscription(db: TestDb, userId: number, category: string, overrides: Partial<typeof schema.subscriptions.$inferInsert> = {}) {
   const result = db.insert(schema.subscriptions).values({
     userId,
     category,
     isActive: 1,
-    expiresAt: UNEXPIRED,
     ...overrides,
   }).run();
   return Number(result.lastInsertRowid);
@@ -151,26 +150,37 @@ export function seedEmailLog(db: TestDb, userId: number, overrides: Partial<type
 }
 
 // ── Shared upsertSubscription mock implementation ─────────────
+// Mirrors src/lib/subscription/upsert.ts: the row carries only isActive, and
+// the account period is extended but never shortened.
 export function createUpsertSubscriptionMock(getTestDb: () => TestDb) {
   return (userId: number, category: string) => {
     const testDb = getTestDb();
     const existing = testDb.select().from(schema.subscriptions)
-      .where(
-        require('drizzle-orm').and(
-          require('drizzle-orm').eq(schema.subscriptions.userId, userId),
-          require('drizzle-orm').eq(schema.subscriptions.category, category),
-        ),
-      )
+      .where(and(
+        eq(schema.subscriptions.userId, userId),
+        eq(schema.subscriptions.category, category),
+      ))
       .get();
-    const endOfYear = `${new Date().getFullYear()}-12-31T23:59:59.000Z`;
+
     if (existing) {
       testDb.update(schema.subscriptions)
-        .set({ isActive: 1, expiresAt: endOfYear, renewedAt: new Date().toISOString() })
-        .where(require('drizzle-orm').eq(schema.subscriptions.id, existing.id))
+        .set({ isActive: 1 })
+        .where(eq(schema.subscriptions.id, existing.id))
         .run();
     } else {
-      testDb.insert(schema.subscriptions)
-        .values({ userId, category, isActive: 1, expiresAt: endOfYear })
+      testDb.insert(schema.subscriptions).values({ userId, category, isActive: 1 }).run();
+    }
+
+    const endOfYear = `${new Date().getFullYear()}-12-31T23:59:59.000Z`;
+    const current = testDb.select({ expiresAt: schema.users.subscriptionExpiresAt })
+      .from(schema.users)
+      .where(eq(schema.users.id, userId))
+      .get();
+
+    if (!current?.expiresAt || current.expiresAt < endOfYear) {
+      testDb.update(schema.users)
+        .set({ subscriptionExpiresAt: endOfYear, subscriptionRenewedAt: new Date().toISOString() })
+        .where(eq(schema.users.id, userId))
         .run();
     }
   };

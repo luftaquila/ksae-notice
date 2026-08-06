@@ -111,11 +111,11 @@ describe('POST /api/subscriptions', () => {
       .run();
     const u1 = seedUser(db, { googleId: 'g1', email: 'a@test.com' });
     seedSubscription(db, u1, 'notice_Z');
-    const u2 = seedUser(db, { googleId: 'g2', email: 'b@test.com' });
-    seedSubscription(db, u2, 'notice_Z', { expiresAt: EXPIRED });
+    const u2 = seedUser(db, { googleId: 'g2', email: 'b@test.com', subscriptionExpiresAt: EXPIRED });
+    seedSubscription(db, u2, 'notice_Z');
     mockSessionValue = { user: { id: u2, email: 'b@test.com' } };
 
-    // The lapsed row no longer holds a slot, so u2 is treated as a new subscriber
+    // The lapsed account no longer holds a slot, so u2 is treated as a new subscriber
     const res = await POST(jsonReq({ category: 'notice_A' }) as any);
     expect(res.status).toBe(403);
   });

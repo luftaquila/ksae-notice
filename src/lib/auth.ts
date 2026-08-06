@@ -53,16 +53,17 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             email,
             name: profile.name || null,
             avatar: profile.picture || null,
+            // Over capacity the categories are all inactive, so the account
+            // holds no subscription and therefore no period either.
+            subscriptionExpiresAt: isActive ? getEndOfYear() : null,
           }).run();
 
           const userId = Number(result.lastInsertRowid);
-          const endOfYear = getEndOfYear();
           for (const cat of SUBSCRIPTION_CATEGORIES) {
             tx.insert(subscriptions).values({
               userId,
               category: cat.id,
               isActive,
-              expiresAt: endOfYear,
             }).run();
           }
         }, { behavior: 'immediate' });
@@ -71,7 +72,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         // only if there is still room — a returning user takes a fresh slot.
         db.transaction((tx) => {
           const isActive = canAcceptNewSubscriber(tx) ? 1 : 0;
-          const endOfYear = getEndOfYear();
 
           tx.update(users)
             .set({
@@ -79,11 +79,13 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
               name: profile.name || existing.name,
               avatar: profile.picture || existing.avatar,
               email,
+              // A returning user starts a fresh period, or none if there is no room.
+              subscriptionExpiresAt: isActive ? getEndOfYear() : null,
             })
             .where(eq(users.id, existing.id))
             .run();
           tx.update(subscriptions)
-            .set({ isActive, expiresAt: endOfYear })
+            .set({ isActive })
             .where(eq(subscriptions.userId, existing.id))
             .run();
         }, { behavior: 'immediate' });

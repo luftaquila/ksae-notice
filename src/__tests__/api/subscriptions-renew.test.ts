@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { createTestDb, seedUser, seedSubscription, seedSetting, EXPIRED, type TestDb } from '../helpers';
-import { eq, and } from 'drizzle-orm';
-import { subscriptions, settings } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
+import { users, settings } from '@/lib/db/schema';
 
 let db: TestDb;
 let mockSessionValue: any = null;
@@ -16,6 +16,10 @@ vi.mock('@/lib/auth', () => ({
 
 const { POST } = await import('@/app/api/subscriptions/renew/route');
 
+function accountOf(userId: number) {
+  return db.select().from(users).where(eq(users.id, userId)).get()!;
+}
+
 describe('POST /api/subscriptions/renew', () => {
   beforeEach(() => {
     db = createTestDb();
@@ -27,26 +31,31 @@ describe('POST /api/subscriptions/renew', () => {
     expect(res.status).toBe(401);
   });
 
-  it('renews active subscriptions to next year end', async () => {
+  it('renews the account period to next year end', async () => {
     const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com' });
-    seedSubscription(db, userId, 'notice_Z', { expiresAt: '2025-12-31T23:59:59.000Z' });
-    seedSubscription(db, userId, 'rule', { isActive: 0, expiresAt: '2025-12-31T23:59:59.000Z' });
+    seedSubscription(db, userId, 'notice_Z');
+    seedSubscription(db, userId, 'rule', { isActive: 0 });
 
     mockSessionValue = { user: { id: userId, email: 'a@test.com' } };
     const res = await POST();
-    const data = await res.json();
-    expect(data.ok).toBe(true);
+    expect((await res.json()).ok).toBe(true);
 
-    const subs = db.select().from(subscriptions).where(eq(subscriptions.userId, userId)).all();
-    const activeSub = subs.find(s => s.category === 'notice_Z')!;
-    const inactiveSub = subs.find(s => s.category === 'rule')!;
+    const account = accountOf(userId);
+    expect(account.subscriptionExpiresAt).toContain(`${new Date().getFullYear() + 1}-12-31`);
+    expect(account.subscriptionRenewedAt).not.toBeNull();
+  });
 
-    const expectedYear = new Date().getFullYear() + 1;
-    expect(activeSub.expiresAt).toContain(`${expectedYear}-12-31`);
-    expect(activeSub.renewedAt).not.toBeNull();
-    // Inactive sub should NOT be renewed
-    expect(inactiveSub.expiresAt).toBe('2025-12-31T23:59:59.000Z');
-    expect(inactiveSub.renewedAt).toBeNull();
+  it('does not renew an account holding no active category', async () => {
+    const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com', subscriptionExpiresAt: EXPIRED });
+    seedSubscription(db, userId, 'notice_Z', { isActive: 0 });
+
+    mockSessionValue = { user: { id: userId, email: 'a@test.com' } };
+    const res = await POST();
+    expect((await res.json()).ok).toBe(true);
+
+    const account = accountOf(userId);
+    expect(account.subscriptionExpiresAt).toBe(EXPIRED);
+    expect(account.subscriptionRenewedAt).toBeNull();
   });
 
   it('returns ok even when user has no subscriptions', async () => {
@@ -70,38 +79,32 @@ describe('POST /api/subscriptions/renew - subscriber limit', () => {
   it('blocks a lapsed subscriber from reclaiming a slot someone else took', async () => {
     const taker = seedUser(db, { googleId: 'g1', email: 'a@test.com' });
     seedSubscription(db, taker, 'notice_Z');
-    const lapsed = seedUser(db, { googleId: 'g2', email: 'b@test.com' });
-    seedSubscription(db, lapsed, 'notice_Z', { expiresAt: EXPIRED });
+    const lapsed = seedUser(db, { googleId: 'g2', email: 'b@test.com', subscriptionExpiresAt: EXPIRED });
+    seedSubscription(db, lapsed, 'notice_Z');
 
     mockSessionValue = { user: { id: lapsed, email: 'b@test.com' } };
     const res = await POST();
     expect(res.status).toBe(403);
 
-    const sub = db.select().from(subscriptions)
-      .where(and(eq(subscriptions.userId, lapsed), eq(subscriptions.category, 'notice_Z')))
-      .get();
-    expect(sub!.expiresAt).toBe(EXPIRED);
+    expect(accountOf(lapsed).subscriptionExpiresAt).toBe(EXPIRED);
   });
 
   it('lets a lapsed subscriber renew while a slot is free', async () => {
-    const lapsed = seedUser(db, { googleId: 'g2', email: 'b@test.com' });
-    seedSubscription(db, lapsed, 'notice_Z', { expiresAt: EXPIRED });
+    const lapsed = seedUser(db, { googleId: 'g2', email: 'b@test.com', subscriptionExpiresAt: EXPIRED });
+    seedSubscription(db, lapsed, 'notice_Z');
 
     mockSessionValue = { user: { id: lapsed, email: 'b@test.com' } };
     const res = await POST();
     expect(res.status).toBe(200);
 
-    const sub = db.select().from(subscriptions)
-      .where(and(eq(subscriptions.userId, lapsed), eq(subscriptions.category, 'notice_Z')))
-      .get();
-    expect(sub!.expiresAt).toContain(`${new Date().getFullYear() + 1}-12-31`);
+    expect(accountOf(lapsed).subscriptionExpiresAt).toContain(`${new Date().getFullYear() + 1}-12-31`);
   });
 
   it('tells a lapsed subscriber the real reason when registration is closed', async () => {
     db.update(settings).set({ value: 'false' }).where(eq(settings.key, 'registrationOpen')).run();
     db.update(settings).set({ value: '50' }).where(eq(settings.key, 'maxSubscribers')).run();
-    const lapsed = seedUser(db, { googleId: 'g2', email: 'b@test.com' });
-    seedSubscription(db, lapsed, 'notice_Z', { expiresAt: EXPIRED });
+    const lapsed = seedUser(db, { googleId: 'g2', email: 'b@test.com', subscriptionExpiresAt: EXPIRED });
+    seedSubscription(db, lapsed, 'notice_Z');
 
     mockSessionValue = { user: { id: lapsed, email: 'b@test.com' } };
     const res = await POST();

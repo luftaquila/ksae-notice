@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { eq, and } from 'drizzle-orm';
 import { auth } from '@/lib/auth';
 import { getDb } from '@/lib/db';
-import { subscriptions } from '@/lib/db/schema';
+import { users, subscriptions } from '@/lib/db/schema';
 import { SUBSCRIPTION_CATEGORIES } from '@/lib/constants';
 import { upsertSubscription } from '@/lib/subscription/upsert';
 import {
@@ -26,7 +26,14 @@ export async function GET() {
     .where(eq(subscriptions.userId, session.user.id))
     .all();
 
-  return NextResponse.json({ subscriptions: subs });
+  // The expiry is one value for the account, not one per category.
+  const account = db
+    .select({ expiresAt: users.subscriptionExpiresAt })
+    .from(users)
+    .where(eq(users.id, session.user.id))
+    .get();
+
+  return NextResponse.json({ subscriptions: subs, expiresAt: account?.expiresAt ?? null });
 }
 
 // POST: subscribe to a category

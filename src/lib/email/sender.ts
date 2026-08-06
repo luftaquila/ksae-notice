@@ -62,7 +62,7 @@ export async function notifyNewPosts(newPosts: NewPost[]): Promise<void> {
     .innerJoin(users, eq(subscriptions.userId, users.id))
     .where(and(
       eq(subscriptions.isActive, 1),
-      gte(subscriptions.expiresAt, now),
+      gte(users.subscriptionExpiresAt, now),
       isNull(users.deletedAt),
     ))
     .all()

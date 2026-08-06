@@ -9,6 +9,10 @@ export const users = sqliteTable('users', {
   avatar: text('avatar'),
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
   deletedAt: text('deleted_at'),
+  // The subscription period is an account-level fact: every path that sets it
+  // covers all of the user's categories at once. NULL means no period at all.
+  subscriptionExpiresAt: text('subscription_expires_at'),
+  subscriptionRenewedAt: text('subscription_renewed_at'),
 });
 
 export const subscriptions = sqliteTable(
@@ -21,8 +25,6 @@ export const subscriptions = sqliteTable(
     category: text('category').notNull(),
     isActive: integer('is_active').notNull().default(1),
     createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
-    expiresAt: text('expires_at').notNull(),
-    renewedAt: text('renewed_at'),
   },
   (table) => [
     uniqueIndex('subscriptions_user_category_idx').on(table.userId, table.category),

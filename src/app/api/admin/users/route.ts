@@ -29,10 +29,10 @@ export async function GET() {
     .groupBy(emailLogs.userId)
     .all();
 
-  const subsByUser = new Map<number, { category: string; isActive: number; expiresAt: string }[]>();
+  const subsByUser = new Map<number, { category: string; isActive: number }[]>();
   for (const sub of allSubs) {
     if (!subsByUser.has(sub.userId)) subsByUser.set(sub.userId, []);
-    subsByUser.get(sub.userId)!.push({ category: sub.category, isActive: sub.isActive, expiresAt: sub.expiresAt });
+    subsByUser.get(sub.userId)!.push({ category: sub.category, isActive: sub.isActive });
   }
 
   const emailCountMap = new Map(emailCounts.map((e) => [e.userId, e.count]));
