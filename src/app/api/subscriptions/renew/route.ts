@@ -29,7 +29,6 @@ export async function POST() {
   }
 
   const db = getDb();
-  const nextYearEnd = `${new Date().getFullYear() + 1}-12-31T23:59:59.000Z`;
 
   // The period is account-level now, but there is still nothing to renew for an
   // account that holds no active category.
@@ -43,8 +42,21 @@ export async function POST() {
     .get();
 
   if (hasActiveCategory) {
+    const account = db
+      .select({ expiresAt: users.subscriptionExpiresAt })
+      .from(users)
+      .where(eq(users.id, session.user.id))
+      .get();
+
+    // A period always ends on 12/31 and renewal buys exactly one calendar year:
+    // the current one when it is not covered yet, otherwise the next. Handing a
+    // lapsed account year + 1 would give it two years in one click.
+    const now = new Date().toISOString();
+    const covered = !!account?.expiresAt && account.expiresAt >= now;
+    const renewedTo = `${new Date().getFullYear() + (covered ? 1 : 0)}-12-31T23:59:59.000Z`;
+
     db.update(users)
-      .set({ subscriptionExpiresAt: nextYearEnd, subscriptionRenewedAt: new Date().toISOString() })
+      .set({ subscriptionExpiresAt: renewedTo, subscriptionRenewedAt: now })
       .where(eq(users.id, session.user.id))
       .run();
   }
