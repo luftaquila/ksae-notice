@@ -3,11 +3,29 @@ import { eq, and } from 'drizzle-orm';
 import { auth } from '@/lib/auth';
 import { getDb } from '@/lib/db';
 import { subscriptions } from '@/lib/db/schema';
+import {
+  getActiveSubscriberCount,
+  getMaxSubscribers,
+  isCountedSubscriber,
+  isRegistrationOpen,
+} from '@/lib/subscription/capacity';
 
 export async function POST() {
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // Renewing an already lapsed subscription reclaims a slot someone else may
+  // have taken in the meantime, so it goes through the same gate as a new
+  // subscription — including the same two reasons, kept apart.
+  if (!isCountedSubscriber(session.user.id)) {
+    if (!isRegistrationOpen()) {
+      return NextResponse.json({ error: '현재 신규 구독이 중단되었습니다.' }, { status: 403 });
+    }
+    if (getActiveSubscriberCount() >= getMaxSubscribers()) {
+      return NextResponse.json({ error: '최대 구독자 수에 도달했습니다.' }, { status: 403 });
+    }
   }
 
   const db = getDb();

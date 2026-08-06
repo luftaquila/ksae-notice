@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { eq, sql, and, gte, desc, isNotNull } from 'drizzle-orm';
 import { requireAdmin } from '@/lib/auth';
 import { getDb } from '@/lib/db';
-import { users, subscriptions, emailLogs, crawlLogs, posts } from '@/lib/db/schema';
+import { users, emailLogs, crawlLogs, posts } from '@/lib/db/schema';
+import { getActiveSubscriberCount } from '@/lib/subscription/capacity';
 
 export async function GET() {
   if (!(await requireAdmin())) {
@@ -20,12 +21,6 @@ export async function GET() {
     .select({ count: sql<number>`count(*)` })
     .from(users)
     .where(isNotNull(users.deletedAt))
-    .get();
-
-  const activeSubscribers = db
-    .select({ count: sql<number>`count(DISTINCT user_id)` })
-    .from(subscriptions)
-    .where(eq(subscriptions.isActive, 1))
     .get();
 
   const totalEmailsSent = db
@@ -90,7 +85,7 @@ export async function GET() {
   return NextResponse.json({
     totalUsers: totalUsers?.count || 0,
     deletedUsers: deletedUsers?.count || 0,
-    activeSubscribers: activeSubscribers?.count || 0,
+    activeSubscribers: getActiveSubscriberCount(),
     totalPosts: totalPosts?.count || 0,
     emails: {
       totalSent: totalEmailsSent?.count || 0,

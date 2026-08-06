@@ -1,28 +1,15 @@
 import { NextResponse } from 'next/server';
-import { eq, sql, desc, and } from 'drizzle-orm';
+import { eq, desc } from 'drizzle-orm';
 import { getDb } from '@/lib/db';
-import { subscriptions, crawlLogs, settings, emailLogs } from '@/lib/db/schema';
+import { crawlLogs } from '@/lib/db/schema';
+import {
+  getActiveSubscriberCount,
+  getMaxSubscribers,
+  isRegistrationOpen,
+} from '@/lib/subscription/capacity';
 
 export async function GET() {
   const db = getDb();
-
-  const activeSubscribers = db
-    .select({ count: sql<number>`count(DISTINCT user_id)` })
-    .from(subscriptions)
-    .where(eq(subscriptions.isActive, 1))
-    .get();
-
-  const maxSubscribersRow = db
-    .select()
-    .from(settings)
-    .where(eq(settings.key, 'maxSubscribers'))
-    .get();
-
-  const registrationOpenRow = db
-    .select()
-    .from(settings)
-    .where(eq(settings.key, 'registrationOpen'))
-    .get();
 
   const lastCrawl = db
     .select()
@@ -33,9 +20,9 @@ export async function GET() {
     .get();
 
   return NextResponse.json({
-    activeSubscribers: activeSubscribers?.count || 0,
-    maxSubscribers: parseInt(maxSubscribersRow?.value || '50', 10),
-    registrationOpen: registrationOpenRow?.value !== 'false',
+    activeSubscribers: getActiveSubscriberCount(),
+    maxSubscribers: getMaxSubscribers(),
+    registrationOpen: isRegistrationOpen(),
     lastCrawl: lastCrawl
       ? { finishedAt: lastCrawl.finishedAt, boardType: lastCrawl.boardType, newPostsCount: lastCrawl.newPostsCount }
       : null,

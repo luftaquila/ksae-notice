@@ -109,12 +109,16 @@ export function seedPost(db: TestDb, overrides: Partial<typeof schema.posts.$inf
   return Number(result.lastInsertRowid);
 }
 
+// Defaults to a subscription that has not lapsed, whenever the suite happens to run.
+export const UNEXPIRED = `${new Date().getFullYear() + 1}-12-31T23:59:59.000Z`;
+export const EXPIRED = `${new Date().getFullYear() - 1}-12-31T23:59:59.000Z`;
+
 export function seedSubscription(db: TestDb, userId: number, category: string, overrides: Partial<typeof schema.subscriptions.$inferInsert> = {}) {
   const result = db.insert(schema.subscriptions).values({
     userId,
     category,
     isActive: 1,
-    expiresAt: '2026-12-31T23:59:59.000Z',
+    expiresAt: UNEXPIRED,
     ...overrides,
   }).run();
   return Number(result.lastInsertRowid);

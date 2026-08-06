@@ -40,7 +40,10 @@ export default function DashboardPage() {
     setActionLoading('subscribe_all');
     setError(null);
     try {
-      let hasError = false;
+      // Keep the first server-side reason — for a user who is not subscribed
+      // to anything yet, every category fails for the same reason (limit
+      // reached or registration closed) and it is the only useful message.
+      let failure: string | null = null;
       for (const cat of SUBSCRIPTION_CATEGORIES) {
         const sub = subs.find((s) => s.category === cat.id);
         if (!sub?.isActive) {
@@ -49,11 +52,14 @@ export default function DashboardPage() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ category: cat.id }),
           });
-          if (!res.ok) hasError = true;
+          if (!res.ok && !failure) {
+            const data = await res.json().catch(() => null);
+            failure = data?.error || '일부 구독에 실패했습니다.';
+          }
         }
       }
       await fetchSubs();
-      if (hasError) setError('일부 구독에 실패했습니다.');
+      if (failure) setError(failure);
     } catch {
       setError('요청에 실패했습니다.');
     } finally {

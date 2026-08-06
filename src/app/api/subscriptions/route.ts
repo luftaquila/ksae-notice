@@ -1,26 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { auth } from '@/lib/auth';
 import { getDb } from '@/lib/db';
-import { subscriptions, settings } from '@/lib/db/schema';
+import { subscriptions } from '@/lib/db/schema';
 import { SUBSCRIPTION_CATEGORIES } from '@/lib/constants';
 import { upsertSubscription } from '@/lib/subscription/upsert';
-
-function getActiveSubscriberCount(): number {
-  const db = getDb();
-  const result = db
-    .select({ count: sql<number>`count(DISTINCT user_id)` })
-    .from(subscriptions)
-    .where(eq(subscriptions.isActive, 1))
-    .get();
-  return result?.count || 0;
-}
-
-function getSetting(key: string): string | null {
-  const db = getDb();
-  const row = db.select().from(settings).where(eq(settings.key, key)).get();
-  return row?.value || null;
-}
+import {
+  getActiveSubscriberCount,
+  getMaxSubscribers,
+  isCountedSubscriber,
+  isRegistrationOpen,
+} from '@/lib/subscription/capacity';
 
 // GET: get current user's subscriptions
 export async function GET() {
@@ -54,24 +44,16 @@ export async function POST(request: NextRequest) {
   }
 
   // Check if registration is open
-  const registrationOpen = getSetting('registrationOpen');
-  if (registrationOpen === 'false') {
+  if (!isRegistrationOpen()) {
     return NextResponse.json({ error: '현재 신규 구독이 중단되었습니다.' }, { status: 403 });
   }
 
   // Check max subscriber limit
-  const maxSubscribers = parseInt(getSetting('maxSubscribers') || '50', 10);
+  const maxSubscribers = getMaxSubscribers();
   const currentCount = getActiveSubscriberCount();
 
-  // Check if user already has any active subscription (if so, they're not a "new" subscriber)
-  const db = getDb();
-  const existingSubs = db
-    .select()
-    .from(subscriptions)
-    .where(and(eq(subscriptions.userId, session.user.id), eq(subscriptions.isActive, 1)))
-    .all();
-
-  if (existingSubs.length === 0 && currentCount >= maxSubscribers) {
+  // A user who already occupies a slot is not a "new" subscriber
+  if (!isCountedSubscriber(session.user.id) && currentCount >= maxSubscribers) {
     return NextResponse.json({ error: '최대 구독자 수에 도달했습니다.' }, { status: 403 });
   }
 

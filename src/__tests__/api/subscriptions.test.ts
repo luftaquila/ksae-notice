@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { createTestDb, seedUser, seedSubscription, seedSetting, createUpsertSubscriptionMock, type TestDb } from '../helpers';
+import { createTestDb, seedUser, seedSubscription, seedSetting, createUpsertSubscriptionMock, EXPIRED, type TestDb } from '../helpers';
 import { eq, and } from 'drizzle-orm';
 import { subscriptions, settings } from '@/lib/db/schema';
 
@@ -101,6 +101,22 @@ describe('POST /api/subscriptions', () => {
     mockSessionValue = { user: { id: u2, email: 'b@test.com' } };
 
     const res = await POST(jsonReq({ category: 'notice_Z' }) as any);
+    expect(res.status).toBe(403);
+  });
+
+  it('returns 403 when max subscribers reached for a lapsed subscriber', async () => {
+    db.update(settings)
+      .set({ value: '1' })
+      .where(eq(settings.key, 'maxSubscribers'))
+      .run();
+    const u1 = seedUser(db, { googleId: 'g1', email: 'a@test.com' });
+    seedSubscription(db, u1, 'notice_Z');
+    const u2 = seedUser(db, { googleId: 'g2', email: 'b@test.com' });
+    seedSubscription(db, u2, 'notice_Z', { expiresAt: EXPIRED });
+    mockSessionValue = { user: { id: u2, email: 'b@test.com' } };
+
+    // The lapsed row no longer holds a slot, so u2 is treated as a new subscriber
+    const res = await POST(jsonReq({ category: 'notice_A' }) as any);
     expect(res.status).toBe(403);
   });
 

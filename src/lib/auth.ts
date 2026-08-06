@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm';
 import { getDb } from './db';
 import { users, subscriptions } from './db/schema';
 import { SUBSCRIPTION_CATEGORIES, getEndOfYear } from './constants';
+import { canAcceptNewSubscriber } from './subscription/capacity';
 
 declare module 'next-auth' {
   interface Session {
@@ -28,55 +29,72 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     async signIn({ profile }) {
       if (!profile?.sub || !profile?.email) return false;
 
+      // Locals keep the narrowing above inside the transaction callbacks below.
+      const googleId = profile.sub;
+      const email = profile.email;
+
       const db = getDb();
       const existing = db
         .select()
         .from(users)
-        .where(eq(users.googleId, profile.sub))
+        .where(eq(users.googleId, googleId))
         .get();
 
       if (!existing) {
-        const result = db.insert(users).values({
-          googleId: profile.sub,
-          email: profile.email,
-          name: profile.name || null,
-          avatar: profile.picture || null,
-        }).run();
+        // Signing up must respect the subscriber limit too — it does not go
+        // through POST /api/subscriptions, so the check lives here as well.
+        // The transaction makes the user row and its six subscription rows
+        // land all-or-nothing, and keeps the count consistent with them.
+        db.transaction((tx) => {
+          const isActive = canAcceptNewSubscriber(tx) ? 1 : 0;
 
-        const userId = Number(result.lastInsertRowid);
-        const endOfYear = getEndOfYear();
-        for (const cat of SUBSCRIPTION_CATEGORIES) {
-          db.insert(subscriptions).values({
-            userId,
-            category: cat.id,
-            isActive: 1,
-            expiresAt: endOfYear,
+          const result = tx.insert(users).values({
+            googleId,
+            email,
+            name: profile.name || null,
+            avatar: profile.picture || null,
           }).run();
-        }
+
+          const userId = Number(result.lastInsertRowid);
+          const endOfYear = getEndOfYear();
+          for (const cat of SUBSCRIPTION_CATEGORIES) {
+            tx.insert(subscriptions).values({
+              userId,
+              category: cat.id,
+              isActive,
+              expiresAt: endOfYear,
+            }).run();
+          }
+        }, { behavior: 'immediate' });
       } else if (existing.deletedAt) {
-        // Re-register: clear deletedAt and reactivate all subscriptions
-        const endOfYear = getEndOfYear();
-        db.update(users)
-          .set({
-            deletedAt: null,
-            name: profile.name || existing.name,
-            avatar: profile.picture || existing.avatar,
-            email: profile.email,
-          })
-          .where(eq(users.id, existing.id))
-          .run();
-        db.update(subscriptions)
-          .set({ isActive: 1, expiresAt: endOfYear })
-          .where(eq(subscriptions.userId, existing.id))
-          .run();
+        // Re-register: clear deletedAt and reactivate all subscriptions, but
+        // only if there is still room — a returning user takes a fresh slot.
+        db.transaction((tx) => {
+          const isActive = canAcceptNewSubscriber(tx) ? 1 : 0;
+          const endOfYear = getEndOfYear();
+
+          tx.update(users)
+            .set({
+              deletedAt: null,
+              name: profile.name || existing.name,
+              avatar: profile.picture || existing.avatar,
+              email,
+            })
+            .where(eq(users.id, existing.id))
+            .run();
+          tx.update(subscriptions)
+            .set({ isActive, expiresAt: endOfYear })
+            .where(eq(subscriptions.userId, existing.id))
+            .run();
+        }, { behavior: 'immediate' });
       } else {
         db.update(users)
           .set({
             name: profile.name || existing.name,
             avatar: profile.picture || existing.avatar,
-            email: profile.email,
+            email,
           })
-          .where(eq(users.googleId, profile.sub))
+          .where(eq(users.googleId, googleId))
           .run();
       }
 
