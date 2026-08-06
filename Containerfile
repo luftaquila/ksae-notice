@@ -17,6 +17,11 @@ RUN npm run build
 FROM node:24-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
+# Every expiry rule reads the calendar off the process clock, and the service is
+# KST. Without this the image resolves to UTC, where a sign-up at 03:00 KST on
+# Jan 1 is minted a period ending that same morning. Matches the zone
+# vitest.config.ts pins. No tzdata needed — Node resolves named zones from ICU.
+ENV TZ=Asia/Seoul
 
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
