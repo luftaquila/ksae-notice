@@ -2,13 +2,14 @@ import { NextResponse } from 'next/server';
 import { eq, and } from 'drizzle-orm';
 import { auth } from '@/lib/auth';
 import { getDb } from '@/lib/db';
-import { subscriptions } from '@/lib/db/schema';
+import { users, subscriptions } from '@/lib/db/schema';
 import {
   getActiveSubscriberCount,
   getMaxSubscribers,
   isCountedSubscriber,
   isRegistrationOpen,
 } from '@/lib/subscription/capacity';
+import { endOfYear, renewalTargetYear } from '@/lib/subscription/period';
 
 export async function POST() {
   const session = await auth();
@@ -29,15 +30,34 @@ export async function POST() {
   }
 
   const db = getDb();
-  const nextYearEnd = `${new Date().getFullYear() + 1}-12-31T23:59:59.000Z`;
 
-  db.update(subscriptions)
-    .set({ expiresAt: nextYearEnd, renewedAt: new Date().toISOString() })
+  // The period is account-level now, but there is still nothing to renew for an
+  // account that holds no active category.
+  const hasActiveCategory = db
+    .select({ id: subscriptions.id })
+    .from(subscriptions)
     .where(and(
       eq(subscriptions.userId, session.user.id),
       eq(subscriptions.isActive, 1),
     ))
-    .run();
+    .get();
+
+  if (hasActiveCategory) {
+    const account = db
+      .select({ expiresAt: users.subscriptionExpiresAt })
+      .from(users)
+      .where(eq(users.id, session.user.id))
+      .get();
+
+    // Same rule the dashboard labels the button with — see lib/subscription/period.
+    const now = new Date();
+    const renewedTo = endOfYear(renewalTargetYear(now, account?.expiresAt ?? null));
+
+    db.update(users)
+      .set({ subscriptionExpiresAt: renewedTo, subscriptionRenewedAt: now.toISOString() })
+      .where(eq(users.id, session.user.id))
+      .run();
+  }
 
   return NextResponse.json({ ok: true });
 }

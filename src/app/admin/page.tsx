@@ -11,7 +11,7 @@ interface UserInfo {
   name: string | null;
   createdAt: string;
   deletedAt: string | null;
-  subscriptions: { category: string; isActive: number; expiresAt: string }[];
+  subscriptions: { category: string; isActive: number }[];
   emailsSent: number;
   emailsSkipped: number;
 }
@@ -156,10 +156,7 @@ export default function AdminPage() {
         }
         return {
           ...u,
-          subscriptions: [
-            ...u.subscriptions,
-            { category, isActive: 1, expiresAt: `${new Date().getFullYear()}-12-31T23:59:59.000Z` },
-          ],
+          subscriptions: [...u.subscriptions, { category, isActive: 1 }],
         };
       }),
     );
@@ -183,13 +180,11 @@ export default function AdminPage() {
     setUsers((prev) =>
       prev.map((u) => {
         if (u.id !== userId) return u;
-        const endOfYear = `${new Date().getFullYear()}-12-31T23:59:59.000Z`;
         return {
           ...u,
           subscriptions: SUBSCRIPTION_CATEGORIES.map((cat) => ({
             category: cat.id,
             isActive: 1,
-            expiresAt: endOfYear,
           })),
         };
       }),

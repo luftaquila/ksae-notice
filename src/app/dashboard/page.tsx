@@ -3,19 +3,20 @@
 import { useState, useEffect } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import { SUBSCRIPTION_CATEGORIES } from '@/lib/constants';
+import { renewalPrompt } from '@/lib/subscription/period';
 import ToggleSwitch from '@/components/ToggleSwitch';
 
 interface Subscription {
   id: number;
   category: string;
   isActive: number;
-  expiresAt: string;
-  renewedAt: string | null;
 }
 
 export default function DashboardPage() {
   const { data: session } = useSession();
   const [subs, setSubs] = useState<Subscription[]>([]);
+  // One expiry for the whole account, not one per category.
+  const [expiresAt, setExpiresAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -25,6 +26,7 @@ export default function DashboardPage() {
       const res = await fetch('/api/subscriptions');
       const data = await res.json();
       setSubs(data.subscriptions || []);
+      setExpiresAt(data.expiresAt ?? null);
     } catch {
       setError('구독 정보를 불러오는데 실패했습니다.');
     } finally {
@@ -162,11 +164,10 @@ export default function DashboardPage() {
 
   const now = new Date();
   const currentYear = now.getFullYear();
-  const isDecember = now.getMonth() === 11;
   const hasActiveSubs = subs.some((s) => s.isActive);
-  const expiresAt = subs.find((s) => s.isActive)?.expiresAt;
-  const isExpired = expiresAt ? new Date(expiresAt) < now : false;
-  const showRenewal = hasActiveSubs && (isDecember || isExpired);
+  // Shared with POST /api/subscriptions/renew, so the label below cannot promise
+  // a year the server will not write.
+  const { show: showRenewal, isExpired, targetYear } = renewalPrompt(now, expiresAt, hasActiveSubs);
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
@@ -239,7 +240,7 @@ export default function DashboardPage() {
             disabled={actionLoading === 'renew'}
             className="text-sm px-4 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-500 dark:text-gray-400 hover:border-amber-300 hover:text-amber-500 active:border-amber-300 active:text-amber-500 dark:hover:border-amber-500/50 dark:hover:text-amber-400 dark:active:border-amber-500/50 dark:active:text-amber-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 transition cursor-pointer disabled:opacity-50"
           >
-            {actionLoading === 'renew' ? '갱신 중...' : `${currentYear + 1}년까지 구독 갱신`}
+            {actionLoading === 'renew' ? '갱신 중...' : `${targetYear}년까지 구독 갱신`}
           </button>
         ) : (
           <button

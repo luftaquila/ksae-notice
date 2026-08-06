@@ -78,20 +78,20 @@ describe('getActiveSubscriberCount', () => {
     expect(getActiveSubscriberCount()).toBe(0);
   });
 
-  it('ignores lapsed subscriptions, which no longer receive mail', () => {
-    const u1 = seedUser(db, { googleId: 'g1', email: 'a@test.com' });
-    seedSubscription(db, u1, 'notice_Z', { expiresAt: EXPIRED });
-    seedSubscription(db, u1, 'rule', { expiresAt: EXPIRED });
+  it('ignores a lapsed account, which no longer receives mail', () => {
+    const u1 = seedUser(db, { googleId: 'g1', email: 'a@test.com', subscriptionExpiresAt: EXPIRED });
+    seedSubscription(db, u1, 'notice_Z');
+    seedSubscription(db, u1, 'rule');
 
     expect(getActiveSubscriberCount()).toBe(0);
   });
 
-  it('counts a user who still has one unexpired category', () => {
-    const u1 = seedUser(db, { googleId: 'g1', email: 'a@test.com' });
-    seedSubscription(db, u1, 'notice_Z', { expiresAt: EXPIRED });
-    seedSubscription(db, u1, 'rule');
+  // Signing up over capacity leaves the categories inactive and no period at all.
+  it('ignores an account with no period, even with active categories', () => {
+    const u1 = seedUser(db, { googleId: 'g1', email: 'a@test.com', subscriptionExpiresAt: null });
+    seedSubscription(db, u1, 'notice_Z');
 
-    expect(getActiveSubscriberCount()).toBe(1);
+    expect(getActiveSubscriberCount()).toBe(0);
   });
 
   // PATCH /api/admin/users can leave an active row on a deleted user, who is
@@ -120,9 +120,9 @@ describe('isCountedSubscriber', () => {
     expect(isCountedSubscriber(u1)).toBe(true);
   });
 
-  it('is false once every subscription has lapsed', () => {
-    const u1 = seedUser(db, { googleId: 'g1', email: 'a@test.com' });
-    seedSubscription(db, u1, 'notice_Z', { expiresAt: EXPIRED });
+  it('is false once the account period has lapsed', () => {
+    const u1 = seedUser(db, { googleId: 'g1', email: 'a@test.com', subscriptionExpiresAt: EXPIRED });
+    seedSubscription(db, u1, 'notice_Z');
 
     expect(isCountedSubscriber(u1)).toBe(false);
   });

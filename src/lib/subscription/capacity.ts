@@ -26,9 +26,9 @@ export function getMaxSubscribers(db: DbClient = getDb()): number {
 
 // Distinct users who would actually receive mail — the number shown as `n / max`.
 // Same predicate as the recipient query in lib/email/sender.ts, so nothing can
-// hold a slot it no longer delivers anything through: a lapsed subscription
-// releases it on expiry, and a row left active on a deleted user by
-// PATCH /api/admin/users never took one.
+// hold a slot it no longer delivers anything through: a lapsed account releases
+// it on expiry, and a row left active on a deleted user by PATCH
+// /api/admin/users never took one.
 export function getActiveSubscriberCount(db: DbClient = getDb()): number {
   const result = db
     .select({ count: sql<number>`count(DISTINCT ${subscriptions.userId})` })
@@ -36,7 +36,7 @@ export function getActiveSubscriberCount(db: DbClient = getDb()): number {
     .innerJoin(users, eq(subscriptions.userId, users.id))
     .where(and(
       eq(subscriptions.isActive, 1),
-      gte(subscriptions.expiresAt, new Date().toISOString()),
+      gte(users.subscriptionExpiresAt, new Date().toISOString()),
       isNull(users.deletedAt),
     ))
     .get();
@@ -52,7 +52,7 @@ export function isCountedSubscriber(userId: number, db: DbClient = getDb()): boo
     .where(and(
       eq(subscriptions.userId, userId),
       eq(subscriptions.isActive, 1),
-      gte(subscriptions.expiresAt, new Date().toISOString()),
+      gte(users.subscriptionExpiresAt, new Date().toISOString()),
       isNull(users.deletedAt),
     ))
     .get();
