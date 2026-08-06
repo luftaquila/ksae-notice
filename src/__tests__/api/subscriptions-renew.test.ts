@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { createTestDb, seedUser, seedSubscription, type TestDb } from '../helpers';
+import { createTestDb, seedUser, seedSubscription, seedSetting, EXPIRED, type TestDb } from '../helpers';
 import { eq, and } from 'drizzle-orm';
 import { subscriptions } from '@/lib/db/schema';
 
@@ -56,5 +56,53 @@ describe('POST /api/subscriptions/renew', () => {
     const res = await POST();
     const data = await res.json();
     expect(data.ok).toBe(true);
+  });
+});
+
+describe('POST /api/subscriptions/renew - subscriber limit', () => {
+  beforeEach(() => {
+    db = createTestDb();
+    mockSessionValue = null;
+    seedSetting(db, 'registrationOpen', 'true');
+    seedSetting(db, 'maxSubscribers', '1');
+  });
+
+  it('blocks a lapsed subscriber from reclaiming a slot someone else took', async () => {
+    const taker = seedUser(db, { googleId: 'g1', email: 'a@test.com' });
+    seedSubscription(db, taker, 'notice_Z');
+    const lapsed = seedUser(db, { googleId: 'g2', email: 'b@test.com' });
+    seedSubscription(db, lapsed, 'notice_Z', { expiresAt: EXPIRED });
+
+    mockSessionValue = { user: { id: lapsed, email: 'b@test.com' } };
+    const res = await POST();
+    expect(res.status).toBe(403);
+
+    const sub = db.select().from(subscriptions)
+      .where(and(eq(subscriptions.userId, lapsed), eq(subscriptions.category, 'notice_Z')))
+      .get();
+    expect(sub!.expiresAt).toBe(EXPIRED);
+  });
+
+  it('lets a lapsed subscriber renew while a slot is free', async () => {
+    const lapsed = seedUser(db, { googleId: 'g2', email: 'b@test.com' });
+    seedSubscription(db, lapsed, 'notice_Z', { expiresAt: EXPIRED });
+
+    mockSessionValue = { user: { id: lapsed, email: 'b@test.com' } };
+    const res = await POST();
+    expect(res.status).toBe(200);
+
+    const sub = db.select().from(subscriptions)
+      .where(and(eq(subscriptions.userId, lapsed), eq(subscriptions.category, 'notice_Z')))
+      .get();
+    expect(sub!.expiresAt).toContain(`${new Date().getFullYear() + 1}-12-31`);
+  });
+
+  it('lets a current subscriber renew even when the limit is reached', async () => {
+    const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com' });
+    seedSubscription(db, userId, 'notice_Z');
+
+    mockSessionValue = { user: { id: userId, email: 'a@test.com' } };
+    const res = await POST();
+    expect(res.status).toBe(200);
   });
 });

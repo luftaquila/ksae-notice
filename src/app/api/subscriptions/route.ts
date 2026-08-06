@@ -8,6 +8,7 @@ import { upsertSubscription } from '@/lib/subscription/upsert';
 import {
   getActiveSubscriberCount,
   getMaxSubscribers,
+  isCountedSubscriber,
   isRegistrationOpen,
 } from '@/lib/subscription/capacity';
 
@@ -51,15 +52,8 @@ export async function POST(request: NextRequest) {
   const maxSubscribers = getMaxSubscribers();
   const currentCount = getActiveSubscriberCount();
 
-  // Check if user already has any active subscription (if so, they're not a "new" subscriber)
-  const db = getDb();
-  const existingSubs = db
-    .select()
-    .from(subscriptions)
-    .where(and(eq(subscriptions.userId, session.user.id), eq(subscriptions.isActive, 1)))
-    .all();
-
-  if (existingSubs.length === 0 && currentCount >= maxSubscribers) {
+  // A user who already occupies a slot is not a "new" subscriber
+  if (!isCountedSubscriber(session.user.id) && currentCount >= maxSubscribers) {
     return NextResponse.json({ error: '최대 구독자 수에 도달했습니다.' }, { status: 403 });
   }
 

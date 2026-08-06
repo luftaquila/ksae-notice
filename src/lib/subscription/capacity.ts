@@ -1,4 +1,4 @@
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, gte, sql } from 'drizzle-orm';
 import { getDb } from '../db';
 import { subscriptions, settings } from '../db/schema';
 
@@ -18,17 +18,39 @@ export function isRegistrationOpen(db: DbClient = getDb()): boolean {
 }
 
 export function getMaxSubscribers(db: DbClient = getDb()): number {
-  return parseInt(getSetting('maxSubscribers', db) || String(DEFAULT_MAX_SUBSCRIBERS), 10);
+  // A non-numeric setting would otherwise yield NaN, which compares false
+  // against every count and would silently block all sign-ups.
+  const parsed = parseInt(getSetting('maxSubscribers', db) || '', 10);
+  return Number.isFinite(parsed) ? parsed : DEFAULT_MAX_SUBSCRIBERS;
 }
 
-// Distinct users holding at least one active subscription — the number shown as `n / max`.
+// Distinct users who would actually receive mail — the number shown as `n / max`.
+// Same predicate as the recipient query in lib/email/sender.ts, so a lapsed
+// subscription stops holding a slot the moment it stops delivering anything.
 export function getActiveSubscriberCount(db: DbClient = getDb()): number {
   const result = db
     .select({ count: sql<number>`count(DISTINCT user_id)` })
     .from(subscriptions)
-    .where(eq(subscriptions.isActive, 1))
+    .where(and(
+      eq(subscriptions.isActive, 1),
+      gte(subscriptions.expiresAt, new Date().toISOString()),
+    ))
     .get();
   return result?.count || 0;
+}
+
+// Whether this user already occupies a slot, i.e. is part of the count above.
+export function isCountedSubscriber(userId: number, db: DbClient = getDb()): boolean {
+  const row = db
+    .select({ id: subscriptions.id })
+    .from(subscriptions)
+    .where(and(
+      eq(subscriptions.userId, userId),
+      eq(subscriptions.isActive, 1),
+      gte(subscriptions.expiresAt, new Date().toISOString()),
+    ))
+    .get();
+  return row !== undefined;
 }
 
 // Whether a user with no active subscription may become an active subscriber right now.

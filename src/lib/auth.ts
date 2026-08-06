@@ -43,8 +43,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       if (!existing) {
         // Signing up must respect the subscriber limit too — it does not go
         // through POST /api/subscriptions, so the check lives here as well.
-        // Count and insert in one immediate transaction so concurrent sign-ins
-        // cannot both read the same free slot.
+        // The transaction makes the user row and its six subscription rows
+        // land all-or-nothing, and keeps the count consistent with them.
         db.transaction((tx) => {
           const isActive = canAcceptNewSubscriber(tx) ? 1 : 0;
 
