@@ -93,6 +93,19 @@ describe('getActiveSubscriberCount', () => {
 
     expect(getActiveSubscriberCount()).toBe(1);
   });
+
+  // PATCH /api/admin/users can leave an active row on a deleted user, who is
+  // then filtered out of the recipient query and never mailed.
+  it('ignores a deleted user left with an active subscription', () => {
+    const u1 = seedUser(db, {
+      googleId: 'g1',
+      email: 'a@test.com',
+      deletedAt: '2026-01-01T00:00:00.000Z',
+    });
+    seedSubscription(db, u1, 'notice_Z');
+
+    expect(getActiveSubscriberCount()).toBe(0);
+  });
 });
 
 describe('isCountedSubscriber', () => {
@@ -116,6 +129,17 @@ describe('isCountedSubscriber', () => {
 
   it('is false for a user with no subscription at all', () => {
     const u1 = seedUser(db, { googleId: 'g1', email: 'a@test.com' });
+
+    expect(isCountedSubscriber(u1)).toBe(false);
+  });
+
+  it('is false for a deleted user left with an active subscription', () => {
+    const u1 = seedUser(db, {
+      googleId: 'g1',
+      email: 'a@test.com',
+      deletedAt: '2026-01-01T00:00:00.000Z',
+    });
+    seedSubscription(db, u1, 'notice_Z');
 
     expect(isCountedSubscriber(u1)).toBe(false);
   });

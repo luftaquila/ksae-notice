@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { createTestDb, seedUser, seedSubscription, seedSetting, EXPIRED, type TestDb } from '../helpers';
 import { eq, and } from 'drizzle-orm';
-import { subscriptions } from '@/lib/db/schema';
+import { subscriptions, settings } from '@/lib/db/schema';
 
 let db: TestDb;
 let mockSessionValue: any = null;
@@ -95,6 +95,19 @@ describe('POST /api/subscriptions/renew - subscriber limit', () => {
       .where(and(eq(subscriptions.userId, lapsed), eq(subscriptions.category, 'notice_Z')))
       .get();
     expect(sub!.expiresAt).toContain(`${new Date().getFullYear() + 1}-12-31`);
+  });
+
+  it('tells a lapsed subscriber the real reason when registration is closed', async () => {
+    db.update(settings).set({ value: 'false' }).where(eq(settings.key, 'registrationOpen')).run();
+    db.update(settings).set({ value: '50' }).where(eq(settings.key, 'maxSubscribers')).run();
+    const lapsed = seedUser(db, { googleId: 'g2', email: 'b@test.com' });
+    seedSubscription(db, lapsed, 'notice_Z', { expiresAt: EXPIRED });
+
+    mockSessionValue = { user: { id: lapsed, email: 'b@test.com' } };
+    const res = await POST();
+    expect(res.status).toBe(403);
+    // Slots are free — the limit message would be wrong here
+    expect((await res.json()).error).toBe('현재 신규 구독이 중단되었습니다.');
   });
 
   it('lets a current subscriber renew even when the limit is reached', async () => {

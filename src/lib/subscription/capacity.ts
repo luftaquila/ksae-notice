@@ -1,6 +1,6 @@
-import { and, eq, gte, sql } from 'drizzle-orm';
+import { and, eq, gte, isNull, sql } from 'drizzle-orm';
 import { getDb } from '../db';
-import { subscriptions, settings } from '../db/schema';
+import { subscriptions, settings, users } from '../db/schema';
 
 export const DEFAULT_MAX_SUBSCRIBERS = 50;
 
@@ -25,15 +25,19 @@ export function getMaxSubscribers(db: DbClient = getDb()): number {
 }
 
 // Distinct users who would actually receive mail — the number shown as `n / max`.
-// Same predicate as the recipient query in lib/email/sender.ts, so a lapsed
-// subscription stops holding a slot the moment it stops delivering anything.
+// Same predicate as the recipient query in lib/email/sender.ts, so nothing can
+// hold a slot it no longer delivers anything through: a lapsed subscription
+// releases it on expiry, and a row left active on a deleted user by
+// PATCH /api/admin/users never took one.
 export function getActiveSubscriberCount(db: DbClient = getDb()): number {
   const result = db
-    .select({ count: sql<number>`count(DISTINCT user_id)` })
+    .select({ count: sql<number>`count(DISTINCT ${subscriptions.userId})` })
     .from(subscriptions)
+    .innerJoin(users, eq(subscriptions.userId, users.id))
     .where(and(
       eq(subscriptions.isActive, 1),
       gte(subscriptions.expiresAt, new Date().toISOString()),
+      isNull(users.deletedAt),
     ))
     .get();
   return result?.count || 0;
@@ -44,10 +48,12 @@ export function isCountedSubscriber(userId: number, db: DbClient = getDb()): boo
   const row = db
     .select({ id: subscriptions.id })
     .from(subscriptions)
+    .innerJoin(users, eq(subscriptions.userId, users.id))
     .where(and(
       eq(subscriptions.userId, userId),
       eq(subscriptions.isActive, 1),
       gte(subscriptions.expiresAt, new Date().toISOString()),
+      isNull(users.deletedAt),
     ))
     .get();
   return row !== undefined;
