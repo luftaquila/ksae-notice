@@ -1,4 +1,4 @@
-import { eq, and, sql, gte, lt, isNull, or } from 'drizzle-orm';
+import { eq, and, gte, lt } from 'drizzle-orm';
 import { getDb } from '../db';
 import { users, subscriptions, emailLogs } from '../db/schema';
 import { sendEmail, getRemainingCredits } from '../email/brevo';

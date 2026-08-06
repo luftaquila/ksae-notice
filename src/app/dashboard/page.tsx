@@ -166,7 +166,11 @@ export default function DashboardPage() {
   const isDecember = now.getMonth() === 11;
   const hasActiveSubs = subs.some((s) => s.isActive);
   const isExpired = expiresAt ? new Date(expiresAt) < now : false;
-  const showRenewal = hasActiveSubs && (isDecember || isExpired);
+  // Compared on the ISO prefix, not through Date, so a 12/31 UTC expiry does not
+  // read as next year in KST. Once the period runs past this year the December
+  // prompt is done — otherwise it keeps claiming a 12/31 expiry that has moved.
+  const renewedAhead = expiresAt ? Number(expiresAt.slice(0, 4)) > currentYear : false;
+  const showRenewal = hasActiveSubs && (isExpired || (isDecember && !renewedAhead));
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">

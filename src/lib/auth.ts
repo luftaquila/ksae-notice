@@ -79,7 +79,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
               name: profile.name || existing.name,
               avatar: profile.picture || existing.avatar,
               email,
-              // A returning user starts a fresh period, or none if there is no room.
+              // Deliberately a fresh period, not the one they left behind: a
+              // returning user takes a new slot through the gate above, so they
+              // get the current calendar year like any new subscriber. This is
+              // the one writer allowed to move a period backwards, and only
+              // because deleting the account gave the old one up.
               subscriptionExpiresAt: isActive ? getEndOfYear() : null,
             })
             .where(eq(users.id, existing.id))
