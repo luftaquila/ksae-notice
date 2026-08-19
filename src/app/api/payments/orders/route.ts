@@ -13,6 +13,7 @@ import { renewalTargetYear } from '@/lib/subscription/period';
 import { createOrder } from '@/lib/payment/orders';
 import { getSubscriptionPrice } from '@/lib/payment/pricing';
 import { PAY_METHOD, clientId, isConfigured } from '@/lib/payment/nicepay';
+import { siteOrigin } from '@/lib/payment/origin';
 
 // 결제창을 열기 전에 서버가 금액과 대상 연도를 확정한다. 클라이언트가 보내는
 // 값은 없다 — 금액이 브라우저를 거치지 않으면 위변조할 표면도 없다.
@@ -58,8 +59,8 @@ export async function POST(request: NextRequest) {
     goodsName,
   });
 
-  // returnUrl 은 절대 경로여야 한다. SITE_URL 이 없으면 요청 기준으로 만든다.
-  const origin = (process.env.SITE_URL || new URL(request.url).origin).replace(/\/+$/, '');
+  // returnUrl 은 브라우저가 따라가는 절대 주소여야 한다.
+  const origin = siteOrigin(request);
 
   return NextResponse.json({
     orderId: order.orderId,

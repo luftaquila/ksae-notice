@@ -62,14 +62,15 @@ const { POST: webhookRoute } = await import('@/app/api/payments/webhook/route');
 const { GET: listRoute } = await import('@/app/api/payments/route');
 const { GET: adminListRoute, POST: adminCancelRoute } = await import('@/app/api/admin/payments/route');
 
-function orderReq() {
-  return new Request('http://localhost/api/payments/orders', { method: 'POST' }) as any;
+function orderReq(headers: Record<string, string> = {}) {
+  // 프록시 뒤 실제 요청과 같은 모양: 요청 URL 은 컨테이너 내부 주소다.
+  return new Request('http://0.0.0.0:3000/api/payments/orders', { method: 'POST', headers }) as any;
 }
 
-function returnReq(fields: Record<string, string>) {
-  return new Request('http://localhost/api/payments/return', {
+function returnReq(fields: Record<string, string>, headers: Record<string, string> = {}) {
+  return new Request('http://0.0.0.0:3000/api/payments/return', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded', ...headers },
     body: new URLSearchParams(fields),
   }) as any;
 }
@@ -352,6 +353,47 @@ describe('POST /api/payments/return', () => {
     await returnRoute(returnReq(returnFields(order)));
 
     expect(periodOf(userId)).toBe(afterFirst);
+  });
+});
+
+describe('the public origin behind the proxy', () => {
+  // request.url 은 컨테이너 내부 주소(0.0.0.0:3000)다. 여기서 만든 주소는 둘 다
+  // 브라우저가 따라가야 하므로, 내부 주소가 새면 결제 후 화면이 열리지 않는다.
+  it('builds the returnUrl and the result redirect from SITE_URL', async () => {
+    const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com', subscriptionExpiresAt: null });
+    mockSessionValue = { user: { id: userId, email: 'a@test.com' } };
+    const order = await (await createOrderRoute(orderReq())).json();
+    approveResponse = approved(order.amount);
+
+    expect(order.returnUrl).toBe('https://ksae-notice.test/api/payments/return');
+
+    const res = await returnRoute(returnReq(returnFields(order)));
+    expect(res.headers.get('location')).toBe(
+      `https://ksae-notice.test/payments/result?result=paid&order=${order.orderId}`,
+    );
+  });
+
+  it('falls back to the forwarded host when SITE_URL is unset', async () => {
+    vi.stubEnv('SITE_URL', '');
+    const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com', subscriptionExpiresAt: null });
+    mockSessionValue = { user: { id: userId, email: 'a@test.com' } };
+    const proxied = { 'x-forwarded-host': 'ksae-notice.luftaquila.io', 'x-forwarded-proto': 'https' };
+
+    const order = await (await createOrderRoute(orderReq(proxied))).json();
+    expect(order.returnUrl).toBe('https://ksae-notice.luftaquila.io/api/payments/return');
+
+    approveResponse = approved(order.amount);
+    const res = await returnRoute(returnReq(returnFields(order), proxied));
+    expect(res.headers.get('location')).toContain('https://ksae-notice.luftaquila.io/payments/result?');
+  });
+
+  it('never leaks the container address into a redirect', async () => {
+    vi.stubEnv('SITE_URL', '');
+    const res = await returnRoute(
+      returnReq({ orderId: 'nope' }, { host: 'ksae-notice.luftaquila.io' }),
+    );
+    expect(res.headers.get('location')).not.toContain('0.0.0.0');
+    expect(res.headers.get('location')).toContain('https://ksae-notice.luftaquila.io/');
   });
 });
 
