@@ -201,7 +201,7 @@ export default function DashboardPage() {
   };
 
   const deleteAccount = async () => {
-    if (!confirm('정말 탈퇴하시겠습니까? 모든 구독 정보가 삭제됩니다.')) return;
+    if (!confirm('정말 탈퇴하시겠습니까? 구독 정보와 남은 구독 기간이 삭제되며 환불되지 않습니다.')) return;
 
     setActionLoading('delete');
     try {

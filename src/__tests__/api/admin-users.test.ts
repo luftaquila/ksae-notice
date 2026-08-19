@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { createTestDb, seedUser, seedSubscription, seedEmailLog, createUpsertSubscriptionMock, type TestDb } from '../helpers';
+import { createTestDb, seedUser, seedSubscription, seedEmailLog, createUpsertSubscriptionMock, UNEXPIRED, type TestDb } from '../helpers';
 import { eq, and } from 'drizzle-orm';
 import { users, subscriptions } from '@/lib/db/schema';
 
@@ -198,5 +198,24 @@ describe('PATCH /api/admin/users', () => {
     const data = await res.json();
     const user = data.users.find((u: any) => u.email === 'a@test.com');
     expect(user.emailsSent).toBe(2);
+  });
+});
+
+// 관리자 삭제도 사용자 탈퇴와 같은 규칙을 따른다. 기간을 남겨두면 재로그인으로 부활한다.
+describe('PATCH /api/admin/users - delete forfeits the period', () => {
+  beforeEach(() => {
+    db = createTestDb();
+    mockAdminSession = { user: { id: 1, isAdmin: true } };
+  });
+
+  it('clears the subscription period along with the account', async () => {
+    const userId = seedUser(db, { googleId: 'g9', email: 'gone@test.com', subscriptionExpiresAt: UNEXPIRED });
+    seedSubscription(db, userId, 'notice_Z');
+
+    await PATCH(patchReq({ userId, action: 'delete' }) as any);
+
+    const user = db.select().from(users).where(eq(users.id, userId)).get()!;
+    expect(user.deletedAt).not.toBeNull();
+    expect(user.subscriptionExpiresAt).toBeNull();
   });
 });

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { createTestDb, seedUser, seedSubscription, type TestDb } from '../helpers';
+import { createTestDb, seedUser, seedSubscription, UNEXPIRED, type TestDb } from '../helpers';
 import { eq } from 'drizzle-orm';
 import { users, subscriptions } from '@/lib/db/schema';
 
@@ -60,5 +60,26 @@ describe('DELETE /api/user', () => {
 
     const user = db.select().from(users).where(eq(users.id, userId)).get();
     expect(user!.deletedAt).not.toBeNull();
+  });
+});
+
+// 탈퇴는 남은 구독 기간을 포기하는 것이다 — /policy 와 확인 문구가 그렇게 말한다.
+// 기간을 남겨두면 재로그인만으로 결제 없이 되살아난다.
+describe('DELETE /api/user - subscription period', () => {
+  beforeEach(() => {
+    db = createTestDb();
+    mockSessionValue = null;
+  });
+
+  it('forfeits the remaining period', async () => {
+    const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com', subscriptionExpiresAt: UNEXPIRED });
+    seedSubscription(db, userId, 'notice_Z');
+    mockSessionValue = { user: { id: userId, email: 'a@test.com' } };
+
+    await DELETE();
+
+    const user = db.select().from(users).where(eq(users.id, userId)).get()!;
+    expect(user.deletedAt).not.toBeNull();
+    expect(user.subscriptionExpiresAt).toBeNull();
   });
 });
