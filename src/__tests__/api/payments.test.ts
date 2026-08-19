@@ -61,6 +61,7 @@ const { POST: returnRoute } = await import('@/app/api/payments/return/route');
 const { POST: webhookRoute } = await import('@/app/api/payments/webhook/route');
 const { GET: listRoute } = await import('@/app/api/payments/route');
 const { GET: adminListRoute, POST: adminCancelRoute } = await import('@/app/api/admin/payments/route');
+const { expireStaleOrders } = await import('@/lib/payment/orders');
 
 function orderReq(headers: Record<string, string> = {}) {
   // 프록시 뒤 실제 요청과 같은 모양: 요청 URL 은 컨테이너 내부 주소다.
@@ -485,6 +486,94 @@ describe('POST /api/payments/webhook', () => {
 
     expect(periodOf(userId)).toBeNull();
     expect(orderOf(order.orderId).status).toBe('cancelled');
+  });
+});
+
+// 결제창을 열었다 닫기만 해도 주문 행은 pending 으로 남는다. 그대로 두면
+// "pending 으로 오래 남은 건 = 지급 누락"이라는 운영 신호가 버려진 주문에 묻힌다.
+describe('abandoned order cleanup', () => {
+  // createdAt 은 SQLite `datetime('now')` 형식으로 들어온다. ISO 문자열을 쓰면
+  // 실제 데이터와 형식이 달라 비교가 뒤집히므로, 같은 형식으로 맞춰 준다.
+  function ageOrder(orderId: string, minutes: number) {
+    const stamp = new Date(Date.now() - minutes * 60_000)
+      .toISOString()
+      .replace('T', ' ')
+      .slice(0, 19);
+    db.update(payments)
+      .set({ createdAt: stamp })
+      .where(eq(payments.orderId, orderId))
+      .run();
+  }
+
+  async function openOrder(userId: number) {
+    mockSessionValue = { user: { id: userId, email: 'a@test.com' } };
+    return (await (await createOrderRoute(orderReq())).json()) as { orderId: string; amount: number };
+  }
+
+  it('expires only the orders past the window, and counts each one once', async () => {
+    const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com' });
+    const stale = await openOrder(userId);
+    const fresh = await openOrder(userId);
+    ageOrder(stale.orderId, 61);
+
+    expect(expireStaleOrders()).toBe(1);
+    expect(orderOf(stale.orderId).status).toBe('expired');
+    expect(orderOf(fresh.orderId).status).toBe('pending');
+    expect(expireStaleOrders()).toBe(0);
+  });
+
+  it('never touches a settled order', async () => {
+    const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com', subscriptionExpiresAt: null });
+    const order = await buyOnce(userId);
+    ageOrder(order.orderId, 500);
+
+    expect(expireStaleOrders()).toBe(0);
+    expect(orderOf(order.orderId).status).toBe('paid');
+  });
+
+  // 만료를 승인 게이트로 만들면 청구는 됐는데 기간이 늘지 않은 주문이 생긴다.
+  it('still settles an order that expired before the buyer finished', async () => {
+    const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com', subscriptionExpiresAt: null });
+    const order = await openOrder(userId);
+    ageOrder(order.orderId, 61);
+    expireStaleOrders();
+    expect(orderOf(order.orderId).status).toBe('expired');
+
+    approveResponse = approved(order.amount);
+    await returnRoute(returnReq(returnFields(order)));
+
+    expect(orderOf(order.orderId).status).toBe('paid');
+    expect(periodOf(userId)).toBe(`${new Date().getFullYear()}-12-31T23:59:59.000Z`);
+  });
+
+  it('still records a failure against an expired order', async () => {
+    const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com', subscriptionExpiresAt: null });
+    const order = await openOrder(userId);
+    ageOrder(order.orderId, 61);
+    expireStaleOrders();
+
+    await returnRoute(returnReq(returnFields(order, {
+      authResultCode: '1001',
+      authResultMsg: '사용자가 취소하였습니다',
+    })));
+
+    const stored = orderOf(order.orderId);
+    expect(stored.status).toBe('failed');
+    expect(stored.failReason).toBe('사용자가 취소하였습니다');
+  });
+
+  it('grants only once even after expiry', async () => {
+    const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com', subscriptionExpiresAt: null });
+    const order = await openOrder(userId);
+    ageOrder(order.orderId, 61);
+    expireStaleOrders();
+    approveResponse = approved(order.amount);
+
+    await returnRoute(returnReq(returnFields(order)));
+    const afterFirst = periodOf(userId);
+    await returnRoute(returnReq(returnFields(order)));
+
+    expect(periodOf(userId)).toBe(afterFirst);
   });
 });
 

@@ -85,6 +85,7 @@ const PAYMENT_STATUS: Record<string, string> = {
   paid: '완료',
   failed: '실패',
   cancelled: '취소',
+  expired: '미완료',
 };
 
 // 판매자 정보 입력칸. 라벨과 설정 키를 한 곳에 묶어 둔다.
