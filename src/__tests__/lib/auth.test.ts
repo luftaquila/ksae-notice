@@ -122,33 +122,44 @@ describe('signIn callback - returning user', () => {
     return id;
   }
 
-  // Re-registering restores what they left behind, no more and no less: the
-  // period is bought, so it is neither confiscated nor handed out again.
-  it('reactivates categories and keeps a paid period that has not run out', async () => {
+  // Re-registering brings the categories back but never a period. Withdrawal
+  // forfeits it, so signing back in must not be a way to get one for free.
+  it('reactivates categories without restoring a period', async () => {
+    const id = seedDeletedUser(null);
+
+    expect(await signInCallback({ profile: googleProfile({ sub: 'google-back', email: 'back@test.com' }) })).toBe(true);
+
+    const user = db.select().from(users).where(eq(users.id, id)).get()!;
+    expect(user.deletedAt).toBeNull();
+    expect(subsOf(id).every((s) => s.isActive === 1)).toBe(true);
+    expect(user.subscriptionExpiresAt).toBeNull();
+  });
+
+  // Rows deleted before withdrawal started clearing the period still carry one.
+  // Signing back in used to revive it, which handed out a free subscription.
+  it('clears a period left on an account deleted before this rule', async () => {
     const id = seedDeletedUser(UNEXPIRED);
 
     expect(await signInCallback({ profile: googleProfile({ sub: 'google-back', email: 'back@test.com' }) })).toBe(true);
 
     const user = db.select().from(users).where(eq(users.id, id)).get()!;
     expect(user.deletedAt).toBeNull();
-    expect(subsOf(id).every((s) => s.isActive === 1)).toBe(true);
-    expect(user.subscriptionExpiresAt).toBe(UNEXPIRED);
+    expect(user.subscriptionExpiresAt).toBeNull();
   });
 
-  it('does not hand a lapsed returning user a fresh period', async () => {
+  it('does not hand a lapsed returning user a fresh period either', async () => {
     const id = seedDeletedUser(EXPIRED);
 
     expect(await signInCallback({ profile: googleProfile({ sub: 'google-back', email: 'back@test.com' }) })).toBe(true);
 
     const user = db.select().from(users).where(eq(users.id, id)).get()!;
-    expect(user.deletedAt).toBeNull();
-    expect(subsOf(id).every((s) => s.isActive === 1)).toBe(true);
-    expect(user.subscriptionExpiresAt).toBe(EXPIRED);
+    expect(user.subscriptionExpiresAt).toBeNull();
   });
 
   it('reactivates a returning user even when the limit is reached', async () => {
     const id = seedDeletedUser(null);
     fillSlots(2);
+
 
     expect(await signInCallback({ profile: googleProfile({ sub: 'google-back', email: 'back@test.com' }) })).toBe(true);
 

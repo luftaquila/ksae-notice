@@ -65,10 +65,13 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           }
         }, { behavior: 'immediate' });
       } else if (existing.deletedAt) {
-        // Re-register restores the account exactly as it was left. A paid
-        // period that has not run out is theirs to finish; one that has
-        // lapsed has to be bought again. Neither path gives anything away,
-        // so the period is the one field this branch must not touch.
+        // Re-registering brings the account back with its categories but no
+        // period. Withdrawal forfeits the period — that is what /policy and the
+        // confirmation prompt promise — so signing back in must not hand one
+        // out, or a lapsed subscriber gets a free year for logging in twice.
+        //
+        // The period is cleared here and not only on withdrawal because rows
+        // deleted before withdrawal started clearing it still carry one.
         db.transaction((tx) => {
           tx.update(users)
             .set({
@@ -76,6 +79,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
               name: profile.name || existing.name,
               avatar: profile.picture || existing.avatar,
               email,
+              subscriptionExpiresAt: null,
             })
             .where(eq(users.id, existing.id))
             .run();

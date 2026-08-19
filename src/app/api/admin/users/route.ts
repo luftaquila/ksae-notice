@@ -83,8 +83,12 @@ export async function PATCH(request: NextRequest) {
   }
 
   if (action === 'delete') {
+    // 사용자 탈퇴와 같은 규칙: 기간까지 거둔다. 남겨두면 재로그인으로 부활한다.
     db.update(subscriptions).set({ isActive: 0 }).where(eq(subscriptions.userId, userId)).run();
-    db.update(users).set({ deletedAt: new Date().toISOString() }).where(eq(users.id, userId)).run();
+    db.update(users)
+      .set({ deletedAt: new Date().toISOString(), subscriptionExpiresAt: null })
+      .where(eq(users.id, userId))
+      .run();
     return NextResponse.json({ ok: true });
   }
 
