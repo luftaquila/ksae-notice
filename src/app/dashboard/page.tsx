@@ -177,6 +177,8 @@ export default function DashboardPage() {
       }
 
       // 결제창이 열리고, 인증이 끝나면 서버의 returnUrl 로 넘어간다.
+      // fnError 는 SDK 가 필수로 요구한다 — 함수가 아니면 requestPay 가 바로 거부한다.
+      // 결제창을 띄우지도 못한 경우만 여기로 오고, 인증 이후의 실패는 returnUrl 로 간다.
       window.AUTHNICE.requestPay({
         clientId: order.clientId,
         method: order.method,
@@ -186,6 +188,9 @@ export default function DashboardPage() {
         returnUrl: order.returnUrl,
         buyerName: order.buyerName ?? undefined,
         buyerEmail: order.buyerEmail,
+        fnError: (error: { errorMsg?: string; resultMsg?: string }) => {
+          setError(error?.errorMsg || error?.resultMsg || '결제를 진행하지 못했습니다.');
+        },
       });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : '결제를 시작하지 못했습니다.');
