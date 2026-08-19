@@ -420,7 +420,8 @@ export default function AdminPage() {
       {/* Settings */}
       <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-6 mb-8">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">설정</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-[auto_auto_auto_1fr] gap-4 sm:items-end">
+        {/* 필드 넷 + 버튼 묶음 = 자식 다섯. 열이 넷이면 버튼이 다음 줄로 밀린다. */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[auto_auto_auto_auto_1fr] gap-4 sm:items-end">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">최대 구독자 수</label>
             <input
