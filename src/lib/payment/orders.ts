@@ -53,13 +53,22 @@ export function createOrder(params: {
 }
 
 // pending 주문만 실패로 내린다. 이미 승인된 주문은 건드리지 않는다.
-export function failOrder(orderId: string, reason: string, raw?: unknown): void {
+//
+// 승인이 거절된 경우 그 응답 원문까지 남긴다 — 사유 문구 하나로는 어느 단계에서
+// 무엇이 틀렸는지 되짚을 수 없다.
+export function failOrder(
+  orderId: string,
+  reason: string,
+  raw?: unknown,
+  rawApprove?: unknown,
+): void {
   const set: Partial<typeof payments.$inferInsert> = {
     status: 'failed',
     failReason: reason.slice(0, 500),
     updatedAt: new Date().toISOString(),
   };
   if (raw !== undefined) set.rawAuth = dump(raw);
+  if (rawApprove !== undefined) set.rawApprove = dump(rawApprove);
 
   getDb()
     .update(payments)
