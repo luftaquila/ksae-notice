@@ -87,7 +87,7 @@ export async function processReturn(
 
   if (result.resultCode !== '0000' || result.status !== 'paid') {
     console.error(`[Payment] ${orderId} approval rejected: ${result.resultCode} ${result.resultMsg}`);
-    failOrder(orderId, result.resultMsg || '결제 승인이 거절되었습니다', fields);
+    failOrder(orderId, result.resultMsg || '결제 승인이 거절되었습니다', fields, result);
     return { orderId, result: 'failed' };
   }
 
@@ -97,7 +97,7 @@ export async function processReturn(
     const expectedResult = resultSignature(tid, result.amount ?? '', result.ediDate ?? '');
     if (!signatureMatches(expectedResult, result.signature)) {
       console.error(`[Payment] ${orderId} approval response signature mismatch; not granting`);
-      failOrder(orderId, '승인 응답 서명 검증에 실패했습니다', result);
+      failOrder(orderId, '승인 응답 서명 검증에 실패했습니다', fields, result);
       return { orderId, result: 'failed' };
     }
   }
