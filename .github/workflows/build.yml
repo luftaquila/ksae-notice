@@ -4,6 +4,14 @@ on:
   push:
     branches: [main]
 
+# 커밋이 잇달아 push 되면 런이 겹친다. 그때 각 런의 orphan 정리 단계가 다른 런이
+# 방금 push 한 아직 태그 없는 arch 이미지를 지워서, 뒤 런의 imagetools create 가
+# "content not found" 로 실패한다 (PR 4건을 연달아 머지했을 때 3건이 이렇게 깨졌다).
+# latest 하나만 쓰는 파이프라인이라 최신 커밋만 이기면 되므로 진행 중인 런을 접는다.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
