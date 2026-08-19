@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { createTestDb, seedUser, seedSubscription, seedSetting, createUpsertSubscriptionMock, EXPIRED, type TestDb } from '../helpers';
 import { eq, and } from 'drizzle-orm';
-import { subscriptions, settings } from '@/lib/db/schema';
+import { users, subscriptions, settings } from '@/lib/db/schema';
 
 let db: TestDb;
 let mockSessionValue: any = null;
@@ -79,60 +79,43 @@ describe('POST /api/subscriptions', () => {
     expect(res.status).toBe(400);
   });
 
-  it('returns 403 when registration is closed', async () => {
-    const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com' });
+  // The subscriber limit and the registration switch guard the paid period, so
+  // they now live in POST /api/payments/orders. A category on its own costs
+  // nothing and must stay reachable to everyone, paid up or not.
+  it('lets an unpaid user pick categories while registration is closed', async () => {
+    const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com', subscriptionExpiresAt: null });
     mockSessionValue = { user: { id: userId, email: 'a@test.com' } };
     db.update(settings)
       .set({ value: 'false' })
       .where(eq(settings.key, 'registrationOpen'))
       .run();
-    const res = await POST(jsonReq({ category: 'notice_Z' }) as any);
-    expect(res.status).toBe(403);
-  });
-
-  it('returns 403 when max subscribers reached for new user', async () => {
-    db.update(settings)
-      .set({ value: '1' })
-      .where(eq(settings.key, 'maxSubscribers'))
-      .run();
-    const u1 = seedUser(db, { googleId: 'g1', email: 'a@test.com' });
-    seedSubscription(db, u1, 'notice_Z');
-    const u2 = seedUser(db, { googleId: 'g2', email: 'b@test.com' });
-    mockSessionValue = { user: { id: u2, email: 'b@test.com' } };
 
     const res = await POST(jsonReq({ category: 'notice_Z' }) as any);
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
   });
 
-  it('returns 403 when max subscribers reached for a lapsed subscriber', async () => {
+  it('lets a lapsed user pick categories when every slot is taken', async () => {
     db.update(settings)
       .set({ value: '1' })
       .where(eq(settings.key, 'maxSubscribers'))
       .run();
-    const u1 = seedUser(db, { googleId: 'g1', email: 'a@test.com' });
-    seedSubscription(db, u1, 'notice_Z');
-    const u2 = seedUser(db, { googleId: 'g2', email: 'b@test.com', subscriptionExpiresAt: EXPIRED });
-    seedSubscription(db, u2, 'notice_Z');
-    mockSessionValue = { user: { id: u2, email: 'b@test.com' } };
-
-    // The lapsed account no longer holds a slot, so u2 is treated as a new subscriber
-    const res = await POST(jsonReq({ category: 'notice_A' }) as any);
-    expect(res.status).toBe(403);
-  });
-
-  it('allows existing subscriber to add categories even at limit', async () => {
-    db.update(settings)
-      .set({ value: '1' })
-      .where(eq(settings.key, 'maxSubscribers'))
-      .run();
-    const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com' });
-    seedSubscription(db, userId, 'notice_Z');
-    mockSessionValue = { user: { id: userId, email: 'a@test.com' } };
+    const taker = seedUser(db, { googleId: 'g1', email: 'a@test.com' });
+    seedSubscription(db, taker, 'notice_Z');
+    const lapsed = seedUser(db, { googleId: 'g2', email: 'b@test.com', subscriptionExpiresAt: EXPIRED });
+    mockSessionValue = { user: { id: lapsed, email: 'b@test.com' } };
 
     const res = await POST(jsonReq({ category: 'notice_A' }) as any);
     expect(res.status).toBe(200);
-    const data = await res.json();
-    expect(data.ok).toBe(true);
+  });
+
+  it('does not grant a subscription period', async () => {
+    const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com', subscriptionExpiresAt: null });
+    mockSessionValue = { user: { id: userId, email: 'a@test.com' } };
+
+    await POST(jsonReq({ category: 'notice_Z' }) as any);
+
+    const account = db.select().from(users).where(eq(users.id, userId)).get()!;
+    expect(account.subscriptionExpiresAt).toBeNull();
   });
 
   it('creates subscription successfully', async () => {
@@ -214,17 +197,12 @@ describe('POST /api/subscriptions - edge cases', () => {
     expect(res.status).toBe(400);
   });
 
-  it('blocks existing subscribers from adding categories when registration is closed', async () => {
-    db.update(settings)
-      .set({ value: 'false' })
-      .where(eq(settings.key, 'registrationOpen'))
-      .run();
+  it('reports the current price so the dashboard can label the pay button', async () => {
     const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com' });
-    seedSubscription(db, userId, 'notice_Z');
+    seedSetting(db, 'subscriptionPrice', '3000');
     mockSessionValue = { user: { id: userId, email: 'a@test.com' } };
 
-    // Even existing subscribers get 403 — registrationOpen check runs before existing-subscriber bypass
-    const res = await POST(jsonReq({ category: 'notice_A' }) as any);
-    expect(res.status).toBe(403);
+    const data = await (await GET()).json();
+    expect(data.price).toBe(3000);
   });
 });

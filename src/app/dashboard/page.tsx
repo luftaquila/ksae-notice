@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import { SUBSCRIPTION_CATEGORIES } from '@/lib/constants';
-import { renewalPrompt } from '@/lib/subscription/period';
+import { renewalPrompt, renewalTargetYear } from '@/lib/subscription/period';
+import { formatLocalDateTime } from '@/lib/format';
 import ToggleSwitch from '@/components/ToggleSwitch';
 
 interface Subscription {
@@ -12,11 +13,40 @@ interface Subscription {
   isActive: number;
 }
 
+interface Payment {
+  orderId: string;
+  goodsName: string;
+  targetYear: number;
+  amount: number;
+  status: string;
+  createdAt: string;
+  approvedAt: string | null;
+  cancelledAt: string | null;
+  failReason: string | null;
+}
+
+// 결제창은 layout.tsx 가 붙인 나이스페이 SDK 가 심어준다.
+declare global {
+  interface Window {
+    AUTHNICE?: { requestPay: (options: Record<string, unknown>) => void };
+  }
+}
+
+const PAYMENT_STATUS: Record<string, string> = {
+  pending: '결제 진행 중',
+  paid: '결제 완료',
+  failed: '결제 실패',
+  cancelled: '결제 취소',
+};
+
 export default function DashboardPage() {
   const { data: session } = useSession();
   const [subs, setSubs] = useState<Subscription[]>([]);
   // One expiry for the whole account, not one per category.
   const [expiresAt, setExpiresAt] = useState<string | null>(null);
+  const [price, setPrice] = useState<number | null>(null);
+  const [paymentEnabled, setPaymentEnabled] = useState(false);
+  const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -27,6 +57,8 @@ export default function DashboardPage() {
       const data = await res.json();
       setSubs(data.subscriptions || []);
       setExpiresAt(data.expiresAt ?? null);
+      setPrice(data.price ?? null);
+      setPaymentEnabled(!!data.paymentEnabled);
     } catch {
       setError('구독 정보를 불러오는데 실패했습니다.');
     } finally {
@@ -34,8 +66,20 @@ export default function DashboardPage() {
     }
   };
 
+  const fetchPayments = async () => {
+    try {
+      const res = await fetch('/api/payments');
+      if (!res.ok) return;
+      const data = await res.json();
+      setPayments(data.payments || []);
+    } catch {
+      // 결제 내역은 부가 정보다. 구독 관리 자체를 막지 않는다.
+    }
+  };
+
   useEffect(() => {
     fetchSubs();
+    fetchPayments();
   }, []);
 
   const subscribeAll = async () => {
@@ -43,8 +87,8 @@ export default function DashboardPage() {
     setError(null);
     try {
       // Keep the first server-side reason — for a user who is not subscribed
-      // to anything yet, every category fails for the same reason (limit
-      // reached or registration closed) and it is the only useful message.
+      // to anything yet, every category fails for the same reason and it is
+      // the only useful message.
       let failure: string | null = null;
       for (const cat of SUBSCRIPTION_CATEGORIES) {
         const sub = subs.find((s) => s.category === cat.id);
@@ -119,19 +163,32 @@ export default function DashboardPage() {
     }
   };
 
-  const renewAll = async () => {
-    setActionLoading('renew');
+  // 금액과 대상 연도는 서버가 정한다. 여기서 만드는 값은 아무것도 없다.
+  const startPayment = async () => {
+    setActionLoading('pay');
     setError(null);
 
     try {
-      const res = await fetch('/api/subscriptions/renew', { method: 'POST' });
-      if (!res.ok) {
-        const data = await res.json();
-        setError(data.error || '갱신에 실패했습니다.');
+      const res = await fetch('/api/payments/orders', { method: 'POST' });
+      const order = await res.json();
+      if (!res.ok) throw new Error(order.error || '결제를 시작하지 못했습니다.');
+      if (!window.AUTHNICE) {
+        throw new Error('결제 모듈을 불러오지 못했습니다. 새로고침 후 다시 시도해주세요.');
       }
-      await fetchSubs();
-    } catch {
-      setError('갱신에 실패했습니다.');
+
+      // 결제창이 열리고, 인증이 끝나면 서버의 returnUrl 로 넘어간다.
+      window.AUTHNICE.requestPay({
+        clientId: order.clientId,
+        method: order.method,
+        orderId: order.orderId,
+        amount: order.amount,
+        goodsName: order.goodsName,
+        returnUrl: order.returnUrl,
+        buyerName: order.buyerName ?? undefined,
+        buyerEmail: order.buyerEmail,
+      });
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : '결제를 시작하지 못했습니다.');
     } finally {
       setActionLoading(null);
     }
@@ -165,9 +222,14 @@ export default function DashboardPage() {
   const now = new Date();
   const currentYear = now.getFullYear();
   const hasActiveSubs = subs.some((s) => s.isActive);
-  // Shared with POST /api/subscriptions/renew, so the label below cannot promise
-  // a year the server will not write.
-  const { show: showRenewal, isExpired, targetYear } = renewalPrompt(now, expiresAt, hasActiveSubs);
+  // Shared with the payment order route, so the label below cannot promise a
+  // year the server will not write.
+  const { show: showRenewal, isExpired } = renewalPrompt(now, expiresAt, hasActiveSubs);
+  const targetYear = renewalTargetYear(now, expiresAt);
+  // 결제된 기간이 없거나 올해로 끝나면 결제할 것이 남아 있다. 이미 내년 이후까지
+  // 덮여 있으면 지금 살 이유가 없으므로 버튼을 내린다.
+  const canPay = !expiresAt || Number(expiresAt.slice(0, 4)) <= currentYear;
+  const priceLabel = price === null ? '' : ` · ${price.toLocaleString('ko-KR')}원`;
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
@@ -181,18 +243,22 @@ export default function DashboardPage() {
       )}
 
       {/* Expiry info */}
-      {hasActiveSubs && expiresAt && (
-        <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-600 dark:text-gray-400">
-          {isExpired ? (
-            <span className="font-medium text-red-600 dark:text-red-400">구독이 만료되었습니다</span>
-          ) : (
-            <>구독 만료일: <span className="font-medium text-gray-900 dark:text-gray-100">{expiresAt.slice(0, 10)}</span></>
-          )}
-        </div>
-      )}
+      <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-600 dark:text-gray-400">
+        {!expiresAt ? (
+          <span className="font-medium text-amber-600 dark:text-amber-400">
+            아직 결제하지 않았습니다. 결제해야 알림 메일이 발송됩니다.
+          </span>
+        ) : isExpired ? (
+          <span className="font-medium text-red-600 dark:text-red-400">
+            구독이 만료되었습니다. 결제 전까지 알림 메일이 발송되지 않습니다.
+          </span>
+        ) : (
+          <>구독 만료일: <span className="font-medium text-gray-900 dark:text-gray-100">{expiresAt.slice(0, 10)}</span></>
+        )}
+      </div>
 
       {/* Renewal banner */}
-      {showRenewal && (
+      {showRenewal && expiresAt && (
         <div className="mb-6 p-4 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-lg">
           <div className="font-medium text-amber-800 dark:text-amber-400">구독 갱신 안내</div>
           <div className="text-sm text-amber-600 dark:text-amber-500 mt-1">
@@ -225,7 +291,7 @@ export default function DashboardPage() {
         })}
       </div>
 
-      <div className="mt-4 text-center">
+      <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
         {!hasActiveSubs ? (
           <button
             onClick={subscribeAll}
@@ -233,14 +299,6 @@ export default function DashboardPage() {
             className="text-sm px-4 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-500 dark:text-gray-400 hover:border-blue-300 hover:text-blue-500 active:border-blue-300 active:text-blue-500 dark:hover:border-blue-500/50 dark:hover:text-blue-400 dark:active:border-blue-500/50 dark:active:text-blue-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition cursor-pointer disabled:opacity-50"
           >
             {actionLoading === 'subscribe_all' ? '처리 중...' : '전체 구독'}
-          </button>
-        ) : showRenewal ? (
-          <button
-            onClick={renewAll}
-            disabled={actionLoading === 'renew'}
-            className="text-sm px-4 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-500 dark:text-gray-400 hover:border-amber-300 hover:text-amber-500 active:border-amber-300 active:text-amber-500 dark:hover:border-amber-500/50 dark:hover:text-amber-400 dark:active:border-amber-500/50 dark:active:text-amber-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 transition cursor-pointer disabled:opacity-50"
-          >
-            {actionLoading === 'renew' ? '갱신 중...' : `${targetYear}년까지 구독 갱신`}
           </button>
         ) : (
           <button
@@ -251,11 +309,59 @@ export default function DashboardPage() {
             {actionLoading === 'unsubscribe_all' ? '처리 중...' : '전체 구독 해제'}
           </button>
         )}
+
+        {paymentEnabled && canPay && (
+          <button
+            onClick={startPayment}
+            disabled={actionLoading === 'pay'}
+            className="text-sm px-4 py-2 rounded-lg text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition cursor-pointer disabled:opacity-50"
+          >
+            {actionLoading === 'pay' ? '결제창 여는 중...' : `${targetYear}년까지 구독${priceLabel}`}
+          </button>
+        )}
       </div>
+
+      {/* Payment history */}
+      {payments.length > 0 && (
+        <div className="mt-8">
+          <div className="text-sm font-medium text-gray-600 dark:text-gray-300 mb-3">결제 내역</div>
+          <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 divide-y divide-gray-100 dark:divide-gray-800">
+            {payments.map((payment) => (
+              <div key={payment.orderId} className="flex items-start justify-between gap-3 px-4 py-3">
+                <div className="min-w-0">
+                  <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{payment.goodsName}</div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                    {formatLocalDateTime(payment.approvedAt || payment.cancelledAt || payment.createdAt)}
+                    {' · '}
+                    {PAYMENT_STATUS[payment.status] || payment.status}
+                  </div>
+                  {payment.status === 'failed' && payment.failReason && (
+                    <div className="text-xs text-red-500 dark:text-red-400 mt-0.5">{payment.failReason}</div>
+                  )}
+                  <div className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5 break-all">{payment.orderId}</div>
+                </div>
+                <div
+                  className={`text-sm font-semibold shrink-0 ${
+                    payment.status === 'paid'
+                      ? 'text-gray-900 dark:text-gray-100'
+                      : 'text-gray-400 dark:text-gray-500 line-through'
+                  }`}
+                >
+                  {payment.amount.toLocaleString('ko-KR')}원
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-2 text-xs text-gray-400 dark:text-gray-500">
+            환불은 <a href="/policy" className="underline underline-offset-2">환불규정</a>을 확인한 뒤 주문번호와 함께 문의해 주세요.
+          </div>
+        </div>
+      )}
 
       <div className="mt-8 px-5 py-4 rounded-lg bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700">
         <div className="text-sm font-medium text-gray-600 dark:text-gray-300 mb-3">안내사항</div>
         <ul className="list-disc list-outside pl-5 text-sm text-gray-500 dark:text-gray-400 space-y-1.5 leading-relaxed">
+          <li>카테고리 선택은 무료이며, 알림 메일은 구독 기간이 남아 있을 때만 발송됩니다.</li>
           <li>매일 발송 가능한 이메일 수가 한정되어 있습니다.
             <ul className="list-disc list-outside pl-5 mt-1.5 space-y-1.5">
               <li>하루에 3개 이상의 공지가 올라오는 경우 알림이 누락될 수 있습니다.</li>

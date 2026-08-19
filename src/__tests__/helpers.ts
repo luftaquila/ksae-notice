@@ -68,6 +68,31 @@ export function createTestDb() {
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
     );
+    CREATE TABLE payments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      order_id TEXT NOT NULL UNIQUE,
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      user_email TEXT NOT NULL,
+      target_year INTEGER NOT NULL,
+      amount INTEGER NOT NULL,
+      goods_name TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      method TEXT,
+      tid TEXT,
+      granted_from TEXT,
+      granted_to TEXT,
+      fail_reason TEXT,
+      cancel_reason TEXT,
+      approved_at TEXT,
+      cancelled_at TEXT,
+      raw_auth TEXT,
+      raw_approve TEXT,
+      raw_cancel TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX payments_user_created_idx ON payments(user_id, created_at);
+    CREATE INDEX payments_status_created_idx ON payments(status, created_at);
   `);
 
   const db = drizzle(sqlite, { schema });
@@ -149,9 +174,22 @@ export function seedEmailLog(db: TestDb, userId: number, overrides: Partial<type
   return Number(result.lastInsertRowid);
 }
 
+export function seedPayment(db: TestDb, overrides: Partial<typeof schema.payments.$inferInsert> = {}) {
+  const result = db.insert(schema.payments).values({
+    orderId: `order-${Date.now()}-${Math.random()}`,
+    userId: 1,
+    userEmail: 'user@test.com',
+    targetYear: new Date().getFullYear(),
+    amount: 1000,
+    goodsName: 'KSAE 공지봇 구독',
+    ...overrides,
+  }).run();
+  return Number(result.lastInsertRowid);
+}
+
 // ── Shared upsertSubscription mock implementation ─────────────
-// Mirrors src/lib/subscription/upsert.ts: the row carries only isActive, and
-// the account period is extended but never shortened.
+// Mirrors src/lib/subscription/upsert.ts: the row carries only isActive. The
+// account period is deliberately untouched — only a settled payment writes it.
 export function createUpsertSubscriptionMock(getTestDb: () => TestDb) {
   return (userId: number, category: string) => {
     const testDb = getTestDb();
@@ -169,19 +207,6 @@ export function createUpsertSubscriptionMock(getTestDb: () => TestDb) {
         .run();
     } else {
       testDb.insert(schema.subscriptions).values({ userId, category, isActive: 1 }).run();
-    }
-
-    const endOfYear = `${new Date().getFullYear()}-12-31T23:59:59.000Z`;
-    const current = testDb.select({ expiresAt: schema.users.subscriptionExpiresAt })
-      .from(schema.users)
-      .where(eq(schema.users.id, userId))
-      .get();
-
-    if (!current?.expiresAt || current.expiresAt < endOfYear) {
-      testDb.update(schema.users)
-        .set({ subscriptionExpiresAt: endOfYear, subscriptionRenewedAt: new Date().toISOString() })
-        .where(eq(schema.users.id, userId))
-        .run();
     }
   };
 }

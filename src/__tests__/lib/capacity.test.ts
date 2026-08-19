@@ -11,7 +11,6 @@ vi.mock('@/lib/db', () => ({
 
 const {
   DEFAULT_MAX_SUBSCRIBERS,
-  canAcceptNewSubscriber,
   getActiveSubscriberCount,
   getMaxSubscribers,
   isCountedSubscriber,
@@ -142,30 +141,5 @@ describe('isCountedSubscriber', () => {
     seedSubscription(db, u1, 'notice_Z');
 
     expect(isCountedSubscriber(u1)).toBe(false);
-  });
-});
-
-describe('canAcceptNewSubscriber', () => {
-  beforeEach(() => {
-    db = createTestDb();
-    seedSetting(db, 'registrationOpen', 'true');
-    seedSetting(db, 'maxSubscribers', '1');
-  });
-
-  it('accepts while below the limit', () => {
-    expect(canAcceptNewSubscriber()).toBe(true);
-  });
-
-  it('rejects once the limit is reached', () => {
-    const u1 = seedUser(db, { googleId: 'g1', email: 'a@test.com' });
-    seedSubscription(db, u1, 'notice_Z');
-
-    expect(canAcceptNewSubscriber()).toBe(false);
-  });
-
-  it('rejects while registration is closed even with room', () => {
-    db.update(settings).set({ value: 'false' }).where(eq(settings.key, 'registrationOpen')).run();
-
-    expect(canAcceptNewSubscriber()).toBe(false);
   });
 });

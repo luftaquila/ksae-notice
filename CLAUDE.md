@@ -25,9 +25,10 @@ src/
 │       ├── auth/           # NextAuth
 │       ├── user/           # 계정 삭제 API
 │       ├── posts/          # 게시글 조회 API
-│       ├── subscriptions/  # 구독 관리 API (renew/ 하위 라우트 포함)
+│       ├── subscriptions/  # 구독 카테고리 관리 API (무료)
+│       ├── payments/       # 결제 (orders/ return/ webhook/) + 내 결제 내역
 │       ├── stats/          # 공개 통계 API
-│       └── admin/          # 관리자 전용 API (settings, users, stats, test-email)
+│       └── admin/          # 관리자 전용 API (settings, users, stats, test-email, payments)
 ├── lib/
 │   ├── db/
 │   │   ├── schema.ts       # Drizzle 스키마 (users, subscriptions, posts, emailLogs, crawlLogs, settings)
@@ -43,9 +44,15 @@ src/
 │   │   ├── brevo.ts        # Brevo API 클라이언트
 │   │   ├── templates.ts    # 이메일 HTML 템플릿
 │   │   └── sender.ts       # 알림 발송 + 로깅
+│   ├── payment/
+│   │   ├── nicepay.ts      # 나이스페이 API 클라이언트 + 서명
+│   │   ├── orders.ts       # 주문 원장, 멱등 지급/회수
+│   │   ├── flow.ts         # 인증 검증 → 승인 → 지급, 웹훅, 관리자 취소
+│   │   └── pricing.ts      # 구독료·판매자 정보 (settings)
 │   └── subscription/
 │       ├── renewal.ts      # 12월 구독 갱신 리마인더
-│       └── upsert.ts       # 구독 upsert 유틸리티
+│       ├── period.ts       # 기간 규칙 (한 번의 결제 = 한 해)
+│       └── upsert.ts       # 카테고리 upsert 유틸리티
 ├── components/             # React 컴포넌트
 ├── __tests__/              # vitest API 단위 테스트
 └── middleware.ts            # /dashboard, /admin 라우트 보호
@@ -79,6 +86,32 @@ npm run test       # vitest 단위 테스트
 
 `notice_Z`, `notice_A`, `notice_B`, `notice_C`, `notice_D`, `rule`
 
+## Payments (NicePay 결제창 서버승인)
+
+구독은 **유료**다. 카테고리 선택은 무료이고, 이메일은 `subscriptionExpiresAt`이 남아 있는
+계정에만 나간다. **기간을 쓰는 곳은 결제 정산(`lib/payment/orders.ts`)과 관리자 수동 부여
+둘뿐이다** — 가입도, 카테고리 토글도 기간을 만들지 않는다.
+
+- 흐름: `POST /api/payments/orders`(서버가 금액·대상연도 확정) → `AUTHNICE.requestPay()`
+  → `POST /api/payments/return`(브라우저 POST) → 승인 API → 기간 연장 → `/payments/result` 303
+- **returnUrl 핸들러는 로그인 세션을 읽지 않는다.** 나이스페이 도메인에서 넘어오는 top-level
+  cross-site POST라 SameSite=Lax인 next-auth 세션 쿠키가 실려 오지 않는다. 소유자는 주문 행의
+  `userId`로만 판단한다
+- 지급·회수는 `WHERE status = ?` 조건부 UPDATE의 `changes`로 한 번만 통과시키고 users 행
+  변경을 같은 트랜잭션에 넣는다. returnUrl과 웹훅이 겹쳐도 기간이 두 번 늘어나지 않는다
+- 서명: returnUrl은 `sha256(authToken + clientId + amount + secretKey)`,
+  승인응답·웹훅은 `sha256(tid + amount + ediDate + secretKey)`
+- 승인 API가 끊기면 승인 성립 여부를 알 수 없으므로 **망취소**(`/v1/payments/netcancel`,
+  1시간 이내)를 던지고 주문을 failed로 내린다
+- 웹훅은 본문에 `OK`가 없으면 나이스페이가 재전송한다. 처리 중 예외는 삼키지 않는다
+- **카드 최소 승인금액은 1,000원**(오류코드 3041). 그보다 낮은 `subscriptionPrice` 설정값은
+  저장돼 있어도 쓰지 않는다
+- 취소는 관리자 전액 취소만이다. `grantedFrom`/`grantedTo`로 결제 직전 만료일을 복원하되,
+  그 사이 다른 결제가 기간을 더 늘렸으면 되돌리지 않고 `rolledBack: false`로 알린다
+- 정원(`maxSubscribers`)과 접수 중단(`registrationOpen`)은 **주문 생성 시점**에만 본다.
+  결제창이 떠 있는 사이 만석이 되어도 지급은 강행한다 — 돈을 이미 받았기 때문이다
+- 구독료와 판매자 정보는 `settings`에 있고 `/admin`에서 바꾼다. `/policy`가 그 값을 렌더한다
+
 ## Environment Variables
 
 `.env.example`을 `.env.local`로 복사한 후 값을 채워서 사용.
@@ -93,6 +126,9 @@ SENDER_NAME          # 발신자 이름 (기본: KSAE 공지봇)
 ADMIN_EMAIL          # 관리자 이메일 (이 이메일로 로그인하면 /admin 접근 가능)
 SITE_URL             # 서비스 URL (이메일 내 링크용)
 DATABASE_PATH        # SQLite DB 경로 (기본: ./data/ksae.db)
+NICEPAY_CLIENT_ID    # 나이스페이 상점 ID (브라우저로 나가는 공개값)
+NICEPAY_SECRET_KEY   # 나이스페이 시크릿 키 (서버 전용 — 저장소는 public 이므로 커밋 금지)
+NICEPAY_API_BASE     # 기본 https://api.nicepay.co.kr (샌드박스는 sandbox-api...)
 ```
 
 ## Commit Convention
@@ -103,6 +139,9 @@ English conventional commits: `feat:`, `fix:`, `refactor:`, `docs:`, `chore:`, e
 
 - **관리자 판별**: DB에 저장하지 않고 `ADMIN_EMAIL` 환경변수와 런타임 비교
 - **구독 만료**: 매년 12/31, 12월에 두 차례 갱신 리마인더 (userId % 7로 주간 분산)
+- **유료 구독**: 기간을 발급하는 경로는 결제 정산과 관리자 수동 부여뿐. 가입과 카테고리
+  토글은 기간을 만들지 않는다 (그래야 결제를 우회할 수 없다)
 - **이메일 제한**: Brevo 일 300통 제한, 발송 전 당일 카운트 체크
-- **최대 구독자**: settings 테이블에서 관리자가 동적으로 변경 가능
+- **최대 구독자**: settings 테이블에서 관리자가 동적으로 변경 가능. 슬롯을 차지하는 것은
+  결제된 기간이므로, 미결제 계정은 아무리 많아도 정원을 먹지 않는다
 - **커스텀 서버**: server.ts에서 Next.js + node-cron 통합, 서버 시작 시 자동 마이그레이션 + 초기 크롤링

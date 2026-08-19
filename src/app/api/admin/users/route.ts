@@ -5,6 +5,7 @@ import { getDb } from '@/lib/db';
 import { users, subscriptions, emailLogs } from '@/lib/db/schema';
 import { SUBSCRIPTION_CATEGORIES } from '@/lib/constants';
 import { upsertSubscription } from '@/lib/subscription/upsert';
+import { endOfYear, renewalTargetYear } from '@/lib/subscription/period';
 
 export async function GET() {
   if (!(await requireAdmin())) {
@@ -44,6 +45,7 @@ export async function GET() {
     name: user.name,
     createdAt: user.createdAt,
     deletedAt: user.deletedAt,
+    subscriptionExpiresAt: user.subscriptionExpiresAt,
     subscriptions: subsByUser.get(user.id) || [],
     emailsSent: emailCountMap.get(user.id) || 0,
     emailsSkipped: skippedCountMap.get(user.id) || 0,
@@ -106,6 +108,37 @@ export async function PATCH(request: NextRequest) {
     for (const cat of SUBSCRIPTION_CATEGORIES) {
       upsertSubscription(userId, cat.id);
     }
+    return NextResponse.json({ ok: true });
+  }
+
+  // Categories are free but the period is not, so an admin needs a way to hand
+  // one out without a card — a comp, or a transfer settled off-site. Same rule
+  // a payment follows: one click buys exactly one calendar year.
+  if (action === 'grant_year') {
+    const account = db
+      .select({ expiresAt: users.subscriptionExpiresAt })
+      .from(users)
+      .where(eq(users.id, userId))
+      .get();
+    if (!account) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+    const now = new Date();
+    db.update(users)
+      .set({
+        subscriptionExpiresAt: endOfYear(renewalTargetYear(now, account.expiresAt ?? null)),
+        subscriptionRenewedAt: now.toISOString(),
+      })
+      .where(eq(users.id, userId))
+      .run();
+    return NextResponse.json({ ok: true });
+  }
+
+  if (action === 'revoke_period') {
+    db.update(users)
+      .set({ subscriptionExpiresAt: null })
+      .where(eq(users.id, userId))
+      .run();
     return NextResponse.json({ ok: true });
   }
 

@@ -85,7 +85,7 @@ export function renewalReminder(userName: string, siteUrl: string): string {
     <div class="content">
       <p style="color: #4a5568;">안녕하세요${userName ? `, ${escapeHtml(userName)}` : ''}님.</p>
       <p style="color: #4a5568;">현재 구독 중인 KSAE 공지봇 서비스가 <strong>12월 31일</strong>에 만료됩니다.</p>
-      <p style="color: #4a5568;">계속 알림을 받으시려면 아래 버튼을 클릭하여 구독을 갱신해 주세요.</p>
+      <p style="color: #4a5568;">계속 알림을 받으시려면 아래 버튼을 눌러 다음 해 구독료를 결제해 주세요.</p>
       <p style="text-align: center; margin-top: 24px;">
         <a href="${siteUrl}/dashboard" class="btn">구독 갱신하기</a>
       </p>

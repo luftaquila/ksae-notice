@@ -4,13 +4,9 @@ import { auth } from '@/lib/auth';
 import { getDb } from '@/lib/db';
 import { users, subscriptions } from '@/lib/db/schema';
 import { SUBSCRIPTION_CATEGORIES } from '@/lib/constants';
+import { getSubscriptionPrice } from '@/lib/payment/pricing';
+import { isConfigured } from '@/lib/payment/nicepay';
 import { upsertSubscription } from '@/lib/subscription/upsert';
-import {
-  getActiveSubscriberCount,
-  getMaxSubscribers,
-  isCountedSubscriber,
-  isRegistrationOpen,
-} from '@/lib/subscription/capacity';
 
 // GET: get current user's subscriptions
 export async function GET() {
@@ -33,7 +29,12 @@ export async function GET() {
     .where(eq(users.id, session.user.id))
     .get();
 
-  return NextResponse.json({ subscriptions: subs, expiresAt: account?.expiresAt ?? null });
+  return NextResponse.json({
+    subscriptions: subs,
+    expiresAt: account?.expiresAt ?? null,
+    price: getSubscriptionPrice(),
+    paymentEnabled: isConfigured(),
+  });
 }
 
 // POST: subscribe to a category
@@ -50,21 +51,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid category' }, { status: 400 });
   }
 
-  // Check if registration is open
-  if (!isRegistrationOpen()) {
-    return NextResponse.json({ error: '현재 신규 구독이 중단되었습니다.' }, { status: 403 });
-  }
-
-  // Check max subscriber limit
-  const maxSubscribers = getMaxSubscribers();
-  const currentCount = getActiveSubscriberCount();
-
-  // A user who already occupies a slot is not a "new" subscriber
-  if (!isCountedSubscriber(session.user.id) && currentCount >= maxSubscribers) {
-    return NextResponse.json({ error: '최대 구독자 수에 도달했습니다.' }, { status: 403 });
-  }
-
-  // Upsert subscription
+  // No capacity gate here: a category costs nothing on its own. Slots are held
+  // by paid periods, so the limit and the registration switch are enforced
+  // where a period is bought — POST /api/payments/orders.
   upsertSubscription(session.user.id, category);
 
   return NextResponse.json({ ok: true });

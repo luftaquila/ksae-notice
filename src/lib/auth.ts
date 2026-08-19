@@ -4,8 +4,7 @@ import Google from 'next-auth/providers/google';
 import { eq } from 'drizzle-orm';
 import { getDb } from './db';
 import { users, subscriptions } from './db/schema';
-import { SUBSCRIPTION_CATEGORIES, getEndOfYear } from './constants';
-import { canAcceptNewSubscriber } from './subscription/capacity';
+import { SUBSCRIPTION_CATEGORIES } from './constants';
 
 declare module 'next-auth' {
   interface Session {
@@ -41,21 +40,19 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         .get();
 
       if (!existing) {
-        // Signing up must respect the subscriber limit too — it does not go
-        // through POST /api/subscriptions, so the check lives here as well.
-        // The transaction makes the user row and its six subscription rows
-        // land all-or-nothing, and keeps the count consistent with them.
+        // Signing up hands out categories, never a period: only a settled
+        // payment writes subscriptionExpiresAt. An account with no period
+        // costs nothing to carry — it holds no subscriber slot and the sender
+        // skips it — so there is no capacity gate to apply here any more.
+        // The transaction keeps the user row and its six category rows
+        // all-or-nothing.
         db.transaction((tx) => {
-          const isActive = canAcceptNewSubscriber(tx) ? 1 : 0;
-
           const result = tx.insert(users).values({
             googleId,
             email,
             name: profile.name || null,
             avatar: profile.picture || null,
-            // Over capacity the categories are all inactive, so the account
-            // holds no subscription and therefore no period either.
-            subscriptionExpiresAt: isActive ? getEndOfYear() : null,
+            subscriptionExpiresAt: null,
           }).run();
 
           const userId = Number(result.lastInsertRowid);
@@ -63,33 +60,27 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             tx.insert(subscriptions).values({
               userId,
               category: cat.id,
-              isActive,
+              isActive: 1,
             }).run();
           }
         }, { behavior: 'immediate' });
       } else if (existing.deletedAt) {
-        // Re-register: clear deletedAt and reactivate all subscriptions, but
-        // only if there is still room — a returning user takes a fresh slot.
+        // Re-register restores the account exactly as it was left. A paid
+        // period that has not run out is theirs to finish; one that has
+        // lapsed has to be bought again. Neither path gives anything away,
+        // so the period is the one field this branch must not touch.
         db.transaction((tx) => {
-          const isActive = canAcceptNewSubscriber(tx) ? 1 : 0;
-
           tx.update(users)
             .set({
               deletedAt: null,
               name: profile.name || existing.name,
               avatar: profile.picture || existing.avatar,
               email,
-              // Deliberately a fresh period, not the one they left behind: a
-              // returning user takes a new slot through the gate above, so they
-              // get the current calendar year like any new subscriber. This is
-              // the one writer allowed to move a period backwards, and only
-              // because deleting the account gave the old one up.
-              subscriptionExpiresAt: isActive ? getEndOfYear() : null,
             })
             .where(eq(users.id, existing.id))
             .run();
           tx.update(subscriptions)
-            .set({ isActive })
+            .set({ isActive: 1 })
             .where(eq(subscriptions.userId, existing.id))
             .run();
         }, { behavior: 'immediate' });

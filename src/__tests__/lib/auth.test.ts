@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { createTestDb, seedUser, seedSubscription, seedSetting, type TestDb } from '../helpers';
+import { createTestDb, seedUser, seedSubscription, seedSetting, EXPIRED, UNEXPIRED, type TestDb } from '../helpers';
 import { users, subscriptions, settings } from '@/lib/db/schema';
-import { SUBSCRIPTION_CATEGORIES, getEndOfYear } from '@/lib/constants';
+import { SUBSCRIPTION_CATEGORIES } from '@/lib/constants';
 
 let db: TestDb;
 let capturedConfig: any;
@@ -39,7 +39,7 @@ function subsOf(userId: number) {
   return db.select().from(subscriptions).where(eq(subscriptions.userId, userId)).all();
 }
 
-// Fills the given number of subscriber slots with unrelated active users.
+// Fills the given number of subscriber slots with unrelated paid-up users.
 function fillSlots(count: number) {
   for (let i = 0; i < count; i++) {
     const id = seedUser(db, { googleId: `filler-${i}`, email: `filler-${i}@test.com` });
@@ -60,9 +60,9 @@ describe('signIn callback - new user', () => {
     expect(db.select().from(users).all().length).toBe(0);
   });
 
-  it('subscribes all categories when there is room', async () => {
-    fillSlots(1);
-
+  // Categories are free, so sign-up hands out all six. The period is the paid
+  // half and stays null until a payment settles.
+  it('creates every category active but no subscription period', async () => {
     expect(await signInCallback({ profile: googleProfile() })).toBe(true);
 
     const user = db.select().from(users).where(eq(users.googleId, 'google-new')).get();
@@ -70,43 +70,35 @@ describe('signIn callback - new user', () => {
     const subs = subsOf(user!.id);
     expect(subs.length).toBe(SUBSCRIPTION_CATEGORIES.length);
     expect(subs.every((s) => s.isActive === 1)).toBe(true);
-    expect(user!.subscriptionExpiresAt).toBe(getEndOfYear());
+    expect(user!.subscriptionExpiresAt).toBeNull();
   });
 
-  it('creates the user with every subscription inactive when the limit is reached', async () => {
+  // The limit counts paid periods, and a fresh sign-up has none — so it can no
+  // longer push the count anywhere, and there is nothing left to gate here.
+  it('takes no subscriber slot even when the limit is already reached', async () => {
     fillSlots(2);
 
     expect(await signInCallback({ profile: googleProfile() })).toBe(true);
 
-    const user = db.select().from(users).where(eq(users.googleId, 'google-new')).get();
-    expect(user).toBeDefined();
-    const subs = subsOf(user!.id);
-    expect(subs.length).toBe(SUBSCRIPTION_CATEGORIES.length);
-    expect(subs.every((s) => s.isActive === 0)).toBe(true);
-    // No subscription means no period either
-    expect(user!.subscriptionExpiresAt).toBeNull();
+    const user = db.select().from(users).where(eq(users.googleId, 'google-new')).get()!;
+    expect(user.subscriptionExpiresAt).toBeNull();
+
+    const paidUpUsers = db
+      .select()
+      .from(users)
+      .all()
+      .filter((u) => u.subscriptionExpiresAt && u.subscriptionExpiresAt >= new Date().toISOString());
+    expect(paidUpUsers.length).toBe(2);
   });
 
-  it('does not let a sign-up push the active subscriber count past the limit', async () => {
-    fillSlots(2);
-
-    await signInCallback({ profile: googleProfile() });
-
-    const activeUsers = new Set(
-      db.select().from(subscriptions).where(eq(subscriptions.isActive, 1)).all().map((s) => s.userId),
-    );
-    expect(activeUsers.size).toBe(2);
-  });
-
-  it('creates the user with every subscription inactive when registration is closed', async () => {
+  it('still signs up while registration is closed, just without a period', async () => {
     db.update(settings).set({ value: 'false' }).where(eq(settings.key, 'registrationOpen')).run();
 
     expect(await signInCallback({ profile: googleProfile() })).toBe(true);
 
-    const user = db.select().from(users).where(eq(users.googleId, 'google-new')).get();
-    const subs = subsOf(user!.id);
-    expect(subs.length).toBe(SUBSCRIPTION_CATEGORIES.length);
-    expect(subs.every((s) => s.isActive === 0)).toBe(true);
+    const user = db.select().from(users).where(eq(users.googleId, 'google-new')).get()!;
+    expect(subsOf(user.id).length).toBe(SUBSCRIPTION_CATEGORIES.length);
+    expect(user.subscriptionExpiresAt).toBeNull();
   });
 });
 
@@ -117,11 +109,12 @@ describe('signIn callback - returning user', () => {
     seedSetting(db, 'maxSubscribers', '2');
   });
 
-  function seedDeletedUser() {
+  function seedDeletedUser(expiresAt: string | null) {
     const id = seedUser(db, {
       googleId: 'google-back',
       email: 'back@test.com',
       deletedAt: '2026-01-01T00:00:00.000Z',
+      subscriptionExpiresAt: expiresAt,
     });
     for (const cat of SUBSCRIPTION_CATEGORIES) {
       seedSubscription(db, id, cat.id, { isActive: 0 });
@@ -129,27 +122,39 @@ describe('signIn callback - returning user', () => {
     return id;
   }
 
-  it('reactivates subscriptions on re-register when there is room', async () => {
-    const id = seedDeletedUser();
-    fillSlots(1);
+  // Re-registering restores what they left behind, no more and no less: the
+  // period is bought, so it is neither confiscated nor handed out again.
+  it('reactivates categories and keeps a paid period that has not run out', async () => {
+    const id = seedDeletedUser(UNEXPIRED);
 
     expect(await signInCallback({ profile: googleProfile({ sub: 'google-back', email: 'back@test.com' }) })).toBe(true);
 
     const user = db.select().from(users).where(eq(users.id, id)).get()!;
     expect(user.deletedAt).toBeNull();
     expect(subsOf(id).every((s) => s.isActive === 1)).toBe(true);
-    expect(user.subscriptionExpiresAt).toBe(getEndOfYear());
+    expect(user.subscriptionExpiresAt).toBe(UNEXPIRED);
   });
 
-  it('leaves subscriptions inactive on re-register when the limit is reached', async () => {
-    const id = seedDeletedUser();
+  it('does not hand a lapsed returning user a fresh period', async () => {
+    const id = seedDeletedUser(EXPIRED);
+
+    expect(await signInCallback({ profile: googleProfile({ sub: 'google-back', email: 'back@test.com' }) })).toBe(true);
+
+    const user = db.select().from(users).where(eq(users.id, id)).get()!;
+    expect(user.deletedAt).toBeNull();
+    expect(subsOf(id).every((s) => s.isActive === 1)).toBe(true);
+    expect(user.subscriptionExpiresAt).toBe(EXPIRED);
+  });
+
+  it('reactivates a returning user even when the limit is reached', async () => {
+    const id = seedDeletedUser(null);
     fillSlots(2);
 
     expect(await signInCallback({ profile: googleProfile({ sub: 'google-back', email: 'back@test.com' }) })).toBe(true);
 
     const user = db.select().from(users).where(eq(users.id, id)).get()!;
     expect(user.deletedAt).toBeNull();
-    expect(subsOf(id).every((s) => s.isActive === 0)).toBe(true);
+    expect(subsOf(id).every((s) => s.isActive === 1)).toBe(true);
     expect(user.subscriptionExpiresAt).toBeNull();
   });
 
@@ -166,5 +171,16 @@ describe('signIn callback - returning user', () => {
     expect(user!.name).toBe('Renamed');
     expect(subsOf(id).length).toBe(1);
     expect(subsOf(id)[0].isActive).toBe(1);
+  });
+
+  // The period is what a returning user paid for; refreshing a profile must not
+  // reach it. This is the writer that used to be allowed to move it backwards.
+  it('leaves the period alone when an existing user simply logs in', async () => {
+    const id = seedUser(db, { googleId: 'google-old', email: 'old@test.com', subscriptionExpiresAt: UNEXPIRED });
+    seedSubscription(db, id, 'notice_Z');
+
+    await signInCallback({ profile: googleProfile({ sub: 'google-old', email: 'old@test.com' }) });
+
+    expect(db.select().from(users).where(eq(users.id, id)).get()!.subscriptionExpiresAt).toBe(UNEXPIRED);
   });
 });
