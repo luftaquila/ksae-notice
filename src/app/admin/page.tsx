@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { SUBSCRIPTION_CATEGORIES, CATEGORY_COLORS, getCategoryLabel } from '@/lib/constants';
+import { formatLocalDateTime } from '@/lib/format';
 import ToggleSwitch from '@/components/ToggleSwitch';
 
 interface UserInfo {
@@ -11,6 +12,7 @@ interface UserInfo {
   name: string | null;
   createdAt: string;
   deletedAt: string | null;
+  subscriptionExpiresAt: string | null;
   subscriptions: { category: string; isActive: number }[];
   emailsSent: number;
   emailsSkipped: number;
@@ -51,13 +53,70 @@ interface Settings {
   maxSubscribers: string;
   registrationOpen: string;
   maxEmailsPerUserPerDay: string;
+  subscriptionPrice: string;
+  bizName: string;
+  bizOwner: string;
+  bizRegNo: string;
+  bizMailOrderNo: string;
+  bizAddress: string;
+  bizTel: string;
+  bizEmail: string;
 }
+
+interface Payment {
+  orderId: string;
+  userEmail: string;
+  goodsName: string;
+  targetYear: number;
+  amount: number;
+  status: string;
+  method: string | null;
+  grantedFrom: string | null;
+  grantedTo: string | null;
+  failReason: string | null;
+  cancelReason: string | null;
+  createdAt: string;
+  approvedAt: string | null;
+  cancelledAt: string | null;
+}
+
+const PAYMENT_STATUS: Record<string, string> = {
+  pending: '진행 중',
+  paid: '완료',
+  failed: '실패',
+  cancelled: '취소',
+};
+
+// 판매자 정보 입력칸. 라벨과 설정 키를 한 곳에 묶어 둔다.
+const BUSINESS_FIELDS: [keyof Settings, string][] = [
+  ['bizName', '상호'],
+  ['bizOwner', '대표자'],
+  ['bizRegNo', '사업자등록번호'],
+  ['bizMailOrderNo', '통신판매업신고번호'],
+  ['bizAddress', '사업장 주소'],
+  ['bizTel', '연락처'],
+  ['bizEmail', '이메일'],
+];
 
 export default function AdminPage() {
   const { data: session } = useSession();
   const [users, setUsers] = useState<UserInfo[]>([]);
   const [stats, setStats] = useState<AdminStats | null>(null);
-  const [settings, setSettings] = useState<Settings>({ maxSubscribers: '50', registrationOpen: 'true', maxEmailsPerUserPerDay: '2' });
+  const [settings, setSettings] = useState<Settings>({
+    maxSubscribers: '50',
+    registrationOpen: 'true',
+    maxEmailsPerUserPerDay: '2',
+    subscriptionPrice: '1000',
+    bizName: '',
+    bizOwner: '',
+    bizRegNo: '',
+    bizMailOrderNo: '',
+    bizAddress: '',
+    bizTel: '',
+    bizEmail: '',
+  });
+  const [payments, setPayments] = useState<Payment[]>([]);
+  const [cancelling, setCancelling] = useState<string | null>(null);
   const [brevoRemaining, setBrevoRemaining] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -67,17 +126,20 @@ export default function AdminPage() {
   const fetchAll = async () => {
     setLoading(true);
     try {
-      const [usersRes, statsRes, settingsRes] = await Promise.all([
+      const [usersRes, statsRes, settingsRes, paymentsRes] = await Promise.all([
         fetch('/api/admin/users'),
         fetch('/api/admin/stats'),
         fetch('/api/admin/settings'),
+        fetch('/api/admin/payments'),
       ]);
       const usersData = await usersRes.json();
       const statsData = await statsRes.json();
       const settingsData = await settingsRes.json();
+      const paymentsData = await paymentsRes.json();
       setUsers(usersData.users || []);
       setStats(statsData);
-      setSettings(settingsData);
+      setSettings((prev) => ({ ...prev, ...settingsData }));
+      setPayments(paymentsData.payments || []);
     } catch {
       setError('데이터 로딩에 실패했습니다.');
     }
@@ -104,6 +166,65 @@ export default function AdminPage() {
       setError('설정 저장에 실패했습니다.');
     }
     setSaving(false);
+  };
+
+  // 무상 제공이나 계좌이체 처리 같은 예외를 다룰 손잡이. 결제와 같은 규칙으로
+  // 한 번에 정확히 한 해를 준다.
+  const grantYear = async (userId: number) => {
+    if (!confirm('이 유저에게 결제 없이 1년 구독을 부여하시겠습니까?')) return;
+    try {
+      const res = await fetch('/api/admin/users', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, action: 'grant_year' }),
+      });
+      if (!res.ok) setError('구독 기간 부여에 실패했습니다.');
+    } finally {
+      await fetchAll();
+    }
+  };
+
+  const revokePeriod = async (userId: number) => {
+    if (!confirm('이 유저의 구독 기간을 회수하시겠습니까? 알림 메일이 중단됩니다.')) return;
+    try {
+      const res = await fetch('/api/admin/users', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, action: 'revoke_period' }),
+      });
+      if (!res.ok) setError('구독 기간 회수에 실패했습니다.');
+    } finally {
+      await fetchAll();
+    }
+  };
+
+  // 나이스페이 취소가 성립한 뒤에야 구독 기간이 되돌아간다. 실패하면 아무것도
+  // 바뀌지 않으므로 그대로 다시 시도하면 된다.
+  const cancelPayment = async (orderId: string) => {
+    const reason = prompt('취소 사유를 입력하세요 (100자 이내)', '관리자 취소');
+    if (reason === null || !reason.trim()) return;
+    if (!confirm('결제를 전액 취소하고 구독 기간을 되돌립니다. 계속하시겠습니까?')) return;
+
+    setCancelling(orderId);
+    setError(null);
+    try {
+      const res = await fetch('/api/admin/payments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId, reason: reason.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || '결제 취소에 실패했습니다.');
+      } else if (data.rolledBack === false) {
+        setError('취소는 되었지만 이후 결제가 기간을 더 늘려두어 만료일은 그대로 두었습니다. 직접 확인해주세요.');
+      }
+      await fetchAll();
+    } catch {
+      setError('결제 취소에 실패했습니다.');
+    } finally {
+      setCancelling(null);
+    }
   };
 
   const deactivateUser = async (userId: number) => {
@@ -309,6 +430,16 @@ export default function AdminPage() {
             />
           </div>
           <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">연간 구독료 (원)</label>
+            <input
+              type="number"
+              min={1000}
+              value={settings.subscriptionPrice}
+              onChange={(e) => setSettings({ ...settings, subscriptionPrice: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm bg-white dark:bg-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">유저별 일일 최대 발송</label>
             <input
               type="number"
@@ -351,6 +482,87 @@ export default function AdminPage() {
             </button>
           </div>
         </div>
+
+        <div className="mt-6 pt-6 border-t border-gray-100 dark:border-gray-800">
+          <div className="text-sm font-medium text-gray-700 dark:text-gray-300">판매자 정보 (전자상거래 고지)</div>
+          <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+            /policy 페이지에 그대로 표시됩니다. 비워두면 &quot;미등록&quot;으로 나옵니다.
+          </p>
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {BUSINESS_FIELDS.map(([key, label]) => (
+              <div key={key}>
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{label}</label>
+                <input
+                  type="text"
+                  maxLength={200}
+                  value={settings[key]}
+                  onChange={(e) => setSettings({ ...settings, [key]: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm bg-white dark:bg-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Payments */}
+      <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-6 mb-8">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1">결제 내역</h2>
+        <p className="text-xs text-gray-400 dark:text-gray-500 mb-4">
+          취소는 나이스페이 전액 취소를 요청하고, 성공했을 때만 구독 기간을 결제 직전 값으로 되돌립니다.
+        </p>
+        {payments.length === 0 ? (
+          <div className="text-sm text-gray-400 dark:text-gray-500">결제 내역이 없습니다.</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-gray-500 dark:text-gray-400 border-b dark:border-gray-800">
+                  <th className="pb-2 pr-4 whitespace-nowrap">구매자</th>
+                  <th className="pb-2 pr-4 whitespace-nowrap">상품</th>
+                  <th className="pb-2 pr-4 whitespace-nowrap text-right">금액</th>
+                  <th className="pb-2 pr-4 whitespace-nowrap">상태</th>
+                  <th className="pb-2 pr-4 whitespace-nowrap">일시</th>
+                  <th className="pb-2 pr-4 whitespace-nowrap">주문번호</th>
+                  <th className="pb-2 whitespace-nowrap w-[1%]"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
+                {payments.map((payment) => (
+                  <tr key={payment.orderId} className={payment.status === 'paid' ? '' : 'text-gray-400 dark:text-gray-500'}>
+                    <td className="py-3 pr-4 font-mono text-xs whitespace-nowrap">{payment.userEmail}</td>
+                    <td className="py-3 pr-4 whitespace-nowrap">{payment.goodsName}</td>
+                    <td className="py-3 pr-4 whitespace-nowrap text-right">{payment.amount.toLocaleString('ko-KR')}원</td>
+                    <td className="py-3 pr-4 whitespace-nowrap">
+                      {PAYMENT_STATUS[payment.status] || payment.status}
+                      {payment.status === 'failed' && payment.failReason && (
+                        <span className="block text-xs text-red-400 dark:text-red-500">{payment.failReason}</span>
+                      )}
+                      {payment.status === 'cancelled' && payment.cancelReason && (
+                        <span className="block text-xs text-gray-400 dark:text-gray-500">{payment.cancelReason}</span>
+                      )}
+                    </td>
+                    <td className="py-3 pr-4 whitespace-nowrap">
+                      {formatLocalDateTime(payment.approvedAt || payment.cancelledAt || payment.createdAt)}
+                    </td>
+                    <td className="py-3 pr-4 font-mono text-[11px] text-gray-400 dark:text-gray-500 break-all">{payment.orderId}</td>
+                    <td className="py-3 whitespace-nowrap">
+                      {payment.status === 'paid' && (
+                        <button
+                          onClick={() => cancelPayment(payment.orderId)}
+                          disabled={cancelling === payment.orderId}
+                          className="text-xs px-3 py-1 rounded bg-red-50 text-red-600 hover:bg-red-100 active:bg-red-100 dark:bg-red-500/10 dark:text-red-400 dark:hover:bg-red-500/20 dark:active:bg-red-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 transition cursor-pointer disabled:opacity-50"
+                        >
+                          {cancelling === payment.orderId ? '취소 중...' : '결제 취소'}
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Recent crawls */}
@@ -425,6 +637,7 @@ export default function AdminPage() {
                 <th className="pb-2 pr-4 whitespace-nowrap w-[1%]">이메일</th>
                 <th className="pb-2 pr-4 whitespace-nowrap w-[1%]">이름</th>
                 <th className="pb-2 pr-4 whitespace-nowrap w-[1%]">가입일</th>
+                <th className="pb-2 pr-4 whitespace-nowrap w-[1%]">만료일</th>
                 <th className="pb-2 pr-4 whitespace-nowrap text-center">구독</th>
                 <th className="pb-2 pr-4 whitespace-nowrap w-[1%] text-center">발송</th>
                 <th className="pb-2 pr-4 whitespace-nowrap w-[1%] text-center">생략</th>
@@ -441,6 +654,13 @@ export default function AdminPage() {
                     <td className="py-3 pr-4 font-mono text-xs whitespace-nowrap">{user.email}</td>
                     <td className="py-3 pr-4 whitespace-nowrap">{user.name || '-'}</td>
                     <td className="py-3 pr-4 whitespace-nowrap">{user.createdAt.slice(0, 10)}</td>
+                    <td className="py-3 pr-4 whitespace-nowrap">
+                      {user.subscriptionExpiresAt ? (
+                        user.subscriptionExpiresAt.slice(0, 10)
+                      ) : (
+                        <span className="text-xs text-amber-500 dark:text-amber-400">미결제</span>
+                      )}
+                    </td>
                     <td className="py-3 pr-4 whitespace-nowrap text-center">
                       {isDeleted ? (
                         <span className="text-xs text-gray-300 dark:text-gray-600">탈퇴 ({user.deletedAt!.slice(0, 10)})</span>
@@ -487,6 +707,21 @@ export default function AdminPage() {
                               className="text-xs px-3 py-1 rounded bg-green-50 text-green-600 hover:bg-green-100 active:bg-green-100 dark:bg-green-500/10 dark:text-green-400 dark:hover:bg-green-500/20 dark:active:bg-green-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 transition cursor-pointer"
                             >
                               전체 구독
+                            </button>
+                          )}
+                          {user.subscriptionExpiresAt ? (
+                            <button
+                              onClick={() => revokePeriod(user.id)}
+                              className="text-xs px-3 py-1 rounded bg-amber-50 text-amber-600 hover:bg-amber-100 active:bg-amber-100 dark:bg-amber-500/10 dark:text-amber-400 dark:hover:bg-amber-500/20 dark:active:bg-amber-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 transition cursor-pointer"
+                            >
+                              기간 회수
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => grantYear(user.id)}
+                              className="text-xs px-3 py-1 rounded bg-blue-50 text-blue-600 hover:bg-blue-100 active:bg-blue-100 dark:bg-blue-500/10 dark:text-blue-400 dark:hover:bg-blue-500/20 dark:active:bg-blue-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition cursor-pointer"
+                            >
+                              1년 부여
                             </button>
                           )}
                           <button

@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Script from 'next/script';
 import { Geist, Geist_Mono } from 'next/font/google';
 import SessionProvider from '@/components/SessionProvider';
 import LoginButton from '@/components/LoginButton';
@@ -42,10 +43,18 @@ export default function RootLayout({
           <main className="flex-1">{children}</main>
           <footer className="border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 py-6">
             <div className="max-w-6xl mx-auto px-4 text-center text-sm text-gray-400 dark:text-gray-500">
-              KSAE 대학생 자작자동차대회 공지사항 알림봇
+              <div>KSAE 대학생 자작자동차대회 공지사항 알림봇</div>
+              <a
+                href="/policy"
+                className="inline-block mt-2 underline underline-offset-2 hover:text-gray-600 active:text-gray-600 dark:hover:text-gray-300 dark:active:text-gray-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 rounded transition"
+              >
+                판매자 정보 · 이용약관 · 환불규정
+              </a>
             </div>
           </footer>
         </SessionProvider>
+        {/* 나이스페이 결제창. window.AUTHNICE.requestPay() 가 여기서 온다. */}
+        <Script src="https://pay.nicepay.co.kr/v1/js/" strategy="afterInteractive" />
       </body>
     </html>
   );

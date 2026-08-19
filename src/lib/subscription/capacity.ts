@@ -59,7 +59,3 @@ export function isCountedSubscriber(userId: number, db: DbClient = getDb()): boo
   return row !== undefined;
 }
 
-// Whether a user with no active subscription may become an active subscriber right now.
-export function canAcceptNewSubscriber(db: DbClient = getDb()): boolean {
-  return isRegistrationOpen(db) && getActiveSubscriberCount(db) < getMaxSubscribers(db);
-}

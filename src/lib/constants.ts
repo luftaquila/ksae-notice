@@ -35,10 +35,6 @@ export const SUBSCRIPTION_CATEGORIES = [
   { id: 'rule', label: '규정' },
 ] as const;
 
-export function getEndOfYear(): string {
-  return `${new Date().getFullYear()}-12-31T23:59:59.000Z`;
-}
-
 export const CATEGORY_COLORS: Record<string, {
   chip: string;
   chipHover: string;

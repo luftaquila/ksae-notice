@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { eq, and } from 'drizzle-orm';
 import { createTestDb, seedUser, seedSubscription, EXPIRED, UNEXPIRED, type TestDb } from '../helpers';
 import { users, subscriptions } from '@/lib/db/schema';
-import { getEndOfYear } from '@/lib/constants';
 
 let db: TestDb;
 
@@ -46,33 +45,31 @@ describe('upsertSubscription', () => {
     expect(categoryOf(id, 'rule')!.isActive).toBe(1);
   });
 
-  it('starts a period for an account that has none', () => {
+  // Turning a category on is the free half of the product. If it also started a
+  // period, anyone could flip a toggle instead of paying.
+  it('does not start a period for an account that has none', () => {
     const id = seedUser(db, { googleId: 'g1', email: 'a@test.com', subscriptionExpiresAt: null });
 
     upsertSubscription(id, 'notice_Z');
 
-    expect(periodOf(id)).toBe(getEndOfYear());
+    expect(periodOf(id)).toBeNull();
   });
 
-  it('extends a lapsed period to the end of this year', () => {
+  it('does not revive a lapsed period', () => {
     const id = seedUser(db, { googleId: 'g1', email: 'a@test.com', subscriptionExpiresAt: EXPIRED });
 
     upsertSubscription(id, 'notice_Z');
 
-    expect(periodOf(id)).toBe(getEndOfYear());
+    expect(periodOf(id)).toBe(EXPIRED);
   });
 
-  // The reason the period lives on the account: switching a category on used to
-  // write this year end onto that one row, leaving it a year behind the others
-  // for anyone who had already renewed.
-  it('does not shorten a period that already runs past this year', () => {
+  it('leaves a paid period exactly where it is', () => {
     const id = seedUser(db, { googleId: 'g1', email: 'a@test.com', subscriptionExpiresAt: UNEXPIRED });
     seedSubscription(db, id, 'notice_Z');
 
     upsertSubscription(id, 'notice_A');
 
     expect(periodOf(id)).toBe(UNEXPIRED);
-    // and the newly added category runs to exactly the same date as the rest
     expect(categoryOf(id, 'notice_A')!.isActive).toBe(1);
   });
 });

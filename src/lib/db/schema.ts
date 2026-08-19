@@ -81,3 +81,43 @@ export const settings = sqliteTable('settings', {
   key: text('key').primaryKey(),
   value: text('value').notNull(),
 });
+
+// 결제 주문 원장. 금액은 서버만 계산하고, 지급·회수는 status 조건부 UPDATE의
+// changes 로 한 번만 통과시킨다 — returnUrl 과 웹훅이 같은 승인 건을 동시에
+// 들고 들어와도 기간이 두 번 늘어나지 않는다 (lib/payment/orders.ts).
+export const payments = sqliteTable(
+  'payments',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    orderId: text('order_id').notNull().unique(),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id),
+    // 탈퇴는 soft delete 라 users 행은 남지만, 영수증은 결제 시점의 주소로 읽혀야 한다.
+    userEmail: text('user_email').notNull(),
+    // 주문 시점에 안내한 연도. 실제로 늘어난 기간은 grantedTo 가 사실이다.
+    targetYear: integer('target_year').notNull(),
+    amount: integer('amount').notNull(),
+    goodsName: text('goods_name').notNull(),
+    status: text('status').notNull().default('pending'),
+    method: text('method'),
+    tid: text('tid'),
+    // 지급 직전/직후 만료일. 취소할 때 정확히 되돌리기 위한 값이다.
+    grantedFrom: text('granted_from'),
+    grantedTo: text('granted_to'),
+    failReason: text('fail_reason'),
+    cancelReason: text('cancel_reason'),
+    approvedAt: text('approved_at'),
+    cancelledAt: text('cancelled_at'),
+    // 대사와 장애 분석용 원문.
+    rawAuth: text('raw_auth'),
+    rawApprove: text('raw_approve'),
+    rawCancel: text('raw_cancel'),
+    createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+    updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
+  },
+  (table) => [
+    index('payments_user_created_idx').on(table.userId, table.createdAt),
+    index('payments_status_created_idx').on(table.status, table.createdAt),
+  ],
+);

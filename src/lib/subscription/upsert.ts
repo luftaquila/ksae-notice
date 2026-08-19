@@ -1,8 +1,10 @@
 import { eq, and } from 'drizzle-orm';
 import { getDb } from '../db';
-import { users, subscriptions } from '../db/schema';
-import { getEndOfYear } from '../constants';
+import { subscriptions } from '../db/schema';
 
+// Turning a category on is free and says nothing about the subscription period:
+// the period is account-level and only a settled payment extends it. Mail goes
+// out to the intersection — an active category on an unexpired account.
 export function upsertSubscription(userId: number, category: string): void {
   const db = getDb();
   const existing = db
@@ -18,22 +20,5 @@ export function upsertSubscription(userId: number, category: string): void {
       .run();
   } else {
     db.insert(subscriptions).values({ userId, category, isActive: 1 }).run();
-  }
-
-  // The period belongs to the account, not to this one category, so it may only
-  // be extended: a user who already renewed into next year must not be pulled
-  // back to the end of this one by switching a category on.
-  const endOfYear = getEndOfYear();
-  const current = db
-    .select({ expiresAt: users.subscriptionExpiresAt })
-    .from(users)
-    .where(eq(users.id, userId))
-    .get();
-
-  if (!current?.expiresAt || current.expiresAt < endOfYear) {
-    db.update(users)
-      .set({ subscriptionExpiresAt: endOfYear, subscriptionRenewedAt: new Date().toISOString() })
-      .where(eq(users.id, userId))
-      .run();
   }
 }

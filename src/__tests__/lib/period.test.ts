@@ -18,8 +18,10 @@ describe('renewalTargetYear', () => {
     expect(renewalTargetYear(kst('2027-03-01T12:00:00+09:00'), null)).toBe(2027);
   });
 
-  it('is idempotent — renewing again in the same window does not stack', () => {
-    expect(renewalTargetYear(kst('2026-12-20T12:00:00+09:00'), endOfYear(2027))).toBe(2027);
+  // Paying twice must buy two years. Guarding a double-submit is the order
+  // ledger's job, not this function's — clamping here would swallow a payment.
+  it('stacks another year onto a period already paid ahead', () => {
+    expect(renewalTargetYear(kst('2026-12-20T12:00:00+09:00'), endOfYear(2027))).toBe(2028);
   });
 
   // 2026-12-31T23:59:59Z is 2027-01-01 08:59 KST, so between midnight and 08:59

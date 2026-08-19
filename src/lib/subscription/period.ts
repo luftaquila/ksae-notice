@@ -6,17 +6,24 @@ export function endOfYear(year: number): string {
   return `${year}-12-31T23:59:59.000Z`;
 }
 
-// Renewal buys exactly one calendar year: the next one while the current period
-// still covers this year, the current one once it has lapsed or was never set.
-// Handing a lapsed account year + 1 would give it two years for one click.
+// One purchase buys exactly one calendar year, stacked on top of whatever is
+// already covered: the year after the current period while it still runs, the
+// current year once it has lapsed or was never set. Handing a lapsed account
+// year + 1 would give it two years for one payment.
+//
+// Stacking matters now that the year is bought rather than clicked. Returning
+// currentYear + 1 for an account already paid through next year would take the
+// money and move nothing. Double-submits are held off by the order ledger
+// instead — settleOrder only grants while the order is still pending.
 //
 // Compared by calendar year off the ISO prefix, not as an instant. Between 00:00
 // and 08:59 KST on Jan 1 a 12/31 23:59:59 UTC period has not technically passed
 // yet, and an instant comparison would call it covered and hand out two years.
 export function renewalTargetYear(now: Date, expiresAt: string | null): number {
   const currentYear = now.getFullYear();
-  const covered = !!expiresAt && Number(expiresAt.slice(0, 4)) >= currentYear;
-  return currentYear + (covered ? 1 : 0);
+  const coveredThrough = expiresAt ? Number(expiresAt.slice(0, 4)) : null;
+  if (coveredThrough !== null && coveredThrough >= currentYear) return coveredThrough + 1;
+  return currentYear;
 }
 
 export interface RenewalPrompt {

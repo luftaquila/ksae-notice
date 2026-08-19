@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm';
 import { requireAdmin } from '@/lib/auth';
 import { getDb } from '@/lib/db';
 import { settings } from '@/lib/db/schema';
+import { BUSINESS_SETTING_KEYS } from '@/lib/payment/pricing';
 
 export async function GET() {
   if (!(await requireAdmin())) {
@@ -28,7 +29,13 @@ export async function PUT(request: NextRequest) {
   const body = await request.json();
   const db = getDb();
 
-  const allowedKeys = ['maxSubscribers', 'registrationOpen', 'maxEmailsPerUserPerDay'];
+  const allowedKeys = [
+    'maxSubscribers',
+    'registrationOpen',
+    'maxEmailsPerUserPerDay',
+    'subscriptionPrice',
+    ...BUSINESS_SETTING_KEYS,
+  ];
 
   for (const [key, value] of Object.entries(body)) {
     if (!allowedKeys.includes(key)) continue;
