@@ -634,7 +634,6 @@ export default function AdminPage() {
             <thead>
               <tr className="text-left text-gray-500 dark:text-gray-400 border-b dark:border-gray-800">
                 <th className="pb-2 pr-4 whitespace-nowrap w-[1%]">#</th>
-                <th className="pb-2 pr-4 whitespace-nowrap w-[1%]">이메일</th>
                 <th className="pb-2 pr-4 whitespace-nowrap w-[1%]">이름</th>
                 <th className="pb-2 pr-4 whitespace-nowrap w-[1%]">가입일</th>
                 <th className="pb-2 pr-4 whitespace-nowrap w-[1%]">만료일</th>
@@ -651,8 +650,10 @@ export default function AdminPage() {
                 return (
                   <tr key={user.id} className={isDeleted ? 'text-gray-300 dark:text-gray-600 line-through' : ''}>
                     <td className="py-3 pr-4 text-gray-400 dark:text-gray-500 whitespace-nowrap">{index + 1}</td>
-                    <td className="py-3 pr-4 font-mono text-xs whitespace-nowrap">{user.email}</td>
-                    <td className="py-3 pr-4 whitespace-nowrap">{user.name || '-'}</td>
+                    <td className="py-3 pr-4 whitespace-nowrap">
+                      <div>{user.name || '-'}</div>
+                      <div className="font-mono text-xs text-gray-500 dark:text-gray-400">{user.email}</div>
+                    </td>
                     <td className="py-3 pr-4 whitespace-nowrap">{user.createdAt.slice(0, 10)}</td>
                     <td className="py-3 pr-4 whitespace-nowrap">
                       {user.subscriptionExpiresAt ? (
