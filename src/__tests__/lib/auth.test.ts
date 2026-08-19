@@ -22,7 +22,18 @@ vi.mock('next-auth/providers/google', () => ({
   default: () => ({ id: 'google' }),
 }));
 
+let jar: Map<string, string>;
+
+vi.mock('next/headers', () => ({
+  cookies: async () => ({
+    get: (name: string) => (jar.has(name) ? { name, value: jar.get(name) } : undefined),
+    set: (name: string, value: string) => jar.set(name, value),
+    delete: (name: string) => jar.delete(name),
+  }),
+}));
+
 await import('@/lib/auth');
+const { PENDING_SIGNUP_COOKIE, unsealPendingSignup } = await import('@/lib/signup/pending');
 const signInCallback = capturedConfig.callbacks.signIn;
 
 function googleProfile(overrides: Record<string, unknown> = {}) {
@@ -50,6 +61,8 @@ function fillSlots(count: number) {
 describe('signIn callback - new user', () => {
   beforeEach(() => {
     db = createTestDb();
+    jar = new Map();
+    vi.stubEnv('AUTH_SECRET', 'test-auth-secret');
     seedSetting(db, 'registrationOpen', 'true');
     seedSetting(db, 'maxSubscribers', '2');
   });
@@ -60,51 +73,42 @@ describe('signIn callback - new user', () => {
     expect(db.select().from(users).all().length).toBe(0);
   });
 
-  // Categories are free, so sign-up hands out all six. The period is the paid
-  // half and stays null until a payment settles.
-  it('creates every category active but no subscription period', async () => {
-    expect(await signInCallback({ profile: googleProfile() })).toBe(true);
+  // 계정은 동의를 받은 뒤에 만든다. 여기서 행을 적으면 동의 화면이 의미가 없다.
+  it('writes nothing and sends the profile to the consent screen', async () => {
+    expect(await signInCallback({ profile: googleProfile() })).toBe('/signup/consent');
 
-    const user = db.select().from(users).where(eq(users.googleId, 'google-new')).get();
-    expect(user).toBeDefined();
-    const subs = subsOf(user!.id);
-    expect(subs.length).toBe(SUBSCRIPTION_CATEGORIES.length);
-    expect(subs.every((s) => s.isActive === 1)).toBe(true);
-    expect(user!.subscriptionExpiresAt).toBeNull();
+    expect(db.select().from(users).all().length).toBe(0);
+    expect(db.select().from(subscriptions).all().length).toBe(0);
+
+    // 프로필은 봉인한 쿠키로만 넘어간다.
+    expect(unsealPendingSignup(jar.get(PENDING_SIGNUP_COOKIE))).toEqual({
+      googleId: 'google-new',
+      email: 'new@test.com',
+      name: 'New User',
+      avatar: 'https://example.com/a.png',
+    });
   });
 
-  // The limit counts paid periods, and a fresh sign-up has none — so it can no
-  // longer push the count anywhere, and there is nothing left to gate here.
-  it('takes no subscriber slot even when the limit is already reached', async () => {
+  it('sends them to consent even when every subscriber slot is taken', async () => {
     fillSlots(2);
 
-    expect(await signInCallback({ profile: googleProfile() })).toBe(true);
-
-    const user = db.select().from(users).where(eq(users.googleId, 'google-new')).get()!;
-    expect(user.subscriptionExpiresAt).toBeNull();
-
-    const paidUpUsers = db
-      .select()
-      .from(users)
-      .all()
-      .filter((u) => u.subscriptionExpiresAt && u.subscriptionExpiresAt >= new Date().toISOString());
-    expect(paidUpUsers.length).toBe(2);
+    expect(await signInCallback({ profile: googleProfile() })).toBe('/signup/consent');
+    expect(db.select().from(users).where(eq(users.googleId, 'google-new')).get()).toBeUndefined();
   });
 
-  it('still signs up while registration is closed, just without a period', async () => {
+  it('sends them to consent while registration is closed too', async () => {
     db.update(settings).set({ value: 'false' }).where(eq(settings.key, 'registrationOpen')).run();
 
-    expect(await signInCallback({ profile: googleProfile() })).toBe(true);
-
-    const user = db.select().from(users).where(eq(users.googleId, 'google-new')).get()!;
-    expect(subsOf(user.id).length).toBe(SUBSCRIPTION_CATEGORIES.length);
-    expect(user.subscriptionExpiresAt).toBeNull();
+    expect(await signInCallback({ profile: googleProfile() })).toBe('/signup/consent');
+    expect(db.select().from(users).all().length).toBe(0);
   });
 });
 
 describe('signIn callback - returning user', () => {
   beforeEach(() => {
     db = createTestDb();
+    jar = new Map();
+    vi.stubEnv('AUTH_SECRET', 'test-auth-secret');
     seedSetting(db, 'registrationOpen', 'true');
     seedSetting(db, 'maxSubscribers', '2');
   });

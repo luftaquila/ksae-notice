@@ -20,7 +20,9 @@ export function createTestDb() {
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       deleted_at TEXT,
       subscription_expires_at TEXT,
-      subscription_renewed_at TEXT
+      subscription_renewed_at TEXT,
+      privacy_consent_at TEXT,
+      privacy_consent_version TEXT
     );
     CREATE TABLE subscriptions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

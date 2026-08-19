@@ -13,6 +13,9 @@ export const users = sqliteTable('users', {
   // covers all of the user's categories at once. NULL means no period at all.
   subscriptionExpiresAt: text('subscription_expires_at'),
   subscriptionRenewedAt: text('subscription_renewed_at'),
+  // 가입 시 받은 개인정보 동의. 이 흐름 이전에 만들어진 계정은 NULL 로 남는다.
+  privacyConsentAt: text('privacy_consent_at'),
+  privacyConsentVersion: text('privacy_consent_version'),
 });
 
 export const subscriptions = sqliteTable(
