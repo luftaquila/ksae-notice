@@ -5,12 +5,39 @@
 // 웹훅이 같은 승인 건을 동시에 들고 들어와도 기간이 두 번 늘어나지 않는다.
 
 import { randomUUID } from 'node:crypto';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, inArray, lt, sql } from 'drizzle-orm';
 import { getDb } from '../db';
 import { payments, users } from '../db/schema';
 import { endOfYear, renewalTargetYear } from '../subscription/period';
 
 export type PaymentRow = typeof payments.$inferSelect;
+
+// 결제창을 열었다 닫기만 해도 주문 행은 pending 으로 남는다. 그대로 두면
+// "pending 으로 오래 남은 건 = 지급 누락"이라는 운영 신호가 버려진 주문에 묻힌다.
+//
+// 만료는 정리용 라벨일 뿐 승인 게이트가 아니다. 만료 직후에 결제가 완료되면 승인은
+// 그대로 성립하므로, 지급과 실패 기록은 expired 상태에서도 통과시켜야 한다 —
+// 안 그러면 청구는 됐는데 구독 기간이 늘지 않은 주문이 생긴다.
+const GRANTABLE = ['pending', 'expired'];
+export const EXPIRY_MINUTES = 60;
+
+// 오래 방치된 pending 주문을 expired 로 내린다. 정리한 건수를 돌려준다.
+//
+// 컷오프를 SQLite 안에서 만드는 이유: createdAt 은 `datetime('now')` 형식
+// ("2026-08-19 11:53:00")인데 JS toISOString() 은 "2026-08-19T11:53:00.000Z" 다.
+// 열 번째 글자가 공백(0x20)과 'T'(0x54)로 갈려서, 문자열 비교로는 같은 날짜의 모든
+// 행이 ISO 컷오프보다 작게 나온다 — 방치된 것만 골라내려다 전부 만료시킨다.
+export function expireStaleOrders(olderThanMinutes = EXPIRY_MINUTES): number {
+  const result = getDb()
+    .update(payments)
+    .set({ status: 'expired', updatedAt: new Date().toISOString() })
+    .where(and(
+      eq(payments.status, 'pending'),
+      lt(payments.createdAt, sql`datetime('now', ${`-${olderThanMinutes} minutes`})`),
+    ))
+    .run();
+  return result.changes;
+}
 
 function dump(payload: unknown): string | null {
   if (payload === null || payload === undefined) return null;
@@ -52,7 +79,7 @@ export function createOrder(params: {
   return getOrder(orderId)!;
 }
 
-// pending 주문만 실패로 내린다. 이미 승인된 주문은 건드리지 않는다.
+// 아직 승인되지 않은 주문만 실패로 내린다. 이미 승인된 주문은 건드리지 않는다.
 //
 // 승인이 거절된 경우 그 응답 원문까지 남긴다 — 사유 문구 하나로는 어느 단계에서
 // 무엇이 틀렸는지 되짚을 수 없다.
@@ -73,12 +100,13 @@ export function failOrder(
   getDb()
     .update(payments)
     .set(set)
-    .where(and(eq(payments.orderId, orderId), eq(payments.status, 'pending')))
+    .where(and(eq(payments.orderId, orderId), inArray(payments.status, GRANTABLE)))
     .run();
 }
 
 // 승인된 주문을 확정하고 구독 기간을 연장한다. 실제로 연장이 일어났을 때만
-// 주문 행을 돌려준다. 이미 처리된 주문이면 null.
+// 주문 행을 돌려준다. 이미 처리된 주문이면 null. 만료로 표시된 주문도 지급
+// 대상이다 — 만료는 정리용 라벨이지 승인 게이트가 아니다.
 export function settleOrder(params: {
   orderId: string;
   tid: string;
@@ -105,7 +133,7 @@ export function settleOrder(params: {
     const settled = tx
       .update(payments)
       .set(set)
-      .where(and(eq(payments.orderId, params.orderId), eq(payments.status, 'pending')))
+      .where(and(eq(payments.orderId, params.orderId), inArray(payments.status, GRANTABLE)))
       .run();
 
     if (settled.changes === 0) return null;

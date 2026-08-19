@@ -1,9 +1,11 @@
 import cron, { type ScheduledTask } from 'node-cron';
 import { crawlLatest, crawlAll, needsInitialCrawl, cleanupStaleCrawlLogs } from './index';
 import { checkAndSendRenewalReminders } from '../subscription/renewal';
+import { expireStaleOrders } from '../payment/orders';
 
 let crawlTask: ScheduledTask | null = null;
 let renewalTask: ScheduledTask | null = null;
+let orderCleanupTask: ScheduledTask | null = null;
 let isCrawling = false;
 
 export async function initScheduler() {
@@ -45,11 +47,27 @@ export async function initScheduler() {
     timezone: 'Asia/Seoul',
   });
 
+  // 결제창을 열었다 닫은 주문을 시간마다 정리한다. 남겨두면 pending 이 지급 누락의
+  // 신호로 못 쓰이게 된다.
+  orderCleanupTask = cron.schedule('7 * * * *', () => {
+    try {
+      const expired = expireStaleOrders();
+      if (expired > 0) {
+        console.log(`[Scheduler] Marked ${expired} abandoned payment orders as expired`);
+      }
+    } catch (error) {
+      console.error('[Scheduler] Stale payment order cleanup error:', error);
+    }
+  }, {
+    timezone: 'Asia/Seoul',
+  });
+
   console.log('[Scheduler] Cron jobs scheduled.');
 }
 
 export function stopScheduler() {
   crawlTask?.stop();
   renewalTask?.stop();
+  orderCleanupTask?.stop();
   console.log('[Scheduler] Cron jobs stopped.');
 }
