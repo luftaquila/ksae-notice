@@ -3,6 +3,11 @@
 import { useState, useEffect } from 'react';
 import PostTable from '@/components/PostTable';
 
+interface Pricing {
+  price: number;
+  minAmount: number;
+}
+
 interface Stats {
   activeSubscribers: number;
   maxSubscribers: number;
@@ -28,12 +33,22 @@ function getTickInterval(dateStr: string): number {
 
 export default function Home() {
   const [stats, setStats] = useState<Stats | null>(null);
+  const [pricing, setPricing] = useState<Pricing | null>(null);
   const [tick, setTick] = useState(0);
 
   useEffect(() => {
     fetch('/api/stats')
       .then((res) => res.json())
       .then(setStats)
+      .catch(() => {});
+  }, []);
+
+  // 판매가는 로그인 없이도 보여야 한다 — 구매 화면이 대시보드 안에 있어서,
+  // 여기가 판매 조건을 확인할 수 있는 유일한 공개 지점이다.
+  useEffect(() => {
+    fetch('/api/policy')
+      .then((res) => res.json())
+      .then((data) => setPricing({ price: data.price, minAmount: data.minAmount }))
       .catch(() => {});
   }, []);
 
@@ -88,6 +103,26 @@ export default function Home() {
               : '오전 7시 ~ 오후 7시 / 5분 간격'}
           </div>
         </div>
+      </div>
+
+      {/* 서비스·판매 안내 */}
+      <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-4 mb-2">
+        <div className="text-sm font-medium text-gray-700 dark:text-gray-300">서비스 안내</div>
+        <ul className="mt-2 list-disc list-outside pl-5 text-sm text-gray-500 dark:text-gray-400 space-y-1 leading-relaxed">
+          <li>
+            KSAE 대학생 자작자동차대회 공지사항·규정 게시글을 크롤링해 구독자에게 이메일로 알립니다.
+          </li>
+          <li>
+            <span className="text-gray-700 dark:text-gray-300 font-medium">
+              연간 구독료 {pricing ? `${pricing.price.toLocaleString('ko-KR')}원` : '-'}
+            </span>
+            {' '}· 결제일부터 해당 연도 12월 31일까지 · 신용·체크카드 및 간편결제
+          </li>
+          <li>알림 카테고리(공통·Baja·Formula·EV·자율주행·규정) 선택은 무료이며, 구독 기간이 남아 있는 동안 메일이 발송됩니다.</li>
+          <li>
+            구매·환불 조건은 <a href="/policy" className="underline underline-offset-2">이용약관 및 환불규정</a>에서 확인할 수 있습니다.
+          </li>
+        </ul>
       </div>
 
       {/* Post list */}
