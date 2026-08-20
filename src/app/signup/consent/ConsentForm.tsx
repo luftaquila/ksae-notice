@@ -48,7 +48,8 @@ export default function ConsentForm() {
           className="mt-0.5 w-4 h-4 accent-blue-600 cursor-pointer"
         />
         <span className="text-sm text-gray-700 dark:text-gray-300">
-          <b className="text-blue-600 dark:text-blue-400">[필수]</b> 개인정보 수집·이용에 동의합니다.
+          <b className="text-blue-600 dark:text-blue-400">[필수]</b> 개인정보 수집·이용에 동의하며,{' '}
+          <b>만 14세 이상</b>입니다.
         </span>
       </label>
 
