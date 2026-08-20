@@ -9,9 +9,10 @@ export const metadata = {
   title: 'KSAE 공지봇 · 판매자 정보 및 환불규정',
 };
 
-function Section({ title, eyebrow, children }: { title: string; eyebrow: string; children: React.ReactNode }) {
+function Section({ id, title, eyebrow, children }: { id?: string; title: string; eyebrow: string; children: React.ReactNode }) {
   return (
-    <section className="mb-6">
+    // 하단정보의 링크가 바로 해당 절로 오도록 앵커를 준다.
+    <section id={id} className="mb-6 scroll-mt-20">
       <p className="text-xs font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-400">{eyebrow}</p>
       <h2 className="mt-1 text-lg font-bold text-gray-900 dark:text-gray-100">{title}</h2>
       <div className="mt-3 rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 divide-y divide-gray-100 dark:divide-gray-800 text-sm">
@@ -74,7 +75,7 @@ export default async function PolicyPage() {
         </p>
       </Section>
 
-      <Section eyebrow="환불" title="취소 및 환불 규정">
+      <Section id="refund" eyebrow="환불" title="취소 및 환불 규정">
         <dl>
           <Row label="전액 환불" value="결제 후 7일 이내이고, 그 사이 알림 메일을 한 통도 받지 않은 경우" />
           <Row label="부분 환불" value="지원하지 않습니다. 잔여 기간에 대한 일할 환불은 없습니다." />
@@ -87,8 +88,9 @@ export default async function PolicyPage() {
         </p>
       </Section>
 
-      <Section eyebrow="이용약관" title="서비스 이용 조건">
+      <Section id="terms" eyebrow="이용약관" title="서비스 이용 조건">
         <dl>
+          <Row label="사업자" value={`${or(business.bizName)} (대표 ${or(business.bizOwner)})`} />
           <Row label="서비스" value="KSAE 대학생 자작자동차대회 공지사항·규정 게시글 이메일 알림" />
           <Row label="계정" value="Google 계정으로만 가입하며, 계정당 1인이 사용합니다." />
           <Row label="발송 한도" value="일일 발송량이 제한되어 있어 공지가 몰리는 날에는 알림이 누락될 수 있습니다." />
@@ -98,6 +100,30 @@ export default async function PolicyPage() {
         <p className="px-4 py-3 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
           본 서비스는 KSAE 공식 서비스가 아니며, 원문 공지의 내용과 시점은 KSAE 홈페이지를 기준으로 합니다.
           크롤링 실패나 발송 한도 초과로 알림이 누락될 수 있으므로 중요한 일정은 원문을 확인해 주세요.
+        </p>
+      </Section>
+
+      <Section id="privacy" eyebrow="개인정보" title="개인정보처리방침">
+        <dl>
+          <Row label="처리자" value={`${or(business.bizName)} (대표 ${or(business.bizOwner)})`} />
+          <Row label="수집 항목" value="이름, 이메일, 프로필 사진, 구독 카테고리, 알림 발송 기록, 결제 기록" />
+          <Row label="수집 방법" value="Google 계정 로그인 시 제공되는 정보와 서비스 이용 과정에서 자동 생성되는 기록" />
+          <Row label="이용 목적" value="회원 식별과 관리, 공지·규정 알림 메일 발송, 구독료 결제와 환불 처리" />
+          <Row
+            label="보유 기간"
+            value="회원 탈퇴 시까지. 탈퇴 시 구독 기간과 구독 정보는 소멸하며, 대금결제 기록은 관련 법령에 따라 보존합니다."
+          />
+          <Row
+            label="제3자 제공"
+            value="결제 처리를 위해 나이스페이먼츠(주)에, 메일 발송을 위해 Brevo(Sendinblue SAS)에 필요한 최소 정보만 제공합니다."
+          />
+          <Row label="파기" value="보유 기간이 지나거나 처리 목적이 달성되면 지체 없이 삭제합니다." />
+          <Row label="이용자의 권리" value="열람·정정·삭제·처리정지를 요구할 수 있으며, 구독 관리 화면에서 즉시 탈퇴할 수 있습니다." />
+          <Row label="문의" value={contact} />
+        </dl>
+        <p className="px-4 py-3 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+          카드정보는 나이스페이먼츠(주)가 처리하며 공지봇 서버에는 저장되지 않습니다.
+          동의를 거부할 수 있으나 필수 정보이므로 거부 시 회원가입과 알림 수신이 불가합니다.
         </p>
       </Section>
 
