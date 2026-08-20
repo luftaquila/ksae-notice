@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { SUBSCRIPTION_CATEGORIES, CATEGORY_COLORS, getCategoryLabel } from '@/lib/constants';
 import { formatLocalDateTime } from '@/lib/format';
+import { subscriptionStatus, type SubscriptionStatusKey } from '@/lib/subscription/status';
 import ToggleSwitch from '@/components/ToggleSwitch';
 
 interface UserInfo {
@@ -79,6 +80,14 @@ interface Payment {
   approvedAt: string | null;
   cancelledAt: string | null;
 }
+
+const STATUS_BADGE: Record<SubscriptionStatusKey, string> = {
+  receiving: 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300',
+  unpaid: 'bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',
+  paused: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400',
+  inactive: 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500',
+  withdrawn: 'bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-600',
+};
 
 const PAYMENT_STATUS: Record<string, string> = {
   pending: '진행 중',
@@ -339,6 +348,14 @@ export default function AdminPage() {
     }
     setSendingTestEmail(false);
   };
+
+  // 표에 찍히는 "수신 중" 개수. 서버의 정원 집계와 같은 판정을 쓰므로 헤더 숫자와
+  // 배지 개수가 어긋날 수 없다.
+  const slotsHeld = users.filter((user) => subscriptionStatus({
+    deletedAt: user.deletedAt,
+    subscriptionExpiresAt: user.subscriptionExpiresAt,
+    hasActiveCategory: user.subscriptions.some((s) => s.isActive),
+  }).holdsSlot).length;
 
   if (loading) {
     return <div className="max-w-screen-xl mx-auto px-4 py-12 text-center text-gray-400 dark:text-gray-500">불러오는 중...</div>;
@@ -630,6 +647,9 @@ export default function AdminPage() {
       <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-6">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
           유저 목록 ({users.length}명)
+          <span className="ml-2 text-sm font-normal text-gray-500 dark:text-gray-400">
+            구독자 자리 {slotsHeld} / {settings.maxSubscribers}
+          </span>
         </h2>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -637,6 +657,7 @@ export default function AdminPage() {
               <tr className="text-left text-gray-500 dark:text-gray-400 border-b dark:border-gray-800">
                 <th className="pb-2 pr-4 whitespace-nowrap w-[1%]">#</th>
                 <th className="pb-2 pr-4 whitespace-nowrap w-[1%]">이름</th>
+                <th className="pb-2 pr-4 whitespace-nowrap w-[1%]">상태</th>
                 <th className="pb-2 pr-4 whitespace-nowrap w-[1%]">가입일</th>
                 <th className="pb-2 pr-4 whitespace-nowrap w-[1%]">만료일</th>
                 <th className="pb-2 pr-4 whitespace-nowrap text-center">구독</th>
@@ -649,12 +670,23 @@ export default function AdminPage() {
               {users.map((user, index) => {
                 const isDeleted = !!user.deletedAt;
                 const hasActive = user.subscriptions.some((s) => s.isActive);
+                // 두 축을 곱한 결과. 이 값이 곧 정원에 잡히는지 여부다.
+                const status = subscriptionStatus({
+                  deletedAt: user.deletedAt,
+                  subscriptionExpiresAt: user.subscriptionExpiresAt,
+                  hasActiveCategory: hasActive,
+                });
                 return (
                   <tr key={user.id} className={isDeleted ? 'text-gray-300 dark:text-gray-600 line-through' : ''}>
                     <td className="py-3 pr-4 text-gray-400 dark:text-gray-500 whitespace-nowrap">{index + 1}</td>
                     <td className="py-3 pr-4 whitespace-nowrap">
                       <div>{user.name || '-'}</div>
                       <div className="font-mono text-xs text-gray-500 dark:text-gray-400">{user.email}</div>
+                    </td>
+                    <td className="py-3 pr-4 whitespace-nowrap">
+                      <span className={`text-xs px-2 py-0.5 rounded no-underline ${STATUS_BADGE[status.key]}`}>
+                        {status.label}
+                      </span>
                     </td>
                     <td className="py-3 pr-4 whitespace-nowrap">{user.createdAt.slice(0, 10)}</td>
                     <td className="py-3 pr-4 whitespace-nowrap">
@@ -702,14 +734,14 @@ export default function AdminPage() {
                               onClick={() => deactivateUser(user.id)}
                               className="text-xs px-3 py-1 rounded bg-red-50 text-red-600 hover:bg-red-100 active:bg-red-100 dark:bg-red-500/10 dark:text-red-400 dark:hover:bg-red-500/20 dark:active:bg-red-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 transition cursor-pointer"
                             >
-                              구독 중단
+                              카테고리 해제
                             </button>
                           ) : (
                             <button
                               onClick={() => subscribeAll(user.id)}
                               className="text-xs px-3 py-1 rounded bg-green-50 text-green-600 hover:bg-green-100 active:bg-green-100 dark:bg-green-500/10 dark:text-green-400 dark:hover:bg-green-500/20 dark:active:bg-green-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 transition cursor-pointer"
                             >
-                              전체 구독
+                              카테고리 구독
                             </button>
                           )}
                           {user.subscriptionExpiresAt ? (
@@ -724,7 +756,7 @@ export default function AdminPage() {
                               onClick={() => grantYear(user.id)}
                               className="text-xs px-3 py-1 rounded bg-blue-50 text-blue-600 hover:bg-blue-100 active:bg-blue-100 dark:bg-blue-500/10 dark:text-blue-400 dark:hover:bg-blue-500/20 dark:active:bg-blue-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition cursor-pointer"
                             >
-                              1년 부여
+                              기간 1년 부여
                             </button>
                           )}
                           <button
