@@ -156,10 +156,9 @@ export default async function PolicyPage() {
             label="쿠키"
             value={
               <>
-                로그인 상태 유지를 위해 <code>__Secure-authjs.session-token</code>, 요청 위조 방지를 위해{' '}
-                <code>__Host-authjs.csrf-token</code>, 가입 절차 유지를 위해 <code>ksae-pending-signup</code> 쿠키를
-                사용하며 모두 HttpOnly·Secure 입니다. 광고·행태정보 수집 목적의 쿠키는 사용하지 않습니다. 브라우저
-                설정에서 쿠키 저장을 거부할 수 있으나, 거부하면 로그인이 유지되지 않아 서비스를 이용할 수 없습니다.
+                로그인 상태 유지, 요청 위조 방지, 가입 절차 유지를 위한 쿠키를 사용하며 모두 HttpOnly·Secure
+                입니다. 광고·행태정보 수집 목적의 쿠키는 사용하지 않습니다. 브라우저의 개인정보 보호 설정(Chrome·Edge·Safari
+                등)에서 쿠키 저장을 거부할 수 있으나, 거부하면 로그인이 유지되지 않아 서비스를 이용할 수 없습니다.
               </>
             }
           />
