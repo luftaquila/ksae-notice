@@ -1,3 +1,4 @@
+import { cookies } from 'next/headers';
 import NextAuth, { type DefaultSession } from 'next-auth';
 import { type JWT } from 'next-auth/jwt';
 import Google from 'next-auth/providers/google';
@@ -5,6 +6,11 @@ import { eq } from 'drizzle-orm';
 import { getDb } from './db';
 import { users, subscriptions } from './db/schema';
 import { SUBSCRIPTION_CATEGORIES } from './constants';
+import {
+  PENDING_SIGNUP_COOKIE,
+  PENDING_SIGNUP_TTL_SECONDS,
+  sealPendingSignup,
+} from './signup/pending';
 
 declare module 'next-auth' {
   interface Session {
@@ -40,30 +46,24 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         .get();
 
       if (!existing) {
-        // Signing up hands out categories, never a period: only a settled
-        // payment writes subscriptionExpiresAt. An account with no period
-        // costs nothing to carry — it holds no subscriber slot and the sender
-        // skips it — so there is no capacity gate to apply here any more.
-        // The transaction keeps the user row and its six category rows
-        // all-or-nothing.
-        db.transaction((tx) => {
-          const result = tx.insert(users).values({
-            googleId,
-            email,
-            name: profile.name || null,
-            avatar: profile.picture || null,
-            subscriptionExpiresAt: null,
-          }).run();
+        // 계정은 여기서 만들지 않는다. 개인정보 동의를 받기 전에 행을 적으면 동의
+        // 화면이 의미가 없어지므로, 프로필은 봉인한 쿠키에만 담아 동의 화면으로 보낸다.
+        // 실제 생성은 POST /api/auth/signup-consent 가 한다.
+        (await cookies()).set(PENDING_SIGNUP_COOKIE, sealPendingSignup({
+          googleId,
+          email,
+          name: profile.name || null,
+          avatar: profile.picture || null,
+        }), {
+          httpOnly: true,
+          sameSite: 'lax',
+          secure: process.env.NODE_ENV === 'production',
+          path: '/',
+          maxAge: PENDING_SIGNUP_TTL_SECONDS,
+        });
 
-          const userId = Number(result.lastInsertRowid);
-          for (const cat of SUBSCRIPTION_CATEGORIES) {
-            tx.insert(subscriptions).values({
-              userId,
-              category: cat.id,
-              isActive: 1,
-            }).run();
-          }
-        }, { behavior: 'immediate' });
+        // 문자열을 돌려주면 세션을 만들지 않고 이 주소로 보낸다.
+        return '/signup/consent';
       } else if (existing.deletedAt) {
         // Re-registering brings the account back with its categories but no
         // period. Withdrawal forfeits the period — that is what /policy and the

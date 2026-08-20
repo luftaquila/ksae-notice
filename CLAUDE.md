@@ -22,7 +22,7 @@ src/
 │   ├── admin/page.tsx      # 관리자 대시보드
 │   ├── go/[id]/route.ts    # 게시글 리다이렉트 (모바일 UA 감지)
 │   └── api/
-│       ├── auth/           # NextAuth
+│       ├── auth/           # NextAuth + 가입 동의 (signup-consent, signup-cancel)
 │       ├── user/           # 계정 삭제 API
 │       ├── posts/          # 게시글 조회 API
 │       ├── subscriptions/  # 구독 카테고리 관리 API (무료)
@@ -44,6 +44,8 @@ src/
 │   │   ├── brevo.ts        # Brevo API 클라이언트
 │   │   ├── templates.ts    # 이메일 HTML 템플릿
 │   │   └── sender.ts       # 알림 발송 + 로깅
+│   ├── signup/
+│   │   └── pending.ts      # 동의 전 프로필을 담는 HMAC 봉인 쿠키
 │   ├── payment/
 │   │   ├── nicepay.ts      # 나이스페이 API 클라이언트 + 서명
 │   │   ├── orders.ts       # 주문 원장, 멱등 지급/회수
@@ -85,6 +87,23 @@ npm run test       # vitest 단위 테스트
 ## 구독 카테고리 ID
 
 `notice_Z`, `notice_A`, `notice_B`, `notice_C`, `notice_D`, `rule`
+
+## 회원가입 동의 흐름
+
+**계정 행은 개인정보 동의를 받은 뒤에 만든다.** signIn 콜백은 신규 프로필을 보면 DB에
+아무것도 쓰지 않고, 프로필을 HMAC으로 봉인한 httpOnly 쿠키에 담아 `/signup/consent`로
+리다이렉트한다(문자열을 반환하면 Auth.js가 세션 없이 그 주소로 보낸다).
+
+- `POST /api/auth/signup-consent`가 실제 생성자다 — 쿠키를 풀어 users 행 + 카테고리 6개 +
+  `privacyConsentAt`/`privacyConsentVersion`을 쓰고 쿠키를 버린다. 구독 기간은 주지 않는다
+- 이미 계정이 있으면(버튼 두 번 눌림 등) 동의만 기록하고 카테고리는 건드리지 않는다 —
+  다시 깔면 사용자가 끈 것을 되살린다
+- `POST /api/auth/signup-cancel`은 쿠키만 버린다. 계정이 없으니 지울 것도 없다
+- 동의 후 클라이언트가 `signIn('google', { callbackUrl: '/dashboard' })`로 한 번 더 다녀와
+  세션을 만들고, **가입 직후에는 구독 설정 화면으로 떨어진다**
+- 봉인은 `AUTH_SECRET` HMAC + 10분 만료다. 뚫리면 남의 이메일로 가입시킬 수 있으므로
+  서명 비교는 `timingSafeEqual`, 만료는 서명이 맞아도 거부한다
+- 이 흐름 이전에 만들어진 계정은 `privacyConsentAt`이 NULL로 남는다 (소급 동의를 받지 않는다)
 
 ## Payments (NicePay 결제창 서버승인)
 

@@ -13,6 +13,9 @@ export const BOARDS = [
 
 export type BoardType = (typeof BOARDS)[number]['type'];
 
+// 고지 내용을 고치면 날짜를 올린다. 기존 동의와 구분되는 유일한 표식이다.
+export const PRIVACY_CONSENT_VERSION = '2026-08-19';
+
 export const NOTICE_CATEGORIES: Record<string, string> = {
   Z: '공통',
   A: 'Baja',
