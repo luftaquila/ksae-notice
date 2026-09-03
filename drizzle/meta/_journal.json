@@ -50,6 +50,13 @@
       "when": 1787144388531,
       "tag": "0006_chilly_exodus",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1788434489814,
+      "tag": "0007_enable_result_form_categories",
+      "breakpoints": true
     }
   ]
 }
