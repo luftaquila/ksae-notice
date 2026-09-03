@@ -2,13 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { eq } from 'drizzle-orm';
 import { getDb } from '@/lib/db';
 import { posts } from '@/lib/db/schema';
+import { getBoardCode } from '@/lib/constants';
 
 const MOBILE_UA = /Android|iPhone|iPad|iPod|Mobile|Opera Mini|IEMobile/i;
 const SITE_URL = process.env.SITE_URL || 'https://ksae-notice.luftaquila.io';
 
 function getMobileUrl(postNumber: number, boardType: string): string {
-  const code = boardType === 'notice' ? 'J_notice' : 'J_rule';
-  return `https://www.ksae.org/jajak/mobile/bbs/view.php?number=${postNumber}&page=1&code=${code}`;
+  return `https://www.ksae.org/jajak/mobile/bbs/view.php?number=${postNumber}&page=1&code=${getBoardCode(boardType)}`;
 }
 
 export async function GET(

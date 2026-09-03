@@ -1,17 +1,35 @@
+// 크롤링하는 게시판. 순서가 곧 목록 정렬 순서다 (고정글 우선 정렬에서 게시판 사이 순서).
+// 공지만 게시판 안에 카테고리가 있고, 나머지는 게시판 자체가 구독 단위다 —
+// 구독 카테고리 ID 가 게시판 type 과 같다.
 export const BOARDS = [
-  {
-    type: 'notice',
-    code: 'J_notice',
-    baseUrl: 'https://www.ksae.org/jajak/bbs/index.php',
-  },
-  {
-    type: 'rule',
-    code: 'J_rule',
-    baseUrl: 'https://www.ksae.org/jajak/bbs/index.php',
-  },
+  { type: 'notice', code: 'J_notice', label: '공지' },
+  { type: 'rule', code: 'J_rule', label: '규정' },
+  { type: 'result', code: 'J_result', label: '경기결과' },
+  { type: 'form', code: 'J_form', label: '양식' },
 ] as const;
 
 export type BoardType = (typeof BOARDS)[number]['type'];
+
+function findBoard(boardType: string) {
+  return BOARDS.find((b) => b.type === boardType);
+}
+
+// KSAE 게시판 URL 의 code= 값. DB 의 board_type 은 크롤러가 BOARDS 에서 쓴 값이라
+// 못 찾는 일은 없지만, 타입은 string 이므로 첫 게시판으로 접는다.
+export function getBoardCode(boardType: string): string {
+  return findBoard(boardType)?.code ?? BOARDS[0].code;
+}
+
+export function getBoardLabel(boardType: string): string {
+  return findBoard(boardType)?.label ?? boardType;
+}
+
+// 게시글 한 건이 화면·메일에서 달고 나오는 분류 라벨. 공지는 게시판 안의
+// 카테고리를, 다른 게시판은 게시판 이름을 쓴다. CATEGORY_COLORS 의 키와 같다.
+export function getPostLabel(boardType: string, category: string | null): string {
+  if (boardType === 'notice') return category || '공통';
+  return getBoardLabel(boardType);
+}
 
 // 고지 내용을 고치면 날짜를 올린다. 기존 동의와 구분되는 유일한 표식이다.
 export const PRIVACY_CONSENT_VERSION = '2026-08-19';
@@ -36,6 +54,8 @@ export const SUBSCRIPTION_CATEGORIES = [
   { id: 'notice_C', label: '공지 - EV' },
   { id: 'notice_D', label: '공지 - 자율주행' },
   { id: 'rule', label: '규정' },
+  { id: 'result', label: '경기결과' },
+  { id: 'form', label: '양식' },
 ] as const;
 
 export const CATEGORY_COLORS: Record<string, {
@@ -87,12 +107,30 @@ export const CATEGORY_COLORS: Record<string, {
     filterInactive: 'bg-green-50 text-green-600 hover:bg-green-100 active:bg-green-100 dark:bg-green-500/10 dark:text-green-400 dark:hover:bg-green-500/20 dark:active:bg-green-500/20',
     email: { bg: '#dcfce7', text: '#15803d' },
   },
+  '경기결과': {
+    chip: 'bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-400',
+    chipHover: 'bg-amber-100 text-amber-800 hover:bg-amber-200 active:bg-amber-200 dark:bg-amber-500/20 dark:text-amber-400 dark:hover:bg-amber-500/30 dark:active:bg-amber-500/30',
+    filterActive: 'bg-amber-500 text-white',
+    filterInactive: 'bg-amber-50 text-amber-700 hover:bg-amber-100 active:bg-amber-100 dark:bg-amber-500/10 dark:text-amber-400 dark:hover:bg-amber-500/20 dark:active:bg-amber-500/20',
+    email: { bg: '#fef3c7', text: '#92400e' },
+  },
+  '양식': {
+    chip: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-500/20 dark:text-cyan-400',
+    chipHover: 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200 active:bg-cyan-200 dark:bg-cyan-500/20 dark:text-cyan-400 dark:hover:bg-cyan-500/30 dark:active:bg-cyan-500/30',
+    filterActive: 'bg-cyan-600 text-white',
+    filterInactive: 'bg-cyan-50 text-cyan-600 hover:bg-cyan-100 active:bg-cyan-100 dark:bg-cyan-500/10 dark:text-cyan-400 dark:hover:bg-cyan-500/20 dark:active:bg-cyan-500/20',
+    email: { bg: '#cffafe', text: '#0e7490' },
+  },
 };
 
+// 구독 카테고리 ID → 화면 라벨 (CATEGORY_COLORS 의 키). notice_X 는 공지 카테고리,
+// 나머지는 게시판 type 그대로다.
 export function getCategoryLabel(subscriptionId: string): string {
-  if (subscriptionId === 'rule') return '규정';
-  const code = subscriptionId.replace('notice_', '');
-  return NOTICE_CATEGORIES[code] || subscriptionId;
+  if (subscriptionId.startsWith('notice_')) {
+    const code = subscriptionId.slice('notice_'.length);
+    return NOTICE_CATEGORIES[code] || subscriptionId;
+  }
+  return getBoardLabel(subscriptionId);
 }
 
 // 회원 탈퇴 확인 문구. 서버가 이 값을 요구하고 화면이 이 값을 안내한다.

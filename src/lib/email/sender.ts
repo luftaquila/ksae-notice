@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto';
 import { eq, and, sql, gte, isNull } from 'drizzle-orm';
 import { getDb } from '../db';
 import { users, subscriptions, emailLogs, settings } from '../db/schema';
-import { NOTICE_CATEGORY_CODES, type BoardType } from '../constants';
+import { NOTICE_CATEGORY_CODES, SUBSCRIPTION_CATEGORIES, type BoardType } from '../constants';
 import { sendEmail, getRemainingCredits } from './brevo';
 import { newPostNotification } from './templates';
 
@@ -19,8 +19,9 @@ interface NewPost {
 }
 
 function getSubscriptionCategory(post: NewPost): string | null {
-  if (post.boardType === 'rule') {
-    return 'rule';
+  if (post.boardType !== 'notice') {
+    // 공지 밖의 게시판은 게시판 type 이 곧 구독 카테고리 ID 다 (rule, result, form).
+    return SUBSCRIPTION_CATEGORIES.some((c) => c.id === post.boardType) ? post.boardType : null;
   }
   // For notice board, map category label to subscription ID
   if (post.category) {

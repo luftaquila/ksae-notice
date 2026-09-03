@@ -104,7 +104,14 @@ export function createTestDb() {
 export type TestDb = ReturnType<typeof createTestDb>;
 
 // ── Mock session helper ───────────────────────────────────────
-export function mockSession(userId: number, email: string, isAdmin = false) {
+// What the mocked auth()/requireAdmin() hand back. Routes only read user.id,
+// user.email, user.name and user.isAdmin, so tests may set any subset.
+export type MockSession = {
+  user: { id?: number; email?: string; name?: string | null; isAdmin?: boolean };
+  expires?: string;
+} | null;
+
+export function mockSession(userId: number, email: string, isAdmin = false): MockSession {
   return {
     user: { id: userId, email, name: 'Test User', isAdmin },
     expires: new Date(Date.now() + 86400000).toISOString(),

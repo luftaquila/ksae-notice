@@ -2,7 +2,7 @@ import { createServer } from 'http';
 import next from 'next';
 import { runMigrations } from './src/lib/db/migrate';
 import { initScheduler, stopScheduler } from './src/lib/crawler/scheduler';
-import { crawlLatest, needsInitialCrawl } from './src/lib/crawler';
+import { crawlLatest, boardsNeedingInitialCrawl } from './src/lib/crawler';
 
 const dev = process.env.NODE_ENV !== 'production';
 const hostname = process.env.HOSTNAME || '0.0.0.0';
@@ -26,8 +26,9 @@ async function main() {
     console.log(`[Server] Ready on http://${hostname}:${port}`);
   });
 
-  // Initial crawl on startup (skip if fresh DB — initScheduler will run crawlAll)
-  if (!needsInitialCrawl()) {
+  // 시작 직후 증분 수집. 글이 없는 게시판이 하나라도 있으면 건너뛴다 — initScheduler 가
+  // 그 게시판을 전체 수집으로 먼저 채운 뒤 5분 크론이 이어받는다.
+  if (boardsNeedingInitialCrawl().length === 0) {
     console.log('[Server] Running initial crawl...');
     try {
       await crawlLatest();

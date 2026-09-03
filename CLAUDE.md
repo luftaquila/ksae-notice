@@ -1,6 +1,6 @@
 # KSAE 공지봇
 
-KSAE 대학생 자작자동차대회 공지사항 및 규정 페이지를 크롤링하여 구독자에게 이메일 알림을 보내는 서비스.
+KSAE 대학생 자작자동차대회 공지사항·규정·경기결과·양식 게시판을 크롤링하여 구독자에게 이메일 알림을 보내는 서비스.
 
 ## Tech Stack
 
@@ -40,7 +40,7 @@ src/
 │   ├── auth.ts             # Auth.js 설정
 │   ├── session.ts          # Auth.js 세션 쿠키 직접 발급 (가입 동의·심사용 로그인)
 │   ├── review.ts           # 심사용 계정: 자격증명 검증, 계정 생성, 시도 제한
-│   ├── constants.ts        # 보드 URL, 카테고리 매핑, 구독 카테고리 정의
+│   ├── constants.ts        # 게시판 목록(BOARDS), 카테고리 매핑, 구독 카테고리 정의, 라벨·색상
 │   ├── crawler/
 │   │   ├── parser.ts       # cheerio HTML 파싱
 │   │   ├── index.ts        # 크롤 오케스트레이터 (crawlAll, crawlLatest)
@@ -61,7 +61,7 @@ src/
 │       ├── period.ts       # 기간 규칙 (한 번의 결제 = 한 해)
 │       └── upsert.ts       # 카테고리 upsert 유틸리티
 ├── components/             # React 컴포넌트
-├── __tests__/              # vitest API 단위 테스트
+├── __tests__/              # vitest 단위 테스트 (fixtures/ 에 실제 게시판 HTML 발췌)
 └── middleware.ts            # /dashboard, /admin 라우트 보호
 server.ts                   # 커스텀 서버 (Next.js + node-cron)
 drizzle/                    # 자동 생성 마이그레이션 SQL
@@ -80,18 +80,37 @@ npm run test       # vitest 단위 테스트
 
 ## 크롤링 대상
 
-| 게시판 | URL 코드 | 카테고리 |
-|--------|----------|---------|
-| 공지사항 | `J_notice` | 공통(Z), Baja(A), Formula(B), EV(C), 자율주행(D) |
-| 규정 | `J_rule` | (전체 단일 구독) |
+| 게시판 | boardType | URL 코드 | 카테고리 |
+|--------|-----------|----------|---------|
+| 공지사항 | `notice` | `J_notice` | 공통(Z), Baja(A), Formula(B), EV(C), 자율주행(D) |
+| 규정 | `rule` | `J_rule` | (전체 단일 구독) |
+| 경기결과 | `result` | `J_result` | (전체 단일 구독) |
+| 양식 | `form` | `J_form` | (전체 단일 구독) |
 
+게시판 목록은 `lib/constants.ts`의 `BOARDS` 하나다. 크롤러·URL 코드·라벨·목록 정렬 순서가
+전부 거기서 나온다. **게시판을 추가하면 `SUBSCRIPTION_CATEGORIES`(id = boardType)와
+`CATEGORY_COLORS`(key = label)도 같이 늘려야 한다** — `constants.test.ts`가 셋의 짝을 확인한다.
+
+- 테이블 열은 게시판마다 다르다. 카테고리 열은 공지에만 있고, 경기결과는 공지처럼 6열이지만
+  2번째 열이 제목(3번째는 등록자)이다. 파서는 열 개수가 아니라 boardType 으로 분기한다
 - 크롤링 주기: 5분 (`*/5 7-18 * * *`, KST)
+- **저장된 글이 하나도 없는 게시판은 증분 수집 전에 전체 수집으로 채운다**
+  (`boardsNeedingInitialCrawl()`). 빈 DB 뿐 아니라 게시판을 새로 붙인 배포도 여기 걸린다.
+  전체 수집이 실패해 빈 채로 `crawlLatest`에 도달하면 첫 페이지를 저장만 하고 알림은 내지
+  않는다 — 아니면 옛 글 20건이 "새 글"로 구독자에게 나간다
 - 게시글 중복 방지: `(boardType, postNumber)` unique index + SELECT→UPDATE/INSERT upsert
 - 공지(상단고정) 게시글: `notice.png` 아이콘으로 감지, 별도 isPinned 플래그
 
 ## 구독 카테고리 ID
 
-`notice_Z`, `notice_A`, `notice_B`, `notice_C`, `notice_D`, `rule`
+`notice_Z`, `notice_A`, `notice_B`, `notice_C`, `notice_D`, `rule`, `result`, `form`
+
+공지 밖의 게시판은 boardType 이 곧 구독 카테고리 ID 다. 가입·재가입·심사 계정은 전부 켜서
+시작한다. **이미 있는 계정에는 새 카테고리가 저절로 켜지지 않는다** — 경기결과·양식
+(2026-09-03 추가)은 `drizzle/0007_enable_result_form_categories.sql`이 한 번 켰다. 대상은
+탈퇴하지 않았고 켜진 카테고리가 하나라도 있는 계정만이다 (전부 끈 계정은 알림을 원치
+않는다고 밝힌 것). 데이터만 만지는 1회성 작업은 이렇게 custom 마이그레이션으로 둔다
+(`npx drizzle-kit generate --custom --name=...`) — migrator 의 journal 이 재실행을 막아 준다.
 
 ## 회원가입 동의 흐름
 

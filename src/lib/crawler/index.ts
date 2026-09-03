@@ -31,10 +31,11 @@ function finishCrawlLog(db: ReturnType<typeof getDb>, logId: bigint | number, st
 
 async function fetchPage(boardCode: string, page: number): Promise<string> {
   const url = `https://www.ksae.org/jajak/bbs/index.php?page=${page}&code=${boardCode}`;
+  // dispatcher 는 undici 전용 옵션이다. Node 의 fetch 는 받지만 표준 RequestInit 타입에는 없다.
   const res = await fetch(url, {
     headers: { 'User-Agent': 'Mozilla/5.0 (compatible; KSAE-Notice-Bot/1.0)' },
     dispatcher: tlsAgent,
-  } as any);
+  } as RequestInit);
   if (!res.ok) throw new Error(`Failed to fetch ${url}: ${res.status}`);
   return res.text();
 }
@@ -92,11 +93,29 @@ export function cleanupStaleCrawlLogs(): void {
     .run();
 }
 
-export async function crawlAll(): Promise<void> {
+function boardHasPosts(db: ReturnType<typeof getDb>, boardType: BoardType): boolean {
+  return !!db
+    .select({ id: posts.id })
+    .from(posts)
+    .where(eq(posts.boardType, boardType))
+    .limit(1)
+    .get();
+}
+
+// 저장된 글이 하나도 없는 게시판. 처음 켜는 DB 는 전부, 게시판을 새로 붙인 배포는
+// 그 게시판만 여기에 잡힌다. 이 게시판들은 crawlLatest 보다 crawlAll 이 먼저 돌아야
+// 한다 — 아니면 첫 페이지가 통째로 새 글로 잡혀 구독자에게 옛 글이 쏟아진다.
+export function boardsNeedingInitialCrawl(): BoardType[] {
   const db = getDb();
-  console.log('[Crawler] Starting full crawl...');
+  return BOARDS.map((b) => b.type).filter((type) => !boardHasPosts(db, type));
+}
+
+export async function crawlAll(boardTypes: readonly BoardType[] = BOARDS.map((b) => b.type)): Promise<void> {
+  const db = getDb();
+  console.log(`[Crawler] Starting full crawl (${boardTypes.join(', ')})...`);
 
   for (const board of BOARDS) {
+    if (!boardTypes.includes(board.type)) continue;
     const logId = startCrawlLog(db, board.type);
 
     try {
@@ -144,6 +163,13 @@ export async function crawlLatest(): Promise<ParsedPost[]> {
     const logId = startCrawlLog(db, board.type);
 
     try {
+      // 전체 수집이 실패한 채 여기 왔다면 첫 페이지 전부가 '새 글'이다. 저장은 하되
+      // 알림은 내지 않는다 — 실제로 새로 올라온 글이 아니다.
+      const seeding = !boardHasPosts(db, board.type);
+      if (seeding) {
+        console.warn(`[Crawler] No stored posts for ${board.type}; seeding from page 1 without notifications`);
+      }
+
       const html = await fetchPage(board.code, 1);
       const pagePosts = parseBoardPage(html, board.type);
       let newCount = 0;
@@ -152,6 +178,7 @@ export async function crawlLatest(): Promise<ParsedPost[]> {
         const result = upsertPost(db, post, board.type);
         if (result) {
           if (result.type === 'new') newCount++;
+          if (seeding) continue;
           allNewPosts.push({
             ...post,
             id: result.id,
@@ -182,11 +209,3 @@ export async function crawlLatest(): Promise<ParsedPost[]> {
   return allNewPosts;
 }
 
-export function needsInitialCrawl(): boolean {
-  const db = getDb();
-  const count = db
-    .select({ count: sql<number>`count(*)` })
-    .from(posts)
-    .get();
-  return !count || count.count === 0;
-}

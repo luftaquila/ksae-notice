@@ -1,4 +1,4 @@
-import { CATEGORY_COLORS } from '../constants';
+import { CATEGORY_COLORS, getPostLabel } from '../constants';
 
 interface PostInfo {
   id: number;
@@ -38,7 +38,7 @@ export function newPostNotification(postsByCategory: PostInfo[], siteUrl: string
 
   const postsHtml = postsByCategory
     .map((post) => {
-      const categoryLabel = post.boardType === 'rule' ? '규정' : (post.category || '공통');
+      const categoryLabel = getPostLabel(post.boardType, post.category);
       const colors = CATEGORY_COLORS[categoryLabel]?.email || DEFAULT_EMAIL_COLORS;
       const postUrl = `${siteUrl}/go/${post.id}`;
       const isUpdated = !!post.previousTitle;
