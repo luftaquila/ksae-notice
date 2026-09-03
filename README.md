@@ -57,12 +57,3 @@ npm run migrate    # DB 마이그레이션
 npm run lint       # ESLint
 npm run test       # vitest 단위 테스트
 ```
-
-## 배포
-
-GitHub Actions에서 `main` 브랜치 푸시 시 컨테이너 이미지를 빌드하여 GHCR에 푸시합니다. Portainer에서 스택 재배포 시 최신 이미지가 적용됩니다.
-
-```bash
-# 수동 컨테이너 빌드
-podman build -f Containerfile -t ksae-notice .
-```

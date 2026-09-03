@@ -10,7 +10,6 @@ KSAE 대학생 자작자동차대회 공지사항·규정·경기결과·양식 
 - **Email**: Brevo API (일 300통 무료 제한)
 - **Crawling**: cheerio + node-cron
 - **UI**: Tailwind CSS v4
-- **Deployment**: Podman container
 
 ## Project Structure
 
