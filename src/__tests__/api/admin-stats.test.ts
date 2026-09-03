@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { createTestDb, seedUser, seedSubscription, seedPost, seedEmailLog, seedCrawlLog, type TestDb } from '../helpers';
+import { createTestDb, seedUser, seedSubscription, seedPost, seedEmailLog, seedCrawlLog, type MockSession, type TestDb } from '../helpers';
 
 let db: TestDb;
-let mockAdminSession: any = null;
+let mockAdminSession: MockSession = null;
 
 vi.mock('@/lib/db', () => ({
   getDb: () => db,

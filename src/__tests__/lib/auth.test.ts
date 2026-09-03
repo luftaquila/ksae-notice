@@ -1,18 +1,20 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import type { NextAuthConfig } from 'next-auth';
 import { eq } from 'drizzle-orm';
 import { createTestDb, seedUser, seedSubscription, seedSetting, UNEXPIRED, type TestDb } from '../helpers';
 import { users, subscriptions, settings } from '@/lib/db/schema';
 import { SUBSCRIPTION_CATEGORIES } from '@/lib/constants';
 
 let db: TestDb;
-let capturedConfig: any;
+// 모킹된 NextAuth() 가 `await import('@/lib/auth')` 중에 채운다.
+let capturedConfig!: NextAuthConfig;
 
 vi.mock('@/lib/db', () => ({
   getDb: () => db,
 }));
 
 vi.mock('next-auth', () => ({
-  default: (config: any) => {
+  default: (config: NextAuthConfig) => {
     capturedConfig = config;
     return { handlers: {}, signIn: vi.fn(), signOut: vi.fn(), auth: vi.fn() };
   },
@@ -34,7 +36,10 @@ vi.mock('next/headers', () => ({
 
 await import('@/lib/auth');
 const { PENDING_SIGNUP_COOKIE, unsealPendingSignup } = await import('@/lib/signup/pending');
-const signInCallback = capturedConfig.callbacks.signIn;
+// 콜백은 profile 만 읽는다. Auth.js 가 넘기는 user/account 는 여기서 만들지 않으므로
+// 시험용 시그니처로 좁힌다.
+const signInCallback = capturedConfig.callbacks!.signIn! as unknown as
+  (params: { profile: Record<string, unknown> }) => Promise<boolean | string>;
 
 function googleProfile(overrides: Record<string, unknown> = {}) {
   return {
