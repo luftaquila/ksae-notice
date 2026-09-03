@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { decode } from 'next-auth/jwt';
-import { createTestDb, seedUser, type TestDb } from '../helpers';
+import { createTestDb, seedUser, seedSubscription, UNEXPIRED, type TestDb } from '../helpers';
 import { users, subscriptions } from '@/lib/db/schema';
 import { PRIVACY_CONSENT_VERSION, SUBSCRIPTION_CATEGORIES } from '@/lib/constants';
 
@@ -114,22 +114,42 @@ describe('POST /api/auth/signup-consent', () => {
     expect(await sessionUserId()).toBe(userId);
   });
 
-  // 되살리기는 signIn 콜백의 일이다. 여기서 세션을 주면 탈퇴한 계정이 그대로 열린다.
-  it('does not sign a withdrawn account back in', async () => {
-    seedUser(db, {
+  // 탈퇴한 계정의 재가입. 새 동의를 기록하고 되살리되, 기간은 절대 주지 않는다 —
+  // 탈퇴는 기간을 포기하는 것이라고 /policy 가 말한다.
+  it('revives a withdrawn account with a fresh consent and no period', async () => {
+    const userId = seedUser(db, {
       googleId: 'google-1',
       email: 'a@test.com',
+      name: 'Old Name',
       deletedAt: '2026-01-01T00:00:00.000Z',
-      subscriptionExpiresAt: null,
+      subscriptionExpiresAt: UNEXPIRED,
+      privacyConsentAt: '2020-01-01T00:00:00.000Z',
+      privacyConsentVersion: 'old',
     });
+    seedSubscription(db, userId, 'notice_Z', { isActive: 0 });
     pend();
 
     const res = await consent(consentRequest());
-
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ ok: true, redirect: '/' });
+    expect(await res.json()).toEqual({ ok: true, redirect: '/dashboard' });
+
+    const user = db.select().from(users).where(eq(users.id, userId)).get()!;
+    expect(user.deletedAt).toBeNull();
+    expect(user.name).toBe('홍길동');
+    expect(user.subscriptionExpiresAt).toBeNull();
+    // 예전 동의가 아니라 지금 받은 동의가 기록돼야 한다.
+    expect(user.privacyConsentAt).not.toBe('2020-01-01T00:00:00.000Z');
+    expect(user.privacyConsentVersion).toBe(PRIVACY_CONSENT_VERSION);
+
+    // 새 가입처럼 카테고리는 전부 켜진다 — 빠져 있던 것은 채운다.
+    const subs = db.select().from(subscriptions).where(eq(subscriptions.userId, userId)).all();
+    expect(subs.length).toBe(SUBSCRIPTION_CATEGORIES.length);
+    expect(subs.every((s) => s.isActive === 1)).toBe(true);
+
+    // 같은 행을 되살린다. 새 행을 만들지 않는다.
+    expect(db.select().from(users).all().length).toBe(1);
     expect(jar.has(PENDING_SIGNUP_COOKIE)).toBe(false);
-    expect(await sessionUserId()).toBeNull();
+    expect(await sessionUserId()).toBe(userId);
   });
 
   it('does not overwrite a consent already on record', async () => {

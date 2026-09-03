@@ -4,8 +4,7 @@ import { type JWT } from 'next-auth/jwt';
 import Google from 'next-auth/providers/google';
 import { eq } from 'drizzle-orm';
 import { getDb } from './db';
-import { users, subscriptions } from './db/schema';
-import { SUBSCRIPTION_CATEGORIES } from './constants';
+import { users } from './db/schema';
 import {
   PENDING_SIGNUP_COOKIE,
   PENDING_SIGNUP_TTL_SECONDS,
@@ -45,10 +44,14 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         .where(eq(users.googleId, googleId))
         .get();
 
-      if (!existing) {
+      if (!existing || existing.deletedAt) {
         // 계정은 여기서 만들지 않는다. 개인정보 동의를 받기 전에 행을 적으면 동의
         // 화면이 의미가 없어지므로, 프로필은 봉인한 쿠키에만 담아 동의 화면으로 보낸다.
         // 실제 생성은 POST /api/auth/signup-consent 가 한다.
+        //
+        // 탈퇴한 계정도 같은 길을 간다. 방침이 적은 보유 기간은 "탈퇴 시까지"라 그 동의는
+        // 끝났고, 재가입은 새 가입이다. 남겨둔 행은 처음 온 사람과 구분하는 데만 쓰이고,
+        // 되살리는 것도 동의 라우트의 일이다 — 여기서 되살리면 동의 화면이 생략된다.
         (await cookies()).set(PENDING_SIGNUP_COOKIE, sealPendingSignup({
           googleId,
           email,
@@ -64,40 +67,17 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
         // 문자열을 돌려주면 세션을 만들지 않고 이 주소로 보낸다.
         return '/signup/consent';
-      } else if (existing.deletedAt) {
-        // Re-registering brings the account back with its categories but no
-        // period. Withdrawal forfeits the period — that is what /policy and the
-        // confirmation prompt promise — so signing back in must not hand one
-        // out, or a lapsed subscriber gets a free year for logging in twice.
-        //
-        // The period is cleared here and not only on withdrawal because rows
-        // deleted before withdrawal started clearing it still carry one.
-        db.transaction((tx) => {
-          tx.update(users)
-            .set({
-              deletedAt: null,
-              name: profile.name || existing.name,
-              avatar: profile.picture || existing.avatar,
-              email,
-              subscriptionExpiresAt: null,
-            })
-            .where(eq(users.id, existing.id))
-            .run();
-          tx.update(subscriptions)
-            .set({ isActive: 1 })
-            .where(eq(subscriptions.userId, existing.id))
-            .run();
-        }, { behavior: 'immediate' });
-      } else {
-        db.update(users)
-          .set({
-            name: profile.name || existing.name,
-            avatar: profile.picture || existing.avatar,
-            email,
-          })
-          .where(eq(users.googleId, googleId))
-          .run();
       }
+
+      // 살아 있는 계정은 프로필만 갱신한다. 기간은 결제가 쓴 값이라 건드리지 않는다.
+      db.update(users)
+        .set({
+          name: profile.name || existing.name,
+          avatar: profile.picture || existing.avatar,
+          email,
+        })
+        .where(eq(users.googleId, googleId))
+        .run();
 
       return true;
     },

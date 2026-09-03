@@ -9,6 +9,7 @@ import { issueSessionCookie } from '@/lib/session';
 
 // 계정을 실제로 만드는 곳. signIn 콜백은 프로필을 봉인한 쿠키에 담아 동의 화면으로
 // 보내기만 하므로, 동의가 여기 도착할 때까지 DB 에는 아무것도 적히지 않는다.
+// 탈퇴한 계정의 재가입도 여기서 되살린다 — 새 동의를 받은 뒤에만.
 //
 // 계정이 생기면 세션도 여기서 바로 만든다. Google 로 다시 다녀오지 않는다.
 export async function POST(request: Request) {
@@ -26,7 +27,42 @@ export async function POST(request: Request) {
 
   let account: typeof users.$inferSelect;
 
-  if (existing) {
+  if (existing?.deletedAt) {
+    // 재가입. 새 동의를 기록하고 행을 되살리되 기간은 주지 않는다 — 탈퇴는 기간을
+    // 포기하는 것이라고 /policy 가 말한다. 카테고리는 새 가입처럼 전부 켠다.
+    account = db.transaction((tx) => {
+      tx.update(users)
+        .set({
+          deletedAt: null,
+          email: pending.email,
+          name: pending.name,
+          avatar: pending.avatar,
+          subscriptionExpiresAt: null,
+          privacyConsentAt: new Date().toISOString(),
+          privacyConsentVersion: PRIVACY_CONSENT_VERSION,
+        })
+        .where(eq(users.id, existing.id))
+        .run();
+
+      const have = new Set(
+        tx.select({ category: subscriptions.category })
+          .from(subscriptions)
+          .where(eq(subscriptions.userId, existing.id))
+          .all()
+          .map((s) => s.category),
+      );
+      tx.update(subscriptions)
+        .set({ isActive: 1 })
+        .where(eq(subscriptions.userId, existing.id))
+        .run();
+      for (const cat of SUBSCRIPTION_CATEGORIES) {
+        if (!have.has(cat.id)) {
+          tx.insert(subscriptions).values({ userId: existing.id, category: cat.id, isActive: 1 }).run();
+        }
+      }
+      return tx.select().from(users).where(eq(users.id, existing.id)).get()!;
+    }, { behavior: 'immediate' });
+  } else if (existing) {
     // 같은 계정으로 두 번 눌렸거나 그사이 다른 경로로 만들어진 경우. 동의만 기록하고
     // 카테고리는 건드리지 않는다.
     if (!existing.privacyConsentAt) {
@@ -61,11 +97,6 @@ export async function POST(request: Request) {
   }
 
   jar.delete(PENDING_SIGNUP_COOKIE);
-
-  // 탈퇴한 계정에는 세션을 주지 않는다. 되살리기는 Google 로그인(signIn 콜백)의 일이다.
-  if (account.deletedAt) {
-    return NextResponse.json({ ok: true, redirect: '/' });
-  }
 
   const session = await issueSessionCookie({
     id: account.id,

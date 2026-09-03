@@ -95,9 +95,9 @@ npm run test       # vitest 단위 테스트
 
 ## 회원가입 동의 흐름
 
-**계정 행은 개인정보 동의를 받은 뒤에 만든다.** signIn 콜백은 신규 프로필을 보면 DB에
-아무것도 쓰지 않고, 프로필을 HMAC으로 봉인한 httpOnly 쿠키에 담아 `/signup/consent`로
-리다이렉트한다(문자열을 반환하면 Auth.js가 세션 없이 그 주소로 보낸다).
+**계정 행은 개인정보 동의를 받은 뒤에 만든다.** signIn 콜백은 신규 프로필이나 **탈퇴한
+계정**을 보면 DB에 아무것도 쓰지 않고, 프로필을 HMAC으로 봉인한 httpOnly 쿠키에 담아
+`/signup/consent`로 리다이렉트한다(문자열을 반환하면 Auth.js가 세션 없이 그 주소로 보낸다).
 
 - `POST /api/auth/signup-consent`가 실제 생성자다 — 쿠키를 풀어 users 행 + 카테고리 6개 +
   `privacyConsentAt`/`privacyConsentVersion`을 쓰고 쿠키를 버린다. 구독 기간은 주지 않는다
@@ -112,8 +112,11 @@ npm run test       # vitest 단위 테스트
   salt 이고, https 판단은 `AUTH_URL` → `x-forwarded-proto` → 기본 https 순으로 Auth.js 의
   `createActionURL`과 같다. 어긋나면 발급은 되는데 `auth()`가 아무것도 못 읽는 조용한 실패가
   되므로 `session.test.ts`가 Auth.js 의 `decode`로 되읽어 확인한다
-- 이미 탈퇴한 계정으로 동의가 도착하면(만료 안 된 봉인 쿠키가 남은 경우) 세션을 주지 않고
-  `redirect: '/'`만 준다. 되살리기는 signIn 콜백의 일이다
+- **탈퇴한 계정의 재로그인도 동의 화면을 다시 거친다.** 방침의 보유 기간이 "탈퇴 시까지"라
+  예전 동의는 끝났고, 재가입은 새 가입이다. 동의 라우트가 행을 되살린다 — `deletedAt` 해제,
+  프로필 갱신, 카테고리 전부 켬(빠진 것은 채움), 동의 시각·버전 갱신 — 그러나 **기간은 주지
+  않는다**(탈퇴는 기간을 포기하는 것). 되살리기가 signIn 콜백에 있던 시절에는 동의 화면이
+  생략돼, 탈퇴 후 재로그인하면 곧바로 대시보드로 들어갔다
 - 봉인은 `AUTH_SECRET` HMAC + 10분 만료다. 뚫리면 남의 이메일로 가입시킬 수 있으므로
   서명 비교는 `timingSafeEqual`, 만료는 서명이 맞아도 거부한다
 - 이 흐름 이전에 만들어진 계정은 `privacyConsentAt`이 NULL로 남는다 (소급 동의를 받지 않는다)
@@ -126,7 +129,7 @@ npm run test       # vitest 단위 테스트
   승인이 도착했을 때 받을 사람이 없다. 방치된 pending 이 영원히 막지 않도록 창을 15분으로 둔다
 - soft delete 다. `deletedAt`을 찍고 카테고리를 끄고 **기간을 비운다** — 탈퇴는 기간을 포기하는
   것이라고 /policy 가 말한다. 행을 남기는 이유는 같은 구글 계정이 다시 오면 처음 온 사람과
-  구분하기 위해서다
+  구분하기 위해서다. 재가입은 동의 화면부터 다시 시작하고, 그 동의가 행을 되살린다
 
 ## 심사용 로그인 (`/review-login`)
 

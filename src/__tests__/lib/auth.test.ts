@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { createTestDb, seedUser, seedSubscription, seedSetting, EXPIRED, UNEXPIRED, type TestDb } from '../helpers';
+import { createTestDb, seedUser, seedSubscription, seedSetting, UNEXPIRED, type TestDb } from '../helpers';
 import { users, subscriptions, settings } from '@/lib/db/schema';
 import { SUBSCRIPTION_CATEGORIES } from '@/lib/constants';
 
@@ -126,51 +126,34 @@ describe('signIn callback - returning user', () => {
     return id;
   }
 
-  // Re-registering brings the categories back but never a period. Withdrawal
-  // forfeits it, so signing back in must not be a way to get one for free.
-  it('reactivates categories without restoring a period', async () => {
-    const id = seedDeletedUser(null);
-
-    expect(await signInCallback({ profile: googleProfile({ sub: 'google-back', email: 'back@test.com' }) })).toBe(true);
-
-    const user = db.select().from(users).where(eq(users.id, id)).get()!;
-    expect(user.deletedAt).toBeNull();
-    expect(subsOf(id).every((s) => s.isActive === 1)).toBe(true);
-    expect(user.subscriptionExpiresAt).toBeNull();
-  });
-
-  // Rows deleted before withdrawal started clearing the period still carry one.
-  // Signing back in used to revive it, which handed out a free subscription.
-  it('clears a period left on an account deleted before this rule', async () => {
+  // 방침의 보유 기간은 "탈퇴 시까지"다. 그 동의는 끝났으니 재가입은 동의 화면부터
+  // 다시 시작한다. 행은 동의 라우트가 되살리고, 여기서는 아무것도 적지 않는다.
+  it('sends a withdrawn account back through consent without touching the row', async () => {
     const id = seedDeletedUser(UNEXPIRED);
 
-    expect(await signInCallback({ profile: googleProfile({ sub: 'google-back', email: 'back@test.com' }) })).toBe(true);
+    expect(await signInCallback({
+      profile: googleProfile({ sub: 'google-back', email: 'back@test.com', name: 'Back Again' }),
+    })).toBe('/signup/consent');
 
     const user = db.select().from(users).where(eq(users.id, id)).get()!;
-    expect(user.deletedAt).toBeNull();
-    expect(user.subscriptionExpiresAt).toBeNull();
+    expect(user.deletedAt).toBe('2026-01-01T00:00:00.000Z');
+    expect(user.subscriptionExpiresAt).toBe(UNEXPIRED);
+    expect(subsOf(id).every((s) => s.isActive === 0)).toBe(true);
+
+    expect(unsealPendingSignup(jar.get(PENDING_SIGNUP_COOKIE))).toEqual({
+      googleId: 'google-back',
+      email: 'back@test.com',
+      name: 'Back Again',
+      avatar: 'https://example.com/a.png',
+    });
   });
 
-  it('does not hand a lapsed returning user a fresh period either', async () => {
-    const id = seedDeletedUser(EXPIRED);
-
-    expect(await signInCallback({ profile: googleProfile({ sub: 'google-back', email: 'back@test.com' }) })).toBe(true);
-
-    const user = db.select().from(users).where(eq(users.id, id)).get()!;
-    expect(user.subscriptionExpiresAt).toBeNull();
-  });
-
-  it('reactivates a returning user even when the limit is reached', async () => {
+  it('does so even when the limit is reached', async () => {
     const id = seedDeletedUser(null);
     fillSlots(2);
 
-
-    expect(await signInCallback({ profile: googleProfile({ sub: 'google-back', email: 'back@test.com' }) })).toBe(true);
-
-    const user = db.select().from(users).where(eq(users.id, id)).get()!;
-    expect(user.deletedAt).toBeNull();
-    expect(subsOf(id).every((s) => s.isActive === 1)).toBe(true);
-    expect(user.subscriptionExpiresAt).toBeNull();
+    expect(await signInCallback({ profile: googleProfile({ sub: 'google-back', email: 'back@test.com' }) })).toBe('/signup/consent');
+    expect(db.select().from(users).where(eq(users.id, id)).get()!.deletedAt).not.toBeNull();
   });
 
   it('only refreshes the profile for an active user, even past the limit', async () => {
