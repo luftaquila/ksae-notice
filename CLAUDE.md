@@ -20,9 +20,12 @@ src/
 │   ├── page.tsx            # 메인 페이지 (공개, 게시글 목록 + 필터)
 │   ├── dashboard/page.tsx  # 구독 관리 (로그인 필요)
 │   ├── admin/page.tsx      # 관리자 대시보드
+│   ├── signup/consent/     # 가입 동의 화면 (계정은 여기서 동의한 뒤에 생긴다)
+│   ├── review-login/       # 심사용 ID/PW 로그인 (환경변수 없으면 404)
 │   ├── go/[id]/route.ts    # 게시글 리다이렉트 (모바일 UA 감지)
 │   └── api/
 │       ├── auth/           # NextAuth + 가입 동의 (signup-consent, signup-cancel)
+│       ├── review-login/   # 심사용 로그인 API
 │       ├── user/           # 계정 삭제 API
 │       ├── posts/          # 게시글 조회 API
 │       ├── subscriptions/  # 구독 카테고리 관리 API (무료)
@@ -35,6 +38,8 @@ src/
 │   │   ├── index.ts        # DB 싱글톤
 │   │   └── migrate.ts      # 마이그레이션 + 기본 설정 시드
 │   ├── auth.ts             # Auth.js 설정
+│   ├── session.ts          # Auth.js 세션 쿠키 직접 발급 (가입 동의·심사용 로그인)
+│   ├── review.ts           # 심사용 계정: 자격증명 검증, 계정 생성, 시도 제한
 │   ├── constants.ts        # 보드 URL, 카테고리 매핑, 구독 카테고리 정의
 │   ├── crawler/
 │   │   ├── parser.ts       # cheerio HTML 파싱
@@ -90,20 +95,54 @@ npm run test       # vitest 단위 테스트
 
 ## 회원가입 동의 흐름
 
-**계정 행은 개인정보 동의를 받은 뒤에 만든다.** signIn 콜백은 신규 프로필을 보면 DB에
-아무것도 쓰지 않고, 프로필을 HMAC으로 봉인한 httpOnly 쿠키에 담아 `/signup/consent`로
-리다이렉트한다(문자열을 반환하면 Auth.js가 세션 없이 그 주소로 보낸다).
+**계정 행은 개인정보 동의를 받은 뒤에 만든다.** signIn 콜백은 신규 프로필이나 **탈퇴한
+계정**을 보면 DB에 아무것도 쓰지 않고, 프로필을 HMAC으로 봉인한 httpOnly 쿠키에 담아
+`/signup/consent`로 리다이렉트한다(문자열을 반환하면 Auth.js가 세션 없이 그 주소로 보낸다).
 
 - `POST /api/auth/signup-consent`가 실제 생성자다 — 쿠키를 풀어 users 행 + 카테고리 6개 +
   `privacyConsentAt`/`privacyConsentVersion`을 쓰고 쿠키를 버린다. 구독 기간은 주지 않는다
 - 이미 계정이 있으면(버튼 두 번 눌림 등) 동의만 기록하고 카테고리는 건드리지 않는다 —
   다시 깔면 사용자가 끈 것을 되살린다
 - `POST /api/auth/signup-cancel`은 쿠키만 버린다. 계정이 없으니 지울 것도 없다
-- 동의 후 클라이언트가 `signIn('google', { callbackUrl: '/dashboard' })`로 한 번 더 다녀와
-  세션을 만들고, **가입 직후에는 구독 설정 화면으로 떨어진다**
+- **세션도 동의 라우트가 바로 만든다.** Google 로 다시 다녀오지 않는다 — 예전에는 동의 뒤
+  `signIn('google')`을 한 번 더 불러서 사용자에게 로그인이 두 번으로 보였다. 응답의
+  `redirect`(`/dashboard`)로 클라이언트가 이동하고, **가입 직후에는 구독 설정 화면에 떨어진다**
+- 세션 발급은 `lib/session.ts`가 한다. Auth.js 가 읽는 것과 같은 쿠키를 `@auth/core/jwt`의
+  `encode`로 만든다 — 쿠키 이름(`authjs.session-token`, https 면 `__Secure-` 접두어)이 곧
+  salt 이고, https 판단은 `AUTH_URL` → `x-forwarded-proto` → 기본 https 순으로 Auth.js 의
+  `createActionURL`과 같다. 어긋나면 발급은 되는데 `auth()`가 아무것도 못 읽는 조용한 실패가
+  되므로 `session.test.ts`가 Auth.js 의 `decode`로 되읽어 확인한다
+- **탈퇴한 계정의 재로그인도 동의 화면을 다시 거친다.** 방침의 보유 기간이 "탈퇴 시까지"라
+  예전 동의는 끝났고, 재가입은 새 가입이다. 동의 라우트가 행을 되살린다 — `deletedAt` 해제,
+  프로필 갱신, 카테고리 전부 켬(빠진 것은 채움), 동의 시각·버전 갱신 — 그러나 **기간은 주지
+  않는다**(탈퇴는 기간을 포기하는 것). 되살리기가 signIn 콜백에 있던 시절에는 동의 화면이
+  생략돼, 탈퇴 후 재로그인하면 곧바로 대시보드로 들어갔다
 - 봉인은 `AUTH_SECRET` HMAC + 10분 만료다. 뚫리면 남의 이메일로 가입시킬 수 있으므로
   서명 비교는 `timingSafeEqual`, 만료는 서명이 맞아도 거부한다
 - 이 흐름 이전에 만들어진 계정은 `privacyConsentAt`이 NULL로 남는다 (소급 동의를 받지 않는다)
+
+## 회원 탈퇴
+
+- `DELETE /api/user`는 본문에 `{ confirmation: '회원탈퇴' }`(`ACCOUNT_DELETE_CONFIRMATION`)를
+  요구한다. 화면의 비활성 버튼만 믿지 않는다
+- 15분 안에 만들어진 `pending` 주문이 있으면 409 로 막는다 — 결제창이 떠 있는 동안 탈퇴하면
+  승인이 도착했을 때 받을 사람이 없다. 방치된 pending 이 영원히 막지 않도록 창을 15분으로 둔다
+- soft delete 다. `deletedAt`을 찍고 카테고리를 끄고 **기간을 비운다** — 탈퇴는 기간을 포기하는
+  것이라고 /policy 가 말한다. 행을 남기는 이유는 같은 구글 계정이 다시 오면 처음 온 사람과
+  구분하기 위해서다. 재가입은 동의 화면부터 다시 시작하고, 그 동의가 행을 되살린다
+
+## 심사용 로그인 (`/review-login`)
+
+나이스페이와 카드사 심사는 "ID/PW, 2차 인증 없음, SNS 로그인 불가" 계정을 요구한다. Google
+로그인만 있는 서비스라 이 경로만 예외다 (`lib/review.ts`).
+
+- `REVIEW_LOGIN_ID`·`REVIEW_LOGIN_PASSWORD`가 둘 다 있어야 켜진다. 없으면 페이지도 API 도 404
+- 계정은 `users.google_id = 'review-account'`, 이메일 `review@nicepay.example`(RFC 2606 예약
+  도메인, 어디로도 배달되지 않는다) 하나다. 없으면 만들고, 탈퇴돼 있으면 기간 없이 되살린다.
+  `ADMIN_EMAIL`과 다르므로 관리자가 될 수 없다
+- 비교는 해시 후 `timingSafeEqual`, 아이디·비밀번호를 둘 다 끝까지 비교한다
+- 시도 제한은 프로세스 안에 둔다(5분 10회). 계정이 하나라 계정별 카운터가 필요 없다
+- 성공하면 `lib/session.ts`로 Google 로그인과 같은 세션 쿠키를 내려준다
 
 ## Payments (NicePay 결제창 서버승인)
 
@@ -156,6 +195,8 @@ DATABASE_PATH        # SQLite DB 경로 (기본: ./data/ksae.db)
 NICEPAY_CLIENT_ID    # 나이스페이 상점 ID (브라우저로 나가는 공개값)
 NICEPAY_SECRET_KEY   # 나이스페이 시크릿 키 (서버 전용 — 저장소는 public 이므로 커밋 금지)
 NICEPAY_API_BASE     # 기본 https://api.nicepay.co.kr (샌드박스는 sandbox-api...)
+REVIEW_LOGIN_ID      # 심사용 ID/PW 로그인. 둘 다 있어야 /review-login 이 켜진다
+REVIEW_LOGIN_PASSWORD
 ```
 
 ## Commit Convention

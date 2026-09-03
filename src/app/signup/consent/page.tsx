@@ -1,5 +1,7 @@
 import Link from 'next/link';
 import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
+import { auth } from '@/lib/auth';
 import { PENDING_SIGNUP_COOKIE, unsealPendingSignup } from '@/lib/signup/pending';
 import ConsentForm from './ConsentForm';
 
@@ -11,6 +13,9 @@ export const metadata = {
 };
 
 export default async function ConsentPage() {
+  // 이미 로그인된 사람에게는 동의 화면이 의미가 없다.
+  if ((await auth())?.user) redirect('/dashboard');
+
   const pending = unsealPendingSignup((await cookies()).get(PENDING_SIGNUP_COOKIE)?.value);
 
   if (!pending) {

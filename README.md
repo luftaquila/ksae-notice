@@ -31,6 +31,10 @@ cp .env.example .env.local
 | `ADMIN_EMAIL` | 관리자 이메일 |
 | `SITE_URL` | 서비스 URL (기본: http://localhost:3000) |
 | `DATABASE_PATH` | SQLite DB 경로 (기본: ./data/ksae.db) |
+| `NICEPAY_CLIENT_ID` | 나이스페이 상점 ID (브라우저로 나가는 공개값) |
+| `NICEPAY_SECRET_KEY` | 나이스페이 시크릿 키 (서버 전용, 커밋 금지) |
+| `NICEPAY_API_BASE` | 나이스페이 API 주소 (기본: https://api.nicepay.co.kr) |
+| `REVIEW_LOGIN_ID` / `REVIEW_LOGIN_PASSWORD` | 심사용 ID/PW 로그인 (`/review-login`). 둘 다 있어야 켜진다 |
 
 ### 개발
 
