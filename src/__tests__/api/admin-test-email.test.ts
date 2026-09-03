@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import type { MockSession } from '../helpers';
 
-let mockAdminSession: any = null;
+let mockAdminSession: MockSession = null;
 let mockSendEmail = vi.fn();
 
 vi.mock('@/lib/auth', () => ({
@@ -8,11 +9,11 @@ vi.mock('@/lib/auth', () => ({
 }));
 
 vi.mock('@/lib/email/brevo', () => ({
-  sendEmail: (...args: any[]) => mockSendEmail(...args),
+  sendEmail: (...args: unknown[]) => mockSendEmail(...args),
 }));
 
 vi.mock('@/lib/email/templates', () => ({
-  newPostNotification: (posts: any[], siteUrl: string) => '<html>test</html>',
+  newPostNotification: () => '<html>test</html>',
 }));
 
 const { POST } = await import('@/app/api/admin/test-email/route');

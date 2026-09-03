@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
-import { SUBSCRIPTION_CATEGORIES, CATEGORY_COLORS, getCategoryLabel } from '@/lib/constants';
+import { SUBSCRIPTION_CATEGORIES, CATEGORY_COLORS, getCategoryLabel, getBoardLabel } from '@/lib/constants';
 import { formatLocalDateTime } from '@/lib/format';
 import { subscriptionStatus, type SubscriptionStatusKey } from '@/lib/subscription/status';
 import ToggleSwitch from '@/components/ToggleSwitch';
@@ -604,9 +604,11 @@ export default function AdminPage() {
                 <tr key={crawl.id}>
                   <td className="py-2 pr-4 whitespace-nowrap">
                     <span className={`inline-block px-1.5 py-0.5 rounded text-xs ${
-                      crawl.boardType === 'notice' ? 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400' : 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400'
+                      crawl.boardType === 'notice'
+                        ? 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400'
+                        : (CATEGORY_COLORS[getBoardLabel(crawl.boardType)]?.chip || 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400')
                     }`}>
-                      {crawl.boardType === 'notice' ? '공지' : '규정'}
+                      {getBoardLabel(crawl.boardType)}
                     </span>
                   </td>
                   <td className="py-2 pr-4 whitespace-nowrap">

@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
+import { NextRequest } from 'next/server';
 import {
   createTestDb,
   seedUser,
@@ -7,13 +8,14 @@ import {
   seedSetting,
   EXPIRED,
   UNEXPIRED,
+  type MockSession,
   type TestDb,
 } from '../helpers';
 import { users, payments, settings } from '@/lib/db/schema';
 import type { NicepayResult } from '@/lib/payment/nicepay';
 
 let db: TestDb;
-let mockSessionValue: any = null;
+let mockSessionValue: MockSession = null;
 
 // 나이스페이 호출만 갈아끼운다. 서명 계산은 실제 구현을 그대로 쓴다 — 테스트가
 // 자기 서명을 검증하면 아무것도 지켜주지 못한다.
@@ -65,31 +67,31 @@ const { expireStaleOrders } = await import('@/lib/payment/orders');
 
 function orderReq(headers: Record<string, string> = {}) {
   // 프록시 뒤 실제 요청과 같은 모양: 요청 URL 은 컨테이너 내부 주소다.
-  return new Request('http://0.0.0.0:3000/api/payments/orders', { method: 'POST', headers }) as any;
+  return new NextRequest('http://0.0.0.0:3000/api/payments/orders', { method: 'POST', headers });
 }
 
 function returnReq(fields: Record<string, string>, headers: Record<string, string> = {}) {
-  return new Request('http://0.0.0.0:3000/api/payments/return', {
+  return new NextRequest('http://0.0.0.0:3000/api/payments/return', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded', ...headers },
     body: new URLSearchParams(fields),
-  }) as any;
+  });
 }
 
 function webhookReq(payload: Record<string, unknown>) {
-  return new Request('http://localhost/api/payments/webhook', {
+  return new NextRequest('http://localhost/api/payments/webhook', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
-  }) as any;
+  });
 }
 
 function adminCancelReq(body: Record<string, unknown>) {
-  return new Request('http://localhost/api/admin/payments', {
+  return new NextRequest('http://localhost/api/admin/payments', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
-  }) as any;
+  });
 }
 
 function orderOf(orderId: string) {

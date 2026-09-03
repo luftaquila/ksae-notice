@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { createTestDb, seedUser, seedSubscription, seedPayment, UNEXPIRED, type TestDb } from '../helpers';
+import { createTestDb, seedUser, seedSubscription, seedPayment, UNEXPIRED, type MockSession, type TestDb } from '../helpers';
 import { eq } from 'drizzle-orm';
 import { users, subscriptions } from '@/lib/db/schema';
 import { ACCOUNT_DELETE_CONFIRMATION } from '@/lib/constants';
 
 let db: TestDb;
-let mockSessionValue: any = null;
+let mockSessionValue: MockSession = null;
 
 vi.mock('@/lib/db', () => ({
   getDb: () => db,

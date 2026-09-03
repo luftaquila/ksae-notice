@@ -1,5 +1,5 @@
 import cron, { type ScheduledTask } from 'node-cron';
-import { crawlLatest, crawlAll, needsInitialCrawl, cleanupStaleCrawlLogs } from './index';
+import { crawlLatest, crawlAll, boardsNeedingInitialCrawl, cleanupStaleCrawlLogs } from './index';
 import { checkAndSendRenewalReminders } from '../subscription/renewal';
 import { expireStaleOrders } from '../payment/orders';
 
@@ -9,10 +9,12 @@ let orderCleanupTask: ScheduledTask | null = null;
 let isCrawling = false;
 
 export async function initScheduler() {
-  // Run initial crawl if DB is empty
-  if (needsInitialCrawl()) {
-    console.log('[Scheduler] Database empty, running initial full crawl...');
-    await crawlAll();
+  // 글이 하나도 없는 게시판(빈 DB, 또는 새로 붙인 게시판)은 증분 수집이 시작되기
+  // 전에 전체 수집으로 채운다.
+  const missing = boardsNeedingInitialCrawl();
+  if (missing.length > 0) {
+    console.log(`[Scheduler] No stored posts for ${missing.join(', ')}, running initial full crawl...`);
+    await crawlAll(missing);
   }
 
   // Schedule incremental crawl every 5 minutes, 7AM-7PM KST

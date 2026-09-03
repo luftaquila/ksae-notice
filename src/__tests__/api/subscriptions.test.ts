@@ -1,10 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { createTestDb, seedUser, seedSubscription, seedSetting, createUpsertSubscriptionMock, EXPIRED, type TestDb } from '../helpers';
+import { NextRequest } from 'next/server';
+import { createTestDb, seedUser, seedSubscription, seedSetting, createUpsertSubscriptionMock, EXPIRED, type MockSession, type TestDb } from '../helpers';
 import { eq, and } from 'drizzle-orm';
 import { users, subscriptions, settings } from '@/lib/db/schema';
 
 let db: TestDb;
-let mockSessionValue: any = null;
+let mockSessionValue: MockSession = null;
 
 vi.mock('@/lib/db', () => ({
   getDb: () => db,
@@ -15,21 +16,21 @@ vi.mock('@/lib/auth', () => ({
 }));
 
 vi.mock('@/lib/subscription/upsert', () => ({
-  upsertSubscription: (...args: any[]) => createUpsertSubscriptionMock(() => db)(...args),
+  upsertSubscription: (userId: number, category: string) => createUpsertSubscriptionMock(() => db)(userId, category),
 }));
 
 const { GET, POST, DELETE } = await import('@/app/api/subscriptions/route');
 
-function jsonReq(body: any) {
-  return new Request('http://localhost/api/subscriptions', {
+function jsonReq(body: unknown) {
+  return new NextRequest('http://localhost/api/subscriptions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
 }
 
-function deleteReq(body: any) {
-  return new Request('http://localhost/api/subscriptions', {
+function deleteReq(body: unknown) {
+  return new NextRequest('http://localhost/api/subscriptions', {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -68,14 +69,14 @@ describe('POST /api/subscriptions', () => {
   });
 
   it('returns 401 when not authenticated', async () => {
-    const res = await POST(jsonReq({ category: 'notice_Z' }) as any);
+    const res = await POST(jsonReq({ category: 'notice_Z' }));
     expect(res.status).toBe(401);
   });
 
   it('returns 400 for invalid category', async () => {
     const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com' });
     mockSessionValue = { user: { id: userId, email: 'a@test.com' } };
-    const res = await POST(jsonReq({ category: 'invalid' }) as any);
+    const res = await POST(jsonReq({ category: 'invalid' }));
     expect(res.status).toBe(400);
   });
 
@@ -90,7 +91,7 @@ describe('POST /api/subscriptions', () => {
       .where(eq(settings.key, 'registrationOpen'))
       .run();
 
-    const res = await POST(jsonReq({ category: 'notice_Z' }) as any);
+    const res = await POST(jsonReq({ category: 'notice_Z' }));
     expect(res.status).toBe(200);
   });
 
@@ -104,7 +105,7 @@ describe('POST /api/subscriptions', () => {
     const lapsed = seedUser(db, { googleId: 'g2', email: 'b@test.com', subscriptionExpiresAt: EXPIRED });
     mockSessionValue = { user: { id: lapsed, email: 'b@test.com' } };
 
-    const res = await POST(jsonReq({ category: 'notice_A' }) as any);
+    const res = await POST(jsonReq({ category: 'notice_A' }));
     expect(res.status).toBe(200);
   });
 
@@ -112,7 +113,7 @@ describe('POST /api/subscriptions', () => {
     const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com', subscriptionExpiresAt: null });
     mockSessionValue = { user: { id: userId, email: 'a@test.com' } };
 
-    await POST(jsonReq({ category: 'notice_Z' }) as any);
+    await POST(jsonReq({ category: 'notice_Z' }));
 
     const account = db.select().from(users).where(eq(users.id, userId)).get()!;
     expect(account.subscriptionExpiresAt).toBeNull();
@@ -122,7 +123,7 @@ describe('POST /api/subscriptions', () => {
     const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com' });
     mockSessionValue = { user: { id: userId, email: 'a@test.com' } };
 
-    const res = await POST(jsonReq({ category: 'notice_Z' }) as any);
+    const res = await POST(jsonReq({ category: 'notice_Z' }));
     expect(res.status).toBe(200);
 
     const subs = db.select().from(subscriptions).where(eq(subscriptions.userId, userId)).all();
@@ -139,7 +140,7 @@ describe('DELETE /api/subscriptions', () => {
   });
 
   it('returns 401 when not authenticated', async () => {
-    const res = await DELETE(deleteReq({ category: 'notice_Z' }) as any);
+    const res = await DELETE(deleteReq({ category: 'notice_Z' }));
     expect(res.status).toBe(401);
   });
 
@@ -148,7 +149,7 @@ describe('DELETE /api/subscriptions', () => {
     seedSubscription(db, userId, 'notice_Z');
     mockSessionValue = { user: { id: userId, email: 'a@test.com' } };
 
-    const res = await DELETE(deleteReq({ category: 'notice_Z' }) as any);
+    const res = await DELETE(deleteReq({ category: 'notice_Z' }));
     const data = await res.json();
     expect(data.ok).toBe(true);
 
@@ -162,7 +163,7 @@ describe('DELETE /api/subscriptions', () => {
     const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com' });
     mockSessionValue = { user: { id: userId, email: 'a@test.com' } };
 
-    const res = await DELETE(deleteReq({ category: 'notice_Z' }) as any);
+    const res = await DELETE(deleteReq({ category: 'notice_Z' }));
     const data = await res.json();
     expect(data.ok).toBe(true);
   });
@@ -181,7 +182,7 @@ describe('POST /api/subscriptions - edge cases', () => {
     seedSubscription(db, userId, 'notice_Z', { isActive: 0 });
     mockSessionValue = { user: { id: userId, email: 'a@test.com' } };
 
-    const res = await POST(jsonReq({ category: 'notice_Z' }) as any);
+    const res = await POST(jsonReq({ category: 'notice_Z' }));
     expect(res.status).toBe(200);
 
     const sub = db.select().from(subscriptions)
@@ -193,7 +194,7 @@ describe('POST /api/subscriptions - edge cases', () => {
   it('returns 400 when category is missing from body', async () => {
     const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com' });
     mockSessionValue = { user: { id: userId, email: 'a@test.com' } };
-    const res = await POST(jsonReq({}) as any);
+    const res = await POST(jsonReq({}));
     expect(res.status).toBe(400);
   });
 

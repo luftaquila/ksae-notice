@@ -2,6 +2,18 @@ import { NextRequest, NextResponse } from 'next/server';
 import { eq, desc, asc, and, or, sql, inArray, isNull } from 'drizzle-orm';
 import { getDb } from '@/lib/db';
 import { posts } from '@/lib/db/schema';
+import { BOARDS, type BoardType } from '@/lib/constants';
+
+// 공지 밖의 게시판은 라벨('규정', '경기결과', '양식')이 그대로 필터 값이다.
+const BOARD_TYPE_BY_LABEL = new Map<string, BoardType>(
+  BOARDS.filter((b) => b.type !== 'notice').map((b) => [b.label, b.type]),
+);
+
+// 고정글 우선 정렬에서 게시판 사이 순서는 BOARDS 순서다 (공지 → 규정 → 경기결과 → 양식).
+const BOARD_ORDER = sql`CASE ${posts.boardType} ${sql.join(
+  BOARDS.map((b, i) => sql`WHEN ${b.type} THEN ${i}`),
+  sql` `,
+)} ELSE ${BOARDS.length} END`;
 
 function escapeLike(s: string): string {
   return s.replace(/!/g, '!!').replace(/%/g, '!%').replace(/_/g, '!_');
@@ -24,8 +36,11 @@ export async function GET(request: NextRequest) {
 
   if (categoriesParam) {
     const cats = categoriesParam.split(',').filter(Boolean);
-    const hasRule = cats.includes('규정');
-    const noticeCats = cats.filter(c => c !== '규정');
+    const boardTypes = cats.flatMap((c) => {
+      const type = BOARD_TYPE_BY_LABEL.get(c);
+      return type ? [type] : [];
+    });
+    const noticeCats = cats.filter((c) => !BOARD_TYPE_BY_LABEL.has(c));
 
     const orConds = [];
     if (noticeCats.length > 0) {
@@ -35,8 +50,8 @@ export async function GET(request: NextRequest) {
         : inArray(posts.category, noticeCats);
       orConds.push(and(eq(posts.boardType, 'notice'), catCondition));
     }
-    if (hasRule) {
-      orConds.push(eq(posts.boardType, 'rule'));
+    if (boardTypes.length > 0) {
+      orConds.push(inArray(posts.boardType, boardTypes));
     }
     if (orConds.length === 1) {
       conditions.push(orConds[0]!);
@@ -54,9 +69,9 @@ export async function GET(request: NextRequest) {
 
   const where = conditions.length > 0 ? and(...conditions) : undefined;
 
-  // pinnedFirst: pinned DESC → boardType ASC (notice before rule) → date DESC
+  // pinnedFirst: pinned DESC → board order (BOARDS) → date DESC
   const order = pinnedFirst
-    ? [desc(posts.isPinned), asc(posts.boardType), desc(posts.date), desc(posts.postNumber)]
+    ? [desc(posts.isPinned), asc(BOARD_ORDER), desc(posts.date), desc(posts.postNumber)]
     : [desc(posts.date), desc(posts.postNumber)];
 
   const [items, countResult] = await Promise.all([

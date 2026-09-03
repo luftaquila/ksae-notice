@@ -1,10 +1,12 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { createTestDb, seedUser, seedSubscription, seedEmailLog, createUpsertSubscriptionMock, UNEXPIRED, type TestDb } from '../helpers';
+import { NextRequest } from 'next/server';
+import { createTestDb, seedUser, seedSubscription, seedEmailLog, createUpsertSubscriptionMock, UNEXPIRED, type MockSession, type TestDb } from '../helpers';
 import { eq, and } from 'drizzle-orm';
 import { users, subscriptions } from '@/lib/db/schema';
+import { SUBSCRIPTION_CATEGORIES } from '@/lib/constants';
 
 let db: TestDb;
-let mockAdminSession: any = null;
+let mockAdminSession: MockSession = null;
 
 vi.mock('@/lib/db', () => ({
   getDb: () => db,
@@ -15,13 +17,13 @@ vi.mock('@/lib/auth', () => ({
 }));
 
 vi.mock('@/lib/subscription/upsert', () => ({
-  upsertSubscription: (...args: any[]) => createUpsertSubscriptionMock(() => db)(...args),
+  upsertSubscription: (userId: number, category: string) => createUpsertSubscriptionMock(() => db)(userId, category),
 }));
 
 const { GET, PATCH } = await import('@/app/api/admin/users/route');
 
-function patchReq(body: any) {
-  return new Request('http://localhost/api/admin/users', {
+function patchReq(body: unknown) {
+  return new NextRequest('http://localhost/api/admin/users', {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -42,7 +44,7 @@ describe('GET /api/admin/users', () => {
   it('returns users with subscriptions and email counts', async () => {
     mockAdminSession = { user: { id: 1, isAdmin: true } };
     const u1 = seedUser(db, { googleId: 'g1', email: 'a@test.com' });
-    const u2 = seedUser(db, { googleId: 'g2', email: 'b@test.com', deletedAt: '2025-01-01' });
+    seedUser(db, { googleId: 'g2', email: 'b@test.com', deletedAt: '2025-01-01' });
     seedSubscription(db, u1, 'notice_Z');
     seedEmailLog(db, u1);
     seedEmailLog(db, u1);
@@ -55,7 +57,7 @@ describe('GET /api/admin/users', () => {
     expect(data.users[0].deletedAt).toBeNull();
     expect(data.users[1].deletedAt).not.toBeNull();
 
-    const user1 = data.users.find((u: any) => u.email === 'a@test.com');
+    const user1 = data.users.find((u: { email: string }) => u.email === 'a@test.com');
     expect(user1.subscriptions.length).toBe(1);
     expect(user1.emailsSent).toBe(2);
   });
@@ -68,13 +70,13 @@ describe('PATCH /api/admin/users', () => {
   });
 
   it('returns 403 when not admin', async () => {
-    const res = await PATCH(patchReq({ userId: 1, action: 'deactivate' }) as any);
+    const res = await PATCH(patchReq({ userId: 1, action: 'deactivate' }));
     expect(res.status).toBe(403);
   });
 
   it('returns 400 when userId or action missing', async () => {
     mockAdminSession = { user: { id: 1, isAdmin: true } };
-    const res = await PATCH(patchReq({ userId: 1 }) as any);
+    const res = await PATCH(patchReq({ userId: 1 }));
     expect(res.status).toBe(400);
   });
 
@@ -84,7 +86,7 @@ describe('PATCH /api/admin/users', () => {
     seedSubscription(db, userId, 'notice_Z');
     seedSubscription(db, userId, 'rule');
 
-    const res = await PATCH(patchReq({ userId, action: 'deactivate' }) as any);
+    const res = await PATCH(patchReq({ userId, action: 'deactivate' }));
     expect((await res.json()).ok).toBe(true);
 
     const subs = db.select().from(subscriptions).where(eq(subscriptions.userId, userId)).all();
@@ -96,7 +98,7 @@ describe('PATCH /api/admin/users', () => {
     const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com' });
     seedSubscription(db, userId, 'notice_Z');
 
-    const res = await PATCH(patchReq({ userId, action: 'delete' }) as any);
+    const res = await PATCH(patchReq({ userId, action: 'delete' }));
     expect((await res.json()).ok).toBe(true);
 
     const user = db.select().from(users).where(eq(users.id, userId)).get();
@@ -109,7 +111,7 @@ describe('PATCH /api/admin/users', () => {
     mockAdminSession = { user: { id: 1, isAdmin: true } };
     const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com' });
 
-    const res = await PATCH(patchReq({ userId, action: 'subscribe', category: 'notice_Z' }) as any);
+    const res = await PATCH(patchReq({ userId, action: 'subscribe', category: 'notice_Z' }));
     expect((await res.json()).ok).toBe(true);
 
     const sub = db.select().from(subscriptions)
@@ -122,7 +124,7 @@ describe('PATCH /api/admin/users', () => {
   it('returns 400 for invalid subscribe category', async () => {
     mockAdminSession = { user: { id: 1, isAdmin: true } };
     const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com' });
-    const res = await PATCH(patchReq({ userId, action: 'subscribe', category: 'invalid' }) as any);
+    const res = await PATCH(patchReq({ userId, action: 'subscribe', category: 'invalid' }));
     expect(res.status).toBe(400);
   });
 
@@ -131,7 +133,7 @@ describe('PATCH /api/admin/users', () => {
     const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com' });
     seedSubscription(db, userId, 'notice_Z');
 
-    const res = await PATCH(patchReq({ userId, action: 'unsubscribe', category: 'notice_Z' }) as any);
+    const res = await PATCH(patchReq({ userId, action: 'unsubscribe', category: 'notice_Z' }));
     expect((await res.json()).ok).toBe(true);
 
     const sub = db.select().from(subscriptions)
@@ -144,32 +146,32 @@ describe('PATCH /api/admin/users', () => {
     mockAdminSession = { user: { id: 1, isAdmin: true } };
     const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com' });
 
-    const res = await PATCH(patchReq({ userId, action: 'subscribe_all' }) as any);
+    const res = await PATCH(patchReq({ userId, action: 'subscribe_all' }));
     expect((await res.json()).ok).toBe(true);
 
     const subs = db.select().from(subscriptions).where(eq(subscriptions.userId, userId)).all();
-    expect(subs.length).toBe(6); // 5 notice + 1 rule
+    expect(subs.length).toBe(SUBSCRIPTION_CATEGORIES.length);
     expect(subs.every(s => s.isActive === 1)).toBe(true);
   });
 
   it('returns 400 for unknown action', async () => {
     mockAdminSession = { user: { id: 1, isAdmin: true } };
     const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com' });
-    const res = await PATCH(patchReq({ userId, action: 'explode' }) as any);
+    const res = await PATCH(patchReq({ userId, action: 'explode' }));
     expect(res.status).toBe(400);
   });
 
   it('returns 400 (unknown action) when subscribe has no category', async () => {
     mockAdminSession = { user: { id: 1, isAdmin: true } };
     const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com' });
-    const res = await PATCH(patchReq({ userId, action: 'subscribe' }) as any);
+    const res = await PATCH(patchReq({ userId, action: 'subscribe' }));
     expect(res.status).toBe(400);
   });
 
   it('returns 400 (unknown action) when unsubscribe has no category', async () => {
     mockAdminSession = { user: { id: 1, isAdmin: true } };
     const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com' });
-    const res = await PATCH(patchReq({ userId, action: 'unsubscribe' }) as any);
+    const res = await PATCH(patchReq({ userId, action: 'unsubscribe' }));
     expect(res.status).toBe(400);
   });
 
@@ -178,7 +180,7 @@ describe('PATCH /api/admin/users', () => {
     const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com' });
     seedSubscription(db, userId, 'notice_Z', { isActive: 0 });
 
-    const res = await PATCH(patchReq({ userId, action: 'subscribe', category: 'notice_Z' }) as any);
+    const res = await PATCH(patchReq({ userId, action: 'subscribe', category: 'notice_Z' }));
     expect((await res.json()).ok).toBe(true);
 
     const sub = db.select().from(subscriptions)
@@ -196,7 +198,7 @@ describe('PATCH /api/admin/users', () => {
 
     const res = await GET();
     const data = await res.json();
-    const user = data.users.find((u: any) => u.email === 'a@test.com');
+    const user = data.users.find((u: { email: string }) => u.email === 'a@test.com');
     expect(user.emailsSent).toBe(2);
   });
 });
@@ -212,7 +214,7 @@ describe('PATCH /api/admin/users - delete forfeits the period', () => {
     const userId = seedUser(db, { googleId: 'g9', email: 'gone@test.com', subscriptionExpiresAt: UNEXPIRED });
     seedSubscription(db, userId, 'notice_Z');
 
-    await PATCH(patchReq({ userId, action: 'delete' }) as any);
+    await PATCH(patchReq({ userId, action: 'delete' }));
 
     const user = db.select().from(users).where(eq(users.id, userId)).get()!;
     expect(user.deletedAt).not.toBeNull();

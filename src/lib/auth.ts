@@ -1,6 +1,5 @@
 import { cookies } from 'next/headers';
 import NextAuth, { type DefaultSession } from 'next-auth';
-import { type JWT } from 'next-auth/jwt';
 import Google from 'next-auth/providers/google';
 import { eq } from 'drizzle-orm';
 import { getDb } from './db';

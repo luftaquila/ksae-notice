@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { CATEGORY_COLORS } from '@/lib/constants';
+import { BOARDS, CATEGORY_COLORS, NOTICE_CATEGORIES, getBoardCode, getPostLabel } from '@/lib/constants';
 import CategoryFilter from './CategoryFilter';
 
 interface Post {
@@ -15,18 +15,15 @@ interface Post {
   url: string;
 }
 
+// 필터 값은 라벨 그대로다 (/api/posts 의 categories 파라미터). 공지 카테고리 다음에
+// 나머지 게시판이 BOARDS 순서로 온다.
 const ALL_CATEGORIES = [
-  { id: '공통', label: '공통' },
-  { id: 'Baja', label: 'Baja' },
-  { id: 'Formula', label: 'Formula' },
-  { id: 'EV', label: 'EV' },
-  { id: '자율주행', label: '자율주행' },
-  { id: '규정', label: '규정' },
-];
+  ...Object.values(NOTICE_CATEGORIES),
+  ...BOARDS.filter((b) => b.type !== 'notice').map((b) => b.label),
+].map((label) => ({ id: label, label }));
 
 function getMobileUrl(post: Post): string {
-  const code = post.boardType === 'notice' ? 'J_notice' : 'J_rule';
-  return `https://www.ksae.org/jajak/mobile/bbs/view.php?number=${post.postNumber}&page=1&code=${code}`;
+  return `https://www.ksae.org/jajak/mobile/bbs/view.php?number=${post.postNumber}&page=1&code=${getBoardCode(post.boardType)}`;
 }
 
 function useIsMobile() {
@@ -163,7 +160,7 @@ export default function PostTable() {
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {posts.map((post) => {
-                const chipLabel = post.boardType === 'rule' ? '규정' : (post.category || '공통');
+                const chipLabel = getPostLabel(post.boardType, post.category);
                 const chipColor = CATEGORY_COLORS[chipLabel]?.chip || 'bg-gray-100 text-gray-700';
                 return (
                   <tr
