@@ -94,3 +94,6 @@ export function getCategoryLabel(subscriptionId: string): string {
   const code = subscriptionId.replace('notice_', '');
   return NOTICE_CATEGORIES[code] || subscriptionId;
 }
+
+// 회원 탈퇴 확인 문구. 서버가 이 값을 요구하고 화면이 이 값을 안내한다.
+export const ACCOUNT_DELETE_CONFIRMATION = '회원탈퇴';

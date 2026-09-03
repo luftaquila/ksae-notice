@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useSession, signOut } from 'next-auth/react';
-import { SUBSCRIPTION_CATEGORIES } from '@/lib/constants';
+import { ACCOUNT_DELETE_CONFIRMATION, SUBSCRIPTION_CATEGORIES } from '@/lib/constants';
 import { renewalPrompt, renewalTargetYear } from '@/lib/subscription/period';
 import { formatLocalDateTime } from '@/lib/format';
 import ToggleSwitch from '@/components/ToggleSwitch';
@@ -51,6 +51,9 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // 탈퇴는 확인 문구를 그대로 쳐야 한다. 오류도 그 카드 안에서 보여준다.
+  const [deleteConfirmation, setDeleteConfirmation] = useState('');
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const fetchSubs = async () => {
     try {
@@ -201,19 +204,25 @@ export default function DashboardPage() {
   };
 
   const deleteAccount = async () => {
+    if (deleteConfirmation !== ACCOUNT_DELETE_CONFIRMATION) return;
     if (!confirm('정말 탈퇴하시겠습니까? 구독 정보와 남은 구독 기간이 삭제되며 환불되지 않습니다.')) return;
 
     setActionLoading('delete');
+    setDeleteError(null);
     try {
-      const res = await fetch('/api/user', { method: 'DELETE' });
+      const res = await fetch('/api/user', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirmation: deleteConfirmation }),
+      });
       if (res.ok) {
         signOut({ callbackUrl: '/' });
       } else {
-        const data = await res.json();
-        setError(data.error || '탈퇴에 실패했습니다.');
+        const data = await res.json().catch(() => null);
+        setDeleteError(data?.error || '탈퇴에 실패했습니다.');
       }
     } catch {
-      setError('탈퇴에 실패했습니다.');
+      setDeleteError('탈퇴에 실패했습니다.');
     } finally {
       setActionLoading(null);
     }
@@ -239,8 +248,26 @@ export default function DashboardPage() {
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">구독 관리</h1>
-      <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">{session?.user?.email}</p>
+      <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">구독 관리</h1>
+
+      {/* 누구의 구독인지. */}
+      <div className="mb-6 flex items-center gap-3 rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-4 py-3">
+        {session?.user?.image ? (
+          // 외부 이미지라 next/image 최적화 대상이 아니다.
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={session.user.image} alt="" referrerPolicy="no-referrer" className="w-10 h-10 rounded-full" />
+        ) : (
+          <span className="w-10 h-10 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300 text-sm font-semibold flex items-center justify-center" aria-hidden="true">
+            {Array.from(session?.user?.name || session?.user?.email || '?')[0]}
+          </span>
+        )}
+        <div className="min-w-0">
+          <div className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+            {session?.user?.name || session?.user?.email}
+          </div>
+          <div className="text-xs text-gray-500 dark:text-gray-400 truncate">{session?.user?.email}</div>
+        </div>
+      </div>
 
       {error && (
         <div className="mb-4 p-3 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 text-red-700 dark:text-red-400 text-sm rounded-lg">
@@ -380,11 +407,35 @@ export default function DashboardPage() {
 
       {/* Account deletion (not for admin) */}
       {!session?.user?.isAdmin && (
-        <div className="mt-12 pt-6 border-t border-gray-200 dark:border-gray-800">
+        <div className="mt-10 rounded-lg border border-red-200 dark:border-red-500/30 bg-white dark:bg-gray-900 p-5">
+          <div className="text-xs font-semibold uppercase tracking-wide text-red-600 dark:text-red-400">계정 관리</div>
+          <h2 className="mt-1 text-lg font-bold text-gray-900 dark:text-gray-100">회원 탈퇴</h2>
+          <p className="mt-2 text-sm leading-relaxed text-gray-500 dark:text-gray-400">
+            탈퇴하면 구독 정보와 남은 구독 기간이 즉시 소멸되며 환불되지 않습니다.
+            재가입 여부 확인에 필요한 계정 식별 정보와 결제 기록은 남습니다.
+            진행 중인 결제가 있으면 끝난 뒤에 탈퇴할 수 있습니다.
+          </p>
+          <label className="block mt-4 text-sm text-gray-600 dark:text-gray-300">
+            계속하려면 <b>{ACCOUNT_DELETE_CONFIRMATION}</b>를 입력하세요.
+            <input
+              type="text"
+              value={deleteConfirmation}
+              onChange={(e) => {
+                setDeleteConfirmation(e.target.value);
+                setDeleteError(null);
+              }}
+              autoComplete="off"
+              placeholder={ACCOUNT_DELETE_CONFIRMATION}
+              className="mt-1.5 w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-red-500"
+            />
+          </label>
+          {deleteError && (
+            <p className="mt-2 text-sm text-red-600 dark:text-red-400" role="alert">{deleteError}</p>
+          )}
           <button
             onClick={deleteAccount}
-            disabled={actionLoading === 'delete'}
-            className="text-sm text-red-400 hover:text-red-600 active:text-red-600 dark:hover:text-red-300 dark:active:text-red-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 transition cursor-pointer disabled:opacity-50"
+            disabled={actionLoading === 'delete' || deleteConfirmation !== ACCOUNT_DELETE_CONFIRMATION}
+            className="mt-3 text-sm px-4 py-2 rounded-lg text-white bg-red-600 hover:bg-red-700 active:bg-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {actionLoading === 'delete' ? '처리 중...' : '회원 탈퇴'}
           </button>
