@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { signIn } from 'next-auth/react';
 
 export default function ConsentForm() {
   const [agreed, setAgreed] = useState(false);
@@ -17,9 +16,8 @@ export default function ConsentForm() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || '가입을 완료하지 못했습니다.');
 
-      // 계정이 생겼으니 Google 로 한 번 더 다녀오면 세션이 만들어진다. 이미 동의된
-      // 계정이라 화면은 그대로 지나가고, 가입 직후에는 구독 설정으로 보낸다.
-      await signIn('google', { callbackUrl: '/dashboard' });
+      // 서버가 계정과 세션 쿠키를 함께 만들었다. 가입 직후에는 구독 설정으로 간다.
+      window.location.replace(data.redirect || '/dashboard');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : '가입을 완료하지 못했습니다.');
       setBusy(false);
