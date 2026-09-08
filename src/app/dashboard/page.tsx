@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import { ACCOUNT_DELETE_CONFIRMATION, SUBSCRIPTION_CATEGORIES } from '@/lib/constants';
-import { renewalPrompt, renewalTargetYear } from '@/lib/subscription/period';
+import { canPurchase, renewalPrompt, renewalTargetYear } from '@/lib/subscription/period';
 import { formatLocalDateTime } from '@/lib/format';
 import ToggleSwitch from '@/components/ToggleSwitch';
 
@@ -241,9 +241,9 @@ export default function DashboardPage() {
   // year the server will not write.
   const { show: showRenewal, isExpired } = renewalPrompt(now, expiresAt, hasActiveSubs);
   const targetYear = renewalTargetYear(now, expiresAt);
-  // 결제된 기간이 없거나 올해로 끝나면 결제할 것이 남아 있다. 이미 내년 이후까지
-  // 덮여 있으면 지금 살 이유가 없으므로 버튼을 내린다.
-  const canPay = !expiresAt || Number(expiresAt.slice(0, 4)) <= currentYear;
+  // 기간이 없거나 지났을 때, 그리고 12월에 올해로 끝나는 기간만 결제 대상이다.
+  // 서버의 주문 라우트와 같은 규칙이라 버튼이 있으면 주문도 열려 있다.
+  const canPay = canPurchase(now, expiresAt);
   const priceLabel = price === null ? '' : ` · ${price.toLocaleString('ko-KR')}원`;
 
   return (
