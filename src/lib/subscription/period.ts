@@ -50,3 +50,16 @@ export function renewalPrompt(now: Date, expiresAt: string | null, hasActiveSubs
     targetYear: renewalTargetYear(now, expiresAt),
   };
 }
+
+// Whether there is anything to buy right now. Open when nothing covers the
+// current year — no period, or a lapsed one — and during December for a period
+// that ends this year, the same window the reminder uses. Closed once the period
+// already runs into next year. Gating it here, shared by the dashboard button and
+// the order route, is what keeps an account paid through this year from buying
+// next year in September: renewal is a December affair, not a standing offer.
+export function canPurchase(now: Date, expiresAt: string | null): boolean {
+  const currentYear = now.getFullYear();
+  const coveredThrough = expiresAt ? Number(expiresAt.slice(0, 4)) : null;
+  if (coveredThrough === null || coveredThrough < currentYear) return true;
+  return coveredThrough === currentYear && now.getMonth() === 11;
+}

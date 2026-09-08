@@ -9,7 +9,7 @@ import {
   isCountedSubscriber,
   isRegistrationOpen,
 } from '@/lib/subscription/capacity';
-import { renewalTargetYear } from '@/lib/subscription/period';
+import { canPurchase, renewalTargetYear } from '@/lib/subscription/period';
 import { createOrder } from '@/lib/payment/orders';
 import { getSubscriptionPrice } from '@/lib/payment/pricing';
 import { PAY_METHOD, clientId, isConfigured } from '@/lib/payment/nicepay';
@@ -47,7 +47,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: '계정을 찾을 수 없습니다.' }, { status: 404 });
   }
 
-  const targetYear = renewalTargetYear(new Date(), account.expiresAt ?? null);
+  // 이미 내년까지 덮인 계정, 또는 올해로 끝나지만 아직 12월이 아닌 계정은 살 것이
+  // 없다. 대시보드는 버튼을 내리지만 라우트를 직접 부르면 9월에 내년을 살 수 있으니
+  // 서버가 같은 규칙으로 막는다.
+  const now = new Date();
+  if (!canPurchase(now, account.expiresAt ?? null)) {
+    return NextResponse.json({ error: '지금은 결제할 구독 기간이 없습니다. 갱신은 12월부터 가능합니다.' }, { status: 403 });
+  }
+
+  const targetYear = renewalTargetYear(now, account.expiresAt ?? null);
   const amount = getSubscriptionPrice();
   const goodsName = `KSAE 공지봇 ${targetYear}년 구독`;
 

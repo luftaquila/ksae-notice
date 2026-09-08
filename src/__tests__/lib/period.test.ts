@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { endOfYear, renewalTargetYear, renewalPrompt } from '@/lib/subscription/period';
+import { canPurchase, endOfYear, renewalTargetYear, renewalPrompt } from '@/lib/subscription/period';
 
 // TZ is pinned to Asia/Seoul in vitest.config.ts — these cases are about the
 // disagreement between a 12/31 23:59:59 UTC period and the KST calendar.
@@ -75,5 +75,33 @@ describe('renewalPrompt', () => {
   it('marks a lapsed period expired and a covered one not', () => {
     expect(renewalPrompt(kst('2027-03-01T12:00:00+09:00'), endOfYear(2026), true).isExpired).toBe(true);
     expect(renewalPrompt(kst('2026-12-15T12:00:00+09:00'), endOfYear(2026), true).isExpired).toBe(false);
+  });
+});
+
+describe('canPurchase', () => {
+  const cases: [string, string, string | null, boolean][] = [
+    ['no period', '2026-09-08T12:00:00+09:00', null, true],
+    ['lapsed, March', '2027-03-01T12:00:00+09:00', endOfYear(2026), true],
+    ['lapsed, KST new-year gap', '2027-01-01T03:00:00+09:00', endOfYear(2026), true],
+    ['ends this year, September', '2026-09-08T12:00:00+09:00', endOfYear(2026), false],
+    ['ends this year, November 30', '2026-11-30T23:00:00+09:00', endOfYear(2026), false],
+    ['ends this year, December 1', '2026-12-01T00:00:00+09:00', endOfYear(2026), true],
+    ['ends this year, last hour of December', '2026-12-31T23:00:00+09:00', endOfYear(2026), true],
+    ['paid through next year, December', '2026-12-15T12:00:00+09:00', endOfYear(2027), false],
+    ['paid through next year, midyear', '2026-06-01T12:00:00+09:00', endOfYear(2027), false],
+  ];
+
+  for (const [name, now, expiresAt, open] of cases) {
+    it(`${open ? 'open' : 'closed'}: ${name}`, () => {
+      expect(canPurchase(kst(now), expiresAt)).toBe(open);
+    });
+  }
+
+  // The banner tells the reader to press the button; the button must be there.
+  it('is open whenever the renewal prompt is up', () => {
+    for (const [, now, expiresAt] of cases) {
+      const at = kst(now);
+      if (renewalPrompt(at, expiresAt, true).show) expect(canPurchase(at, expiresAt)).toBe(true);
+    }
   });
 });

@@ -13,6 +13,7 @@ import {
 } from '../helpers';
 import { users, payments, settings } from '@/lib/db/schema';
 import type { NicepayResult } from '@/lib/payment/nicepay';
+import { endOfYear } from '@/lib/subscription/period';
 
 let db: TestDb;
 let mockSessionValue: MockSession = null;
@@ -130,6 +131,19 @@ function approved(amount: number): NicepayResult {
   };
 }
 
+// 올해로 끝나는 기간. 갱신은 12월에만 열리므로 이 기간을 가진 계정은 12월로 시계를
+// 돌린 뒤에만 주문할 수 있다.
+const THIS_YEAR = endOfYear(new Date().getFullYear());
+
+// Date 만 고정한다. 타이머까지 가짜로 바꾸면 await 가 멈춘다.
+function setClock(iso: string) {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date(iso));
+}
+function inDecember() {
+  setClock(`${new Date().getFullYear()}-12-15T12:00:00+09:00`);
+}
+
 // 결제 한 건을 승인까지 태운다.
 async function buyOnce(userId: number, email = 'a@test.com') {
   mockSessionValue = { user: { id: userId, email } };
@@ -161,6 +175,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllEnvs();
+  vi.useRealTimers();
 });
 
 describe('POST /api/payments/orders', () => {
@@ -193,20 +208,43 @@ describe('POST /api/payments/orders', () => {
   // 카드 최소 승인금액 밑의 설정값은 저장돼 있어도 쓰지 않는다.
   it('ignores a price below the card minimum', async () => {
     db.update(settings).set({ value: '500' }).where(eq(settings.key, 'subscriptionPrice')).run();
-    const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com' });
+    const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com', subscriptionExpiresAt: null });
     mockSessionValue = { user: { id: userId, email: 'a@test.com' } };
 
     expect((await (await createOrderRoute(orderReq())).json()).amount).toBe(1000);
   });
 
-  it('quotes this year for a lapsed account and next year for a covered one', async () => {
+  it('quotes this year for a lapsed account and, in December, next year for one ending this year', async () => {
     const lapsed = seedUser(db, { googleId: 'g1', email: 'a@test.com', subscriptionExpiresAt: EXPIRED });
     mockSessionValue = { user: { id: lapsed, email: 'a@test.com' } };
     expect((await (await createOrderRoute(orderReq())).json()).targetYear).toBe(new Date().getFullYear());
 
-    const covered = seedUser(db, { googleId: 'g2', email: 'b@test.com', subscriptionExpiresAt: UNEXPIRED });
-    mockSessionValue = { user: { id: covered, email: 'b@test.com' } };
-    expect((await (await createOrderRoute(orderReq())).json()).targetYear).toBe(new Date().getFullYear() + 2);
+    inDecember();
+    const ending = seedUser(db, { googleId: 'g2', email: 'b@test.com', subscriptionExpiresAt: THIS_YEAR });
+    mockSessionValue = { user: { id: ending, email: 'b@test.com' } };
+    expect((await (await createOrderRoute(orderReq())).json()).targetYear).toBe(new Date().getFullYear() + 1);
+  });
+
+  // 9월에 내년을 파는 일은 없다. 대시보드가 버튼을 내려도 라우트를 직접 부를 수
+  // 있으니 서버가 따로 막아야 한다.
+  it('refuses to sell next year before December', async () => {
+    setClock(`${new Date().getFullYear()}-09-08T12:00:00+09:00`);
+    const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com', subscriptionExpiresAt: THIS_YEAR });
+    mockSessionValue = { user: { id: userId, email: 'a@test.com' } };
+
+    const res = await createOrderRoute(orderReq());
+    expect(res.status).toBe(403);
+    expect((await res.json()).error).toContain('12월');
+    expect(db.select().from(payments).all()).toHaveLength(0);
+  });
+
+  it('refuses an account already paid through next year, even in December', async () => {
+    inDecember();
+    const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com', subscriptionExpiresAt: UNEXPIRED });
+    mockSessionValue = { user: { id: userId, email: 'a@test.com' } };
+
+    expect((await createOrderRoute(orderReq())).status).toBe(403);
+    expect(db.select().from(payments).all()).toHaveLength(0);
   });
 
   it('blocks a new payer when every subscriber slot is taken', async () => {
@@ -222,8 +260,9 @@ describe('POST /api/payments/orders', () => {
   });
 
   it('lets a paid-up subscriber renew even when the limit is reached', async () => {
+    inDecember();
     db.update(settings).set({ value: '1' }).where(eq(settings.key, 'maxSubscribers')).run();
-    const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com' });
+    const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com', subscriptionExpiresAt: THIS_YEAR });
     seedSubscription(db, userId, 'notice_Z');
     mockSessionValue = { user: { id: userId, email: 'a@test.com' } };
 
@@ -286,7 +325,7 @@ describe('POST /api/payments/return', () => {
   });
 
   it('records the gateway message when the buyer cancels at the window', async () => {
-    const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com' });
+    const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com', subscriptionExpiresAt: null });
     mockSessionValue = { user: { id: userId, email: 'a@test.com' } };
     const order = await (await createOrderRoute(orderReq())).json();
 
@@ -402,7 +441,7 @@ describe('the public origin behind the proxy', () => {
 
 describe('POST /api/payments/webhook', () => {
   it('answers with the literal OK body NicePay checks for', async () => {
-    const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com' });
+    const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com', subscriptionExpiresAt: null });
     mockSessionValue = { user: { id: userId, email: 'a@test.com' } };
     const order = await (await createOrderRoute(orderReq())).json();
 
@@ -513,7 +552,7 @@ describe('abandoned order cleanup', () => {
   }
 
   it('expires only the orders past the window, and counts each one once', async () => {
-    const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com' });
+    const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com', subscriptionExpiresAt: null });
     const stale = await openOrder(userId);
     const fresh = await openOrder(userId);
     ageOrder(stale.orderId, 61);
@@ -642,6 +681,8 @@ describe('admin payments', () => {
 
   // 되돌리면 나중 결제까지 무효로 만들어 버리므로 손대지 않는다.
   it('leaves the period alone when a later payment already moved it', async () => {
+    // 두 번째 결제(내년)는 12월에만 열린다.
+    inDecember();
     const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com', subscriptionExpiresAt: null });
     const first = await buyOnce(userId);
     const second = await buyOnce(userId);
@@ -672,7 +713,7 @@ describe('admin payments', () => {
   });
 
   it('refuses to cancel an order that was never paid', async () => {
-    const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com' });
+    const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com', subscriptionExpiresAt: null });
     mockSessionValue = { user: { id: userId, email: 'a@test.com' } };
     const order = await (await createOrderRoute(orderReq())).json();
 
