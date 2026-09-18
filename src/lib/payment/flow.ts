@@ -12,7 +12,7 @@ import {
   signatureMatches,
   type NicepayResult,
 } from './nicepay';
-import { failOrder, getOrder, reclaimOrder, settleOrder } from './orders';
+import { FREE_METHOD, failOrder, getOrder, reclaimOrder, settleOrder } from './orders';
 
 export type ReturnOutcome = 'paid' | 'failed' | 'invalid';
 
@@ -187,6 +187,14 @@ export async function adminCancel(
   if (order.status !== 'paid') {
     return { ok: false, error: '결제 완료 상태의 주문만 취소할 수 있습니다.' };
   }
+
+  // 무료 구독은 받은 돈이 없으니 취소할 승인도 없다. 게이트웨이를 부르지 않고
+  // 기간만 되돌린다 — 부르면 거래키가 없어 실패하고, 주문은 paid 로 남는다.
+  if (order.method === FREE_METHOD || order.amount === 0) {
+    const reclaimedFree = reclaimOrder({ orderId, reason });
+    return { ok: true, rolledBack: reclaimedFree?.rolledBack ?? false };
+  }
+
   if (!order.tid) return { ok: false, error: '거래키가 없어 취소할 수 없습니다.' };
 
   let result: NicepayResult;

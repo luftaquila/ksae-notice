@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getBusinessInfo, getSubscriptionPrice } from '@/lib/payment/pricing';
+import { getBusinessInfo, getSubscriptionPrice, isFreeSubscription } from '@/lib/payment/pricing';
 import { MIN_CARD_AMOUNT } from '@/lib/payment/nicepay';
 
 // 전자상거래 고지 정보와 판매가. 하단정보가 이걸 읽으므로 인증 없이 연다.
@@ -10,6 +10,7 @@ export async function GET() {
   return NextResponse.json({
     business: getBusinessInfo(),
     price: getSubscriptionPrice(),
+    free: isFreeSubscription(),
     minAmount: MIN_CARD_AMOUNT,
   });
 }

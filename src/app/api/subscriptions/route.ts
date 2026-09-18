@@ -4,7 +4,7 @@ import { auth } from '@/lib/auth';
 import { getDb } from '@/lib/db';
 import { users, subscriptions } from '@/lib/db/schema';
 import { SUBSCRIPTION_CATEGORIES } from '@/lib/constants';
-import { getSubscriptionPrice } from '@/lib/payment/pricing';
+import { getSubscriptionPrice, isFreeSubscription } from '@/lib/payment/pricing';
 import { isConfigured } from '@/lib/payment/nicepay';
 import { upsertSubscription } from '@/lib/subscription/upsert';
 
@@ -33,7 +33,9 @@ export async function GET() {
     subscriptions: subs,
     expiresAt: account?.expiresAt ?? null,
     price: getSubscriptionPrice(),
-    paymentEnabled: isConfigured(),
+    free: isFreeSubscription(),
+    // 구독 신청 버튼을 띄울 수 있는지. 무료 구독은 게이트웨이 설정을 타지 않는다.
+    paymentEnabled: isFreeSubscription() || isConfigured(),
   });
 }
 

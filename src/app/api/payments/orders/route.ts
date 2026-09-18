@@ -10,19 +10,27 @@ import {
   isRegistrationOpen,
 } from '@/lib/subscription/capacity';
 import { canPurchase, renewalTargetYear } from '@/lib/subscription/period';
-import { createOrder } from '@/lib/payment/orders';
-import { getSubscriptionPrice } from '@/lib/payment/pricing';
+import { createOrder, settleFreeOrder } from '@/lib/payment/orders';
+import { FREE_PRICE, getSubscriptionPrice } from '@/lib/payment/pricing';
 import { PAY_METHOD, clientId, isConfigured } from '@/lib/payment/nicepay';
 import { siteOrigin } from '@/lib/payment/origin';
 
 // 결제창을 열기 전에 서버가 금액과 대상 연도를 확정한다. 클라이언트가 보내는
 // 값은 없다 — 금액이 브라우저를 거치지 않으면 위변조할 표면도 없다.
+//
+// 구독료가 0원이면 결제할 것이 없으므로 결제창을 열지 않는다. 그래도 주문은
+// 남긴다: 기간을 발급한 사실과 그 근거가 원장 밖에 있으면 대사할 수 없다.
 export async function POST(request: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-  if (!isConfigured()) {
+
+  const amount = getSubscriptionPrice();
+  const free = amount === FREE_PRICE;
+
+  // 게이트웨이 설정은 결제를 할 때만 필요하다. 무료 구독은 키 없이도 돈다.
+  if (!free && !isConfigured()) {
     return NextResponse.json({ error: '결제가 준비되지 않았습니다.' }, { status: 503 });
   }
 
@@ -56,7 +64,6 @@ export async function POST(request: NextRequest) {
   }
 
   const targetYear = renewalTargetYear(now, account.expiresAt ?? null);
-  const amount = getSubscriptionPrice();
   const goodsName = `KSAE 공지봇 ${targetYear}년 구독`;
 
   const order = createOrder({
@@ -66,6 +73,24 @@ export async function POST(request: NextRequest) {
     amount,
     goodsName,
   });
+
+  // 무료 구독은 여기서 끝난다. 결제창 대신 주문을 바로 확정하고 기간을 부여한다 —
+  // 지급은 유료 결제와 같은 settleOrder 를 지나므로 기간 계산도 멱등성도 같다.
+  if (free) {
+    const settled = settleFreeOrder(order.orderId);
+    if (!settled) {
+      console.error(`[Payment] free order ${order.orderId} could not be settled`);
+      return NextResponse.json({ error: '구독 처리에 실패했습니다.' }, { status: 500 });
+    }
+    return NextResponse.json({
+      free: true,
+      orderId: settled.orderId,
+      amount: settled.amount,
+      goodsName: settled.goodsName,
+      targetYear,
+      expiresAt: settled.grantedTo,
+    });
+  }
 
   // returnUrl 은 브라우저가 따라가는 절대 주소여야 한다.
   const origin = siteOrigin(request);

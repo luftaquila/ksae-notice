@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { listOrders, type PaymentRow } from '@/lib/payment/orders';
-import { getSubscriptionPrice } from '@/lib/payment/pricing';
+import { getSubscriptionPrice, isFreeSubscription } from '@/lib/payment/pricing';
 import { isConfigured } from '@/lib/payment/nicepay';
 
 // 사용자에게 보이는 결제 내역. 거래키와 원문은 내보내지 않는다.
@@ -30,6 +30,7 @@ export async function GET() {
   return NextResponse.json({
     payments: listOrders(session.user.id).map(publicView),
     price: getSubscriptionPrice(),
-    enabled: isConfigured(),
+    free: isFreeSubscription(),
+    enabled: isFreeSubscription() || isConfigured(),
   });
 }
