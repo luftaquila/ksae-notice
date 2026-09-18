@@ -2,6 +2,26 @@
 
 KSAE 대학생 자작자동차대회 공지사항·규정·경기결과·양식 게시판을 크롤링하여 구독자에게 이메일 알림을 보내는 서비스.
 
+## 개념: 구독과 알림 설정은 다른 축이다
+
+**구독**은 하나다 — 결제(또는 관리자 부여)로 생기는 **연간 좌석**. `users.subscription_expires_at`
+한 값이고 상태는 `없음 / 이용 중 / 만료`(+탈퇴) 셋뿐이다 (`lib/subscription/status.ts`
+`subscriptionState()`). **알림 설정**은 그 구독이 어느 게시판의 글을 배달할지 정하는 사용자
+설정이다 — 카테고리 여덟 개의 켬/끔(`subscriptions` 테이블, 코드에서는 `alertPreferences`)과
+계정 단위 **일시중지**(`users.alerts_paused_at`). 켜고 끄는 데 돈이 들지 않고, 구독 상태와
+**곱하지 않는다**(`alertSummary()`가 따로 접는다: 모두 켜짐 / n/8 켜짐 / 모두 꺼짐 / 일시중지).
+
+- **메일 수신자** = 좌석(기간 유효·미탈퇴) ∩ 해당 카테고리 켬 ∖ 일시중지 (`lib/email/sender.ts`)
+- **정원**(`maxSubscribers`)은 **좌석 수**만 센다 (`getSeatCount()`). 알림을 전부 꺼 두었거나
+  일시중지한 사람도 좌석은 가지고 있다. 예전에는 "켜진 카테고리가 있는 결제 계정"을 셌는데,
+  그러면 토글 하나가 정원을 흔들었다 — 결제한 사람이 다 끄면 자리가 비고 남이 들어오고,
+  다시 켜면 정원 초과인 채로 수신했다. 미결제 계정은 카테고리를 아무리 켜도 좌석이 없다
+- **가입**은 계정 + 알림 설정 전부 켬을 준다. 좌석은 주지 않는다 — 가입 직후는 `구독 없음`
+- **탈퇴**는 좌석을 거두고 알림을 끈다. 재가입도 좌석은 주지 않는다
+- 어휘: 코드·화면·메일 어디서도 카테고리 켬/끔을 "구독"이라 부르지 않는다. "구독"은 좌석이다.
+  API 는 `/api/alerts`(`/api/subscriptions` 는 한 릴리스 shim), 상수는 `ALERT_CATEGORIES`,
+  라이브러리는 `lib/alerts/preferences.ts`
+
 ## Tech Stack
 
 - **Framework**: Next.js 16 (App Router, TypeScript)
@@ -17,7 +37,7 @@ KSAE 대학생 자작자동차대회 공지사항·규정·경기결과·양식 
 src/
 ├── app/                    # Next.js App Router pages & API routes
 │   ├── page.tsx            # 메인 페이지 (공개, 게시글 목록 + 필터)
-│   ├── dashboard/page.tsx  # 구독 관리 (로그인 필요)
+│   ├── dashboard/page.tsx  # 구독 관리 (로그인 필요): 구독 카드 + 알림 설정
 │   ├── admin/page.tsx      # 관리자 대시보드
 │   ├── signup/consent/     # 가입 동의 화면 (계정은 여기서 동의한 뒤에 생긴다)
 │   ├── review-login/       # 심사용 ID/PW 로그인 (환경변수 없으면 404)
@@ -27,13 +47,14 @@ src/
 │       ├── review-login/   # 심사용 로그인 API
 │       ├── user/           # 계정 삭제 API
 │       ├── posts/          # 게시글 조회 API
-│       ├── subscriptions/  # 구독 카테고리 관리 API (무료), all/ 은 전체 켬·끔
+│       ├── alerts/         # 알림 설정 API (카테고리 켬·끔, all/ 전체 켬, pause/ 일시중지)
+│       ├── subscriptions/  # 구 경로 shim → alerts/ (한 릴리스 유지)
 │       ├── payments/       # 결제 (orders/ return/ webhook/) + 내 결제 내역
 │       ├── stats/          # 공개 통계 API
 │       └── admin/          # 관리자 전용 API (settings, users, stats, test-email, payments)
 ├── lib/
 │   ├── db/
-│   │   ├── schema.ts       # Drizzle 스키마 (users, subscriptions, posts, emailLogs, crawlLogs, settings)
+│   │   ├── schema.ts       # Drizzle 스키마 (users, alertPreferences(=subscriptions 테이블), posts, emailLogs, crawlLogs, settings, payments)
 │   │   ├── index.ts        # DB 싱글톤
 │   │   └── migrate.ts      # 마이그레이션 + 기본 설정 시드
 │   ├── auth.ts             # Auth.js 설정
@@ -55,10 +76,13 @@ src/
 │   │   ├── orders.ts       # 주문 원장, 멱등 지급/회수
 │   │   ├── flow.ts         # 인증 검증 → 승인 → 지급, 웹훅, 관리자 취소
 │   │   └── pricing.ts      # 구독료·판매자 정보 (settings)
+│   ├── alerts/
+│   │   └── preferences.ts  # 알림 설정 쓰기: 카테고리 켬·끔, 전체 켬·끔, 일시중지
 │   └── subscription/
-│       ├── renewal.ts      # 12월 구독 갱신 리마인더
-│       ├── period.ts       # 기간 규칙 (한 번의 결제 = 한 해)
-│       └── upsert.ts       # 카테고리 upsert 유틸리티
+│       ├── capacity.ts     # 좌석 수·정원·접수 (getSeatCount, holdsSeat)
+│       ├── status.ts       # subscriptionState(없음/이용 중/만료) + alertSummary
+│       ├── renewal.ts      # 12월 구독 갱신 리마인더 (좌석 기준)
+│       └── period.ts       # 기간 규칙 (한 번의 결제 = 한 해)
 ├── components/             # React 컴포넌트
 ├── __tests__/              # vitest 단위 테스트 (fixtures/ 에 실제 게시판 HTML 발췌)
 └── middleware.ts            # /dashboard, /admin 라우트 보호
@@ -87,7 +111,7 @@ npm run test       # vitest 단위 테스트
 | 양식 | `form` | `J_form` | (전체 단일 구독) |
 
 게시판 목록은 `lib/constants.ts`의 `BOARDS` 하나다. 크롤러·URL 코드·라벨·목록 정렬 순서가
-전부 거기서 나온다. **게시판을 추가하면 `SUBSCRIPTION_CATEGORIES`(id = boardType)와
+전부 거기서 나온다. **게시판을 추가하면 `ALERT_CATEGORIES`(id = boardType)와
 `CATEGORY_COLORS`(key = label)도 같이 늘려야 한다** — `constants.test.ts`가 셋의 짝을 확인한다.
 
 - 테이블 열은 게시판마다 다르다. 카테고리 열은 공지에만 있고, 경기결과는 공지처럼 6열이지만
@@ -100,11 +124,11 @@ npm run test       # vitest 단위 테스트
 - 게시글 중복 방지: `(boardType, postNumber)` unique index + SELECT→UPDATE/INSERT upsert
 - 공지(상단고정) 게시글: `notice.png` 아이콘으로 감지, 별도 isPinned 플래그
 
-## 구독 카테고리 ID
+## 알림 카테고리 ID
 
 `notice_Z`, `notice_A`, `notice_B`, `notice_C`, `notice_D`, `rule`, `result`, `form`
 
-공지 밖의 게시판은 boardType 이 곧 구독 카테고리 ID 다. 가입·재가입·심사 계정은 전부 켜서
+공지 밖의 게시판은 boardType 이 곧 알림 카테고리 ID 다. 가입·재가입·심사 계정은 전부 켜서
 시작한다. **이미 있는 계정에는 새 카테고리가 저절로 켜지지 않는다** — 경기결과·양식
 (2026-09-03 추가)은 `drizzle/0007_enable_result_form_categories.sql`이 한 번 켰다. 대상은
 탈퇴하지 않았고 켜진 카테고리가 하나라도 있는 계정만이다 (전부 끈 계정은 알림을 원치
@@ -124,7 +148,8 @@ npm run test       # vitest 단위 테스트
 - `POST /api/auth/signup-cancel`은 쿠키만 버린다. 계정이 없으니 지울 것도 없다
 - **세션도 동의 라우트가 바로 만든다.** Google 로 다시 다녀오지 않는다 — 예전에는 동의 뒤
   `signIn('google')`을 한 번 더 불러서 사용자에게 로그인이 두 번으로 보였다. 응답의
-  `redirect`(`/dashboard`)로 클라이언트가 이동하고, **가입 직후에는 구독 설정 화면에 떨어진다**
+  `redirect`(`/dashboard`)로 클라이언트가 이동하고, **가입 직후에는 대시보드 맨 위의 구독 카드
+  ("구독을 시작하세요" + 결제 버튼)에 떨어진다** — 알림 설정은 그 아래다
 - 세션 발급은 `lib/session.ts`가 한다. Auth.js 가 읽는 것과 같은 쿠키를 `@auth/core/jwt`의
   `encode`로 만든다 — 쿠키 이름(`authjs.session-token`, https 면 `__Secure-` 접두어)이 곧
   salt 이고, https 판단은 `AUTH_URL` → `x-forwarded-proto` → 기본 https 순으로 Auth.js 의
@@ -164,9 +189,9 @@ npm run test       # vitest 단위 테스트
 
 ## Payments (NicePay 결제창 서버승인)
 
-구독은 **유료**다. 카테고리 선택은 무료이고, 이메일은 `subscriptionExpiresAt`이 남아 있는
+구독(좌석)은 **유료**다. 알림 설정은 무료이고, 이메일은 `subscriptionExpiresAt`이 남아 있는
 계정에만 나간다. **기간을 쓰는 곳은 결제 정산(`lib/payment/orders.ts`)과 관리자 수동 부여
-둘뿐이다** — 가입도, 카테고리 토글도 기간을 만들지 않는다.
+둘뿐이다** — 가입도, 알림 토글도 기간을 만들지 않는다.
 
 - 흐름: `POST /api/payments/orders`(서버가 금액·대상연도 확정) → `AUTHNICE.requestPay()`
   → `POST /api/payments/return`(브라우저 POST) → 승인 API → 기간 연장 → `/payments/result` 303
@@ -197,7 +222,8 @@ npm run test       # vitest 단위 테스트
   **12월에만** 내년을 판다. 이미 내년까지 덮인 계정은 못 산다. 예전에는 기간이 올해로 끝나면
   연중 버튼이 떠서 9월에 내년 구독이 팔렸다 — 조기 갱신은 의도된 것이 아니다
 - 정원(`maxSubscribers`)과 접수 중단(`registrationOpen`)은 **주문 생성 시점**에만 본다.
-  결제창이 떠 있는 사이 만석이 되어도 지급은 강행한다 — 돈을 이미 받았기 때문이다
+  결제창이 떠 있는 사이 만석이 되어도 지급은 강행한다 — 돈을 이미 받았기 때문이다.
+  정원은 좌석(`getSeatCount`)으로 세고, 이미 좌석을 가진 사람(`holdsSeat`)의 갱신은 만석이어도 통과
 - 구독료와 판매자 정보는 `settings`에 있고 `/admin`에서 바꾼다. `/policy`가 그 값을 렌더한다
 - **`subscriptionPrice = 0` 은 무료 구독이다.** 주문 라우트가 결제창을 열지 않고 주문을 그
   자리에서 확정한다(`settleFreeOrder`) — 거래키 없이 `method = 'free'`, `amount = 0` 인 paid
@@ -239,15 +265,19 @@ English conventional commits: `feat:`, `fix:`, `refactor:`, `docs:`, `chore:`, e
 
 - **관리자 판별**: DB에 저장하지 않고 `ADMIN_EMAIL` 환경변수와 런타임 비교
 - **구독 만료**: 매년 12/31, 12월에 두 차례 갱신 리마인더 (userId % 7로 주간 분산)
-- **유료 구독**: 기간을 발급하는 경로는 결제 정산(무료 구독의 즉시 확정 포함)과 관리자 수동
-  부여뿐. 가입과 카테고리 토글은 기간을 만들지 않는다 (그래야 결제를 우회할 수 없다)
+- **유료 구독**: 기간(좌석)을 발급하는 경로는 결제 정산(무료 구독의 즉시 확정 포함)과 관리자
+  수동 부여뿐. 가입과 알림 토글은 기간을 만들지 않는다 (그래야 결제를 우회할 수 없다)
 - **이메일 제한**: Brevo 일 300통 제한, 발송 전 당일 카운트 체크
-- **구독 상태는 두 축의 곱이다**: 켜진 카테고리가 있는지 × 결제된 기간이 남았는지.
-  관리자 화면은 축마다 버튼이 따로 있어(`카테고리 해제/구독`, `기간 회수/1년 부여`) 곱한
-  결과가 보이지 않았다. `lib/subscription/status.ts`의 `subscriptionStatus()`가 그것을
-  `수신 중`(정원 차지) / `미결제` / `해제` / `해제·미결제` / `탈퇴` 한 값으로 접는다.
-  **판정이 `getActiveSubscriberCount()`와 어긋나면 이 배지는 없는 것보다 나쁘다** — 두 구현이
-  같은 수를 세는지 테스트로 묶어 뒀다
-- **최대 구독자**: settings 테이블에서 관리자가 동적으로 변경 가능. 슬롯을 차지하는 것은
-  결제된 기간이므로, 미결제 계정은 아무리 많아도 정원을 먹지 않는다
+- **구독 상태와 알림 설정은 곱하지 않는다**: 구독은 `subscriptionState()`(없음/이용 중/만료),
+  알림은 `alertSummary()`(모두 켜짐/n 켜짐/모두 꺼짐/일시중지). 예전에는 둘을 곱해 네 칸을
+  만들었고 "해제"(돈은 냈는데 아무것도 안 받음)가 구독 상태로 보였다. 관리자 표는 상태 열에
+  구독 배지, 알림 열에 카테고리 칩과 (배달이 막힌 경우) 알림 요약을 따로 찍는다.
+  **`subscriptionState().holdsSeat` 가 `getSeatCount()`와 어긋나면 배지는 없는 것보다 나쁘다** —
+  두 구현이 같은 수를 세는지 테스트로 묶어 뒀다
+- **최대 구독자**: settings 테이블에서 관리자가 동적으로 변경 가능. 좌석을 차지하는 것은
+  결제된 기간이므로, 미결제 계정은 아무리 많아도 정원을 먹지 않고, 알림을 꺼 둔 결제 계정은
+  좌석을 내놓지 않는다
+- **알림 일시중지**(`users.alerts_paused_at`): 잠시 안 받고 싶은 사람이 카테고리 여덟 개를 끄고
+  나중에 하나씩 되살리는 대신 이 하나를 세운다. 설정과 좌석은 그대로다. 갱신 리마인더는
+  일시중지와 무관하게 좌석 기준으로 나간다
 - **커스텀 서버**: server.ts에서 Next.js + node-cron 통합, 서버 시작 시 자동 마이그레이션 + 초기 크롤링

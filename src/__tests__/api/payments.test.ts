@@ -4,7 +4,7 @@ import { NextRequest } from 'next/server';
 import {
   createTestDb,
   seedUser,
-  seedSubscription,
+  seedAlertPreference,
   seedSetting,
   EXPIRED,
   UNEXPIRED,
@@ -266,7 +266,7 @@ describe('POST /api/payments/orders', () => {
   it('blocks a new payer when every subscriber slot is taken', async () => {
     db.update(settings).set({ value: '1' }).where(eq(settings.key, 'maxSubscribers')).run();
     const taker = seedUser(db, { googleId: 'g1', email: 'a@test.com' });
-    seedSubscription(db, taker, 'notice_Z');
+    seedAlertPreference(db, taker, 'notice_Z');
     const newcomer = seedUser(db, { googleId: 'g2', email: 'b@test.com', subscriptionExpiresAt: null });
     mockSessionValue = { user: { id: newcomer, email: 'b@test.com' } };
 
@@ -279,7 +279,7 @@ describe('POST /api/payments/orders', () => {
     inDecember();
     db.update(settings).set({ value: '1' }).where(eq(settings.key, 'maxSubscribers')).run();
     const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com', subscriptionExpiresAt: THIS_YEAR });
-    seedSubscription(db, userId, 'notice_Z');
+    seedAlertPreference(db, userId, 'notice_Z');
     mockSessionValue = { user: { id: userId, email: 'a@test.com' } };
 
     expect((await createOrderRoute(orderReq())).status).toBe(200);
@@ -349,7 +349,7 @@ describe('무료 구독 (구독료 0원)', () => {
   it('still respects the subscriber limit and a closed registration', async () => {
     db.update(settings).set({ value: '1' }).where(eq(settings.key, 'maxSubscribers')).run();
     const taker = seedUser(db, { googleId: 'g1', email: 'a@test.com' });
-    seedSubscription(db, taker, 'notice_Z');
+    seedAlertPreference(db, taker, 'notice_Z');
     const newcomer = seedUser(db, { googleId: 'g2', email: 'b@test.com', subscriptionExpiresAt: null });
     mockSessionValue = { user: { id: newcomer, email: 'b@test.com' } };
 

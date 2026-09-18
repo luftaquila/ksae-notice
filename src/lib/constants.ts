@@ -47,7 +47,9 @@ export const NOTICE_CATEGORY_CODES: Record<string, string> = Object.fromEntries(
   Object.entries(NOTICE_CATEGORIES).map(([code, label]) => [label, code]),
 );
 
-export const SUBSCRIPTION_CATEGORIES = [
+// 알림 카테고리. 구독(결제된 기간)이 어느 게시판의 글을 배달할지 고르는 설정의
+// 단위다 — 켜고 끄는 데 돈이 들지 않고, 구독 상태와 곱해지지 않는다.
+export const ALERT_CATEGORIES = [
   { id: 'notice_Z', label: '공지 - 공통' },
   { id: 'notice_A', label: '공지 - Baja' },
   { id: 'notice_B', label: '공지 - Formula' },
@@ -125,12 +127,12 @@ export const CATEGORY_COLORS: Record<string, {
 
 // 구독 카테고리 ID → 화면 라벨 (CATEGORY_COLORS 의 키). notice_X 는 공지 카테고리,
 // 나머지는 게시판 type 그대로다.
-export function getCategoryLabel(subscriptionId: string): string {
-  if (subscriptionId.startsWith('notice_')) {
-    const code = subscriptionId.slice('notice_'.length);
-    return NOTICE_CATEGORIES[code] || subscriptionId;
+export function getCategoryLabel(alertId: string): string {
+  if (alertId.startsWith('notice_')) {
+    const code = alertId.slice('notice_'.length);
+    return NOTICE_CATEGORIES[code] || alertId;
   }
-  return getBoardLabel(subscriptionId);
+  return getBoardLabel(alertId);
 }
 
 // 회원 탈퇴 확인 문구. 서버가 이 값을 요구하고 화면이 이 값을 안내한다.

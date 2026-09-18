@@ -1,6 +1,6 @@
 import { and, eq, gte, isNull, sql } from 'drizzle-orm';
 import { getDb } from '../db';
-import { subscriptions, settings, users } from '../db/schema';
+import { settings, users } from '../db/schema';
 
 export const DEFAULT_MAX_SUBSCRIBERS = 50;
 
@@ -24,18 +24,19 @@ export function getMaxSubscribers(db: DbClient = getDb()): number {
   return Number.isFinite(parsed) ? parsed : DEFAULT_MAX_SUBSCRIBERS;
 }
 
-// Distinct users who would actually receive mail — the number shown as `n / max`.
-// Same predicate as the recipient query in lib/email/sender.ts, so nothing can
-// hold a slot it no longer delivers anything through: a lapsed account releases
-// it on expiry, and a row left active on a deleted user by PATCH
-// /api/admin/users never took one.
-export function getActiveSubscriberCount(db: DbClient = getDb()): number {
+// 좌석 = 결제된 기간이 남아 있는 미탈퇴 계정. 메인의 `n / max` 가 이 수다.
+//
+// 알림 설정은 보지 않는다. 예전에는 켜진 카테고리가 하나라도 있어야 자리를 차지했는데,
+// 그러면 결제한 사람이 토글을 다 끄는 순간 자리가 비고 남이 들어오고, 다시 켜면 정원
+// 초과인 채로 수신했다 — 카테고리 스위치가 정원을 흔들었다. 좌석은 산 사람의 것이고,
+// 알림을 잠시 꺼 두는 것은 그 사람 사정이다. 발송량 관점에서도 이 수는 실제 발송의
+// 상한이라 안전한 방향으로 어긋난다. 판정은 lib/subscription/status 의
+// subscriptionState().holdsSeat 와 같아야 한다.
+export function getSeatCount(db: DbClient = getDb()): number {
   const result = db
-    .select({ count: sql<number>`count(DISTINCT ${subscriptions.userId})` })
-    .from(subscriptions)
-    .innerJoin(users, eq(subscriptions.userId, users.id))
+    .select({ count: sql<number>`count(*)` })
+    .from(users)
     .where(and(
-      eq(subscriptions.isActive, 1),
       gte(users.subscriptionExpiresAt, new Date().toISOString()),
       isNull(users.deletedAt),
     ))
@@ -43,19 +44,16 @@ export function getActiveSubscriberCount(db: DbClient = getDb()): number {
   return result?.count || 0;
 }
 
-// Whether this user already occupies a slot, i.e. is part of the count above.
-export function isCountedSubscriber(userId: number, db: DbClient = getDb()): boolean {
+// Whether this user already holds a seat, i.e. is part of the count above.
+export function holdsSeat(userId: number, db: DbClient = getDb()): boolean {
   const row = db
-    .select({ id: subscriptions.id })
-    .from(subscriptions)
-    .innerJoin(users, eq(subscriptions.userId, users.id))
+    .select({ id: users.id })
+    .from(users)
     .where(and(
-      eq(subscriptions.userId, userId),
-      eq(subscriptions.isActive, 1),
+      eq(users.id, userId),
       gte(users.subscriptionExpiresAt, new Date().toISOString()),
       isNull(users.deletedAt),
     ))
     .get();
   return row !== undefined;
 }
-

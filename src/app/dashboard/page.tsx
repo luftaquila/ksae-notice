@@ -2,13 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import { useSession, signOut } from 'next-auth/react';
-import { ACCOUNT_DELETE_CONFIRMATION, SUBSCRIPTION_CATEGORIES } from '@/lib/constants';
+import { ACCOUNT_DELETE_CONFIRMATION, ALERT_CATEGORIES, CATEGORY_COLORS, getCategoryLabel } from '@/lib/constants';
 import { canPurchase, renewalPrompt, renewalTargetYear } from '@/lib/subscription/period';
-import { subscriptionStatus, type SubscriptionStatusKey } from '@/lib/subscription/status';
+import { alertSummary, subscriptionState, type SubscriptionStateKey } from '@/lib/subscription/status';
 import { formatCalendarDate, formatLocalDateTime } from '@/lib/format';
 import ToggleSwitch from '@/components/ToggleSwitch';
 
-interface Subscription {
+interface AlertPreference {
   id: number;
   category: string;
   isActive: number;
@@ -41,34 +41,34 @@ const PAYMENT_STATUS: Record<string, string> = {
   expired: '미완료',
 };
 
-// 상태 배지의 옷. 판정은 lib/subscription/status 가 하고 여기는 색만 고른다 —
-// 관리자 화면·서버 집계와 같은 함수라 이 배지가 "수신 중" 이면 실제로 메일이 간다.
-const STATUS_STYLE: Record<SubscriptionStatusKey, { dot: string; badge: string }> = {
-  receiving: {
+// 구독 배지의 옷. 판정은 lib/subscription/status 가 하고 여기는 색만 고른다 —
+// 관리자 화면·정원 집계와 같은 함수라 이 배지가 "이용 중" 이면 좌석을 갖고 있다.
+const STATE_STYLE: Record<SubscriptionStateKey, { dot: string; badge: string }> = {
+  active: {
     dot: 'bg-green-500',
     badge: 'bg-green-50 text-green-700 dark:bg-green-500/10 dark:text-green-400',
   },
-  unpaid: {
+  none: {
     dot: 'bg-amber-500',
     badge: 'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400',
   },
-  paused: {
-    dot: 'bg-gray-400',
-    badge: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400',
-  },
-  inactive: {
+  expired: {
     dot: 'bg-red-500',
     badge: 'bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-400',
   },
   // 탈퇴한 계정은 이 화면에 들어오지 못한다. 타입을 채우기 위한 값이다.
   withdrawn: {
-    dot: 'bg-red-500',
-    badge: 'bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-400',
+    dot: 'bg-gray-400',
+    badge: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400',
   },
 };
 
+// 알림 카테고리는 두 묶음이다: 공지사항 게시판 안의 다섯 분류, 그리고 게시판 자체인 셋.
+const NOTICE_ALERTS = ALERT_CATEGORIES.filter((c) => c.id.startsWith('notice_'));
+const BOARD_ALERTS = ALERT_CATEGORIES.filter((c) => !c.id.startsWith('notice_'));
+
 // 오류는 일으킨 자리 옆에 보인다. 맨 위 배너 하나로 모으면 아래쪽 토글이 실패했을
-// 때 화면 밖에서 조용히 뜬다. scope 는 'load' | 'pay' | 'cta' | 'bulk' | 카테고리 id.
+// 때 화면 밖에서 조용히 뜬다. scope 는 'load' | 'pay' | 'bulk' | 'pause' | 카테고리 id.
 interface ScopedError {
   scope: string;
   message: string;
@@ -78,8 +78,6 @@ const BUTTON_PRIMARY =
   'text-sm px-4 py-2 rounded-lg text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed';
 const BUTTON_GHOST =
   'text-xs px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-blue-300 hover:text-blue-500 active:border-blue-300 active:text-blue-500 dark:hover:border-blue-500/50 dark:hover:text-blue-400 dark:active:border-blue-500/50 dark:active:text-blue-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed';
-const BUTTON_GHOST_DANGER =
-  'text-xs px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-red-300 hover:text-red-500 active:border-red-300 active:text-red-500 dark:hover:border-red-500/50 dark:hover:text-red-400 dark:active:border-red-500/50 dark:active:text-red-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed';
 
 function Spinner() {
   return (
@@ -98,10 +96,15 @@ function InlineError({ message, className = '' }: { message: string; className?:
   return <p className={`text-sm text-red-600 dark:text-red-400 ${className}`}>{message}</p>;
 }
 
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">{children}</h2>;
+}
+
 export default function DashboardPage() {
   const { data: session } = useSession();
-  const [subs, setSubs] = useState<Subscription[]>([]);
-  // One expiry for the whole account, not one per category.
+  const [alerts, setAlerts] = useState<AlertPreference[]>([]);
+  const [paused, setPaused] = useState(false);
+  // 구독은 계정에 하나인 날짜다. 카테고리마다 있지 않다.
   const [expiresAt, setExpiresAt] = useState<string | null>(null);
   const [price, setPrice] = useState<number | null>(null);
   // 구독료 0원. 버튼 문구와 결제창 호출 여부가 여기서 갈린다.
@@ -111,9 +114,6 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [error, setError] = useState<ScopedError | null>(null);
-  // 전체 끄기는 되돌릴 수 있지만 여덟 개가 한 번에 꺼진다. 브라우저 confirm 대신
-  // 버튼 자리에서 한 번 더 묻는다.
-  const [confirmingUnsubscribeAll, setConfirmingUnsubscribeAll] = useState(false);
   // 주문번호는 환불 문의에만 쓰인다. 펼친 행에서만 보이고, 복사 버튼을 붙인다.
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
   const [copiedOrder, setCopiedOrder] = useState<string | null>(null);
@@ -121,11 +121,12 @@ export default function DashboardPage() {
   const [deleteConfirmation, setDeleteConfirmation] = useState('');
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  const fetchSubs = async () => {
+  const fetchAlerts = async () => {
     try {
-      const res = await fetch('/api/subscriptions');
+      const res = await fetch('/api/alerts');
       const data = await res.json();
-      setSubs(data.subscriptions || []);
+      setAlerts(data.alerts || []);
+      setPaused(!!data.paused);
       setExpiresAt(data.expiresAt ?? null);
       setPrice(data.price ?? null);
       setFree(!!data.free);
@@ -147,51 +148,39 @@ export default function DashboardPage() {
   };
 
   useEffect(() => {
-    // 둘을 같이 기다린다 — 구독만 먼저 그리면 결제 내역이 뒤늦게 튀어나와 화면이 밀린다.
-    Promise.all([fetchSubs(), fetchPayments()]).finally(() => setLoading(false));
+    // 둘을 같이 기다린다 — 알림 설정만 먼저 그리면 결제 내역이 뒤늦게 튀어나와 화면이 밀린다.
+    Promise.all([fetchAlerts(), fetchPayments()]).finally(() => setLoading(false));
   }, []);
 
-  // 전체 켬·끔은 왕복 한 번이다. scope 는 어느 버튼에서 눌렀는지 — 오류가 그 옆에 뜬다.
-  const setAll = async (active: boolean, scope: 'bulk' | 'cta') => {
-    setActionLoading(active ? 'subscribe_all' : 'unsubscribe_all');
+  // 실패 응답을 그 자리의 오류로 바꾼다. 서버 문구가 있으면 그것을 쓴다.
+  const request = async (scope: string, input: string, init: RequestInit, fallback: string) => {
+    setActionLoading(scope);
     setError(null);
-    setConfirmingUnsubscribeAll(false);
     try {
-      const res = await fetch('/api/subscriptions/all', { method: active ? 'POST' : 'DELETE' });
+      const res = await fetch(input, init);
       if (!res.ok) {
         const data = await res.json().catch(() => null);
-        setError({ scope, message: data?.error || '요청에 실패했습니다.' });
+        setError({ scope, message: data?.error || fallback });
       }
-      await fetchSubs();
+      await fetchAlerts();
     } catch {
-      setError({ scope, message: '요청에 실패했습니다.' });
+      setError({ scope, message: fallback });
     } finally {
       setActionLoading(null);
     }
   };
 
-  const toggleSubscription = async (categoryId: string, currentlyActive: boolean) => {
-    setActionLoading(categoryId);
-    setError(null);
-    try {
-      const res = await fetch('/api/subscriptions', {
-        method: currentlyActive ? 'DELETE' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ category: categoryId }),
-      });
+  const toggleAlert = (categoryId: string, currentlyActive: boolean) =>
+    request(categoryId, '/api/alerts', {
+      method: currentlyActive ? 'DELETE' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ category: categoryId }),
+    }, '요청에 실패했습니다.');
 
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        setError({ scope: categoryId, message: data?.error || '요청에 실패했습니다.' });
-      } else {
-        await fetchSubs();
-      }
-    } catch {
-      setError({ scope: categoryId, message: '요청에 실패했습니다.' });
-    } finally {
-      setActionLoading(null);
-    }
-  };
+  const enableAll = () => request('bulk', '/api/alerts/all', { method: 'POST' }, '요청에 실패했습니다.');
+
+  const setPause = (next: boolean) =>
+    request('pause', '/api/alerts/pause', { method: next ? 'POST' : 'DELETE' }, '요청에 실패했습니다.');
 
   // 금액과 대상 연도는 서버가 정한다. 여기서 만드는 값은 아무것도 없다.
   const startPayment = async () => {
@@ -205,7 +194,7 @@ export default function DashboardPage() {
 
       // 무료 구독은 서버가 주문을 그 자리에서 확정해 돌려준다. 결제창은 없다.
       if (order.free) {
-        await Promise.all([fetchSubs(), fetchPayments()]);
+        await Promise.all([fetchAlerts(), fetchPayments()]);
         return;
       }
 
@@ -276,12 +265,12 @@ export default function DashboardPage() {
       <div className="max-w-2xl mx-auto px-4 py-8">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">구독 관리</h1>
         <Skeleton className="h-16 mb-6" />
-        <Skeleton className="h-36 mb-6" />
+        <Skeleton className="h-36 mb-8" />
         <Skeleton className="h-4 w-24 mb-2 ml-1" />
         <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 divide-y divide-gray-100 dark:divide-gray-800">
-          {SUBSCRIPTION_CATEGORIES.map((cat) => (
+          {ALERT_CATEGORIES.map((cat) => (
             <div key={cat.id} className="flex items-center justify-between px-4 py-3">
-              <Skeleton className="h-4 w-20" />
+              <Skeleton className="h-5 w-16 rounded-full" />
               <Skeleton className="h-6 w-11 rounded-full" />
             </div>
           ))}
@@ -292,21 +281,18 @@ export default function DashboardPage() {
 
   const now = new Date();
   const currentYear = now.getFullYear();
-  const activeCount = subs.filter((s) => s.isActive === 1).length;
-  const hasActiveSubs = activeCount > 0;
 
-  // 상태는 두 축의 곱이다: 켜진 카테고리가 있는지 × 결제된 기간이 남았는지.
-  // 서버의 정원 집계와 같은 판정이라, 여기서 "수신 중" 이면 실제로 메일이 나간다.
-  const status = subscriptionStatus(
-    { deletedAt: null, subscriptionExpiresAt: expiresAt, hasActiveCategory: hasActiveSubs },
-    now,
-  );
-  const covered = status.key === 'receiving' || status.key === 'paused';
-  const style = STATUS_STYLE[status.key];
+  // 구독은 결제된 기간 하나로 정해진다. 알림 설정은 아래 섹션이 따로 말한다 —
+  // 둘을 곱하지 않는다. 판정은 서버의 정원 집계와 같은 함수다.
+  const state = subscriptionState({ deletedAt: null, subscriptionExpiresAt: expiresAt }, now);
+  const style = STATE_STYLE[state.key];
+
+  const activeCount = alerts.filter((a) => a.isActive === 1).length;
+  const summary = alertSummary({ activeCount, total: ALERT_CATEGORIES.length, paused });
 
   // Shared with the payment order route, so the label below cannot promise a
   // year the server will not write.
-  const { show: showRenewal } = renewalPrompt(now, expiresAt, hasActiveSubs);
+  const { show: inRenewalWindow } = renewalPrompt(now, expiresAt);
   const targetYear = renewalTargetYear(now, expiresAt);
   // 기간이 없거나 지났을 때, 그리고 12월에 올해로 끝나는 기간만 결제 대상이다.
   // 서버의 주문 라우트와 같은 규칙이라 버튼이 있으면 주문도 열려 있다.
@@ -315,62 +301,80 @@ export default function DashboardPage() {
   const expiryLabel = expiresAt ? formatCalendarDate(expiresAt) : null;
   const priceLabel = price === null ? '' : free ? ' · 무료' : ` · ${price.toLocaleString('ko-KR')}원`;
 
-  // 무료일 때 "미결제" 는 틀린 말이다. 결제할 것이 없으니 신청만 남았다.
-  const payVerb = free ? '구독을 신청하기' : '결제하기';
-  const statusLabel = free ? status.label.replace('미결제', '미신청') : status.label;
-
   let headline: string;
   let detail: string;
-  switch (status.key) {
-    case 'receiving':
-      headline = `${activeCount}개 카테고리의 알림을 받고 있습니다`;
-      detail = showRenewal
-        ? `구독이 ${expiryLabel}에 만료됩니다. 지금 갱신하면 ${targetYear}년 말까지 이어집니다.`
+  switch (state.key) {
+    case 'active':
+      headline = `${expiryLabel}까지 이용 중`;
+      detail = inRenewalWindow
+        ? `12월 31일에 만료됩니다. 지금 갱신하면 ${targetYear}년 말까지 이어집니다.`
         : coveredThroughNextYear
-          ? `${expiryLabel}까지 구독 중입니다.`
-          : `${expiryLabel}까지 구독 중입니다. 갱신은 12월부터 가능합니다.`;
+          ? '내년까지 구독되어 있습니다.'
+          : '갱신은 12월부터 가능합니다.';
       break;
-    case 'paused':
-      headline = '켜진 카테고리가 없습니다';
-      detail = `${expiryLabel}까지 구독 중이지만 알림을 받을 카테고리가 없어 메일이 발송되지 않습니다.`;
-      break;
-    case 'unpaid':
-      headline = expiresAt ? '구독이 만료되었습니다' : '아직 구독을 시작하지 않았습니다';
-      detail = `카테고리 ${activeCount}개가 켜져 있지만, ${payVerb} 전까지 알림 메일이 발송되지 않습니다.`;
+    case 'expired':
+      headline = '구독이 만료되었습니다';
+      detail = `${expiryLabel}에 만료되었습니다. 갱신 전까지 알림 메일이 발송되지 않습니다.`;
       break;
     default:
-      headline = expiresAt ? '구독이 만료되었고 켜진 카테고리가 없습니다' : '아직 구독을 시작하지 않았습니다';
-      detail = `카테고리를 켜고 ${payVerb} 전까지 알림 메일이 발송되지 않습니다.`;
+      headline = '구독을 시작하세요';
+      detail = free
+        ? `구독은 무료입니다. 신청하면 ${targetYear}년 12월 31일까지 아래 알림 설정대로 메일이 발송됩니다.`
+        : `1년 단위 구독입니다. 결제하면 ${targetYear}년 12월 31일까지 아래 알림 설정대로 메일이 발송됩니다.`;
   }
 
   // 이 상태에서 해야 할 단 하나의 행동. 못 살 때도 버튼은 보이되 눌리지 않는다 —
   // 버튼이 사라지면 "왜 없지" 를 묻게 된다.
   let cta: React.ReactNode = null;
-  if (status.key === 'paused') {
-    cta = (
-      <button onClick={() => setAll(true, 'cta')} disabled={actionLoading === 'subscribe_all'} className={BUTTON_PRIMARY}>
-        {actionLoading === 'subscribe_all' ? '처리 중...' : '전체 켜기'}
-      </button>
-    );
-  } else if (canPay) {
+  if (canPay) {
     cta = paymentEnabled ? (
       <button onClick={startPayment} disabled={actionLoading === 'pay'} className={BUTTON_PRIMARY}>
         {actionLoading === 'pay'
           ? free
             ? '신청하는 중...'
             : '결제창 여는 중...'
-          : `${targetYear}년까지 구독${priceLabel}`}
+          : `${targetYear}년까지 ${state.key === 'active' ? '갱신' : '구독'}${priceLabel}`}
       </button>
     ) : (
       <span className="text-sm text-gray-500 dark:text-gray-400">결제가 준비되지 않았습니다.</span>
     );
-  } else if (!coveredThroughNextYear) {
+  } else if (state.key === 'active' && !coveredThroughNextYear) {
     cta = (
       <button disabled title="갱신은 12월부터 가능합니다" className={BUTTON_PRIMARY}>
         {targetYear}년까지 갱신
       </button>
     );
   }
+
+  // 알림 섹션의 한 줄 안내. 설정 쪽 이유(일시중지·모두 꺼짐)를 먼저, 그다음 구독 쪽.
+  const alertNote = paused
+    ? '일시중지 중에는 알림이 오지 않습니다. 설정은 그대로 남아 있어 해제하면 바로 이어집니다.'
+    : activeCount === 0
+      ? '모두 꺼져 있어 알림이 오지 않습니다.'
+      : state.key !== 'active'
+        ? '구독을 시작하면 이 설정대로 알림이 갑니다.'
+        : null;
+
+  const renderAlertRow = (cat: (typeof ALERT_CATEGORIES)[number]) => {
+    const row = alerts.find((a) => a.category === cat.id);
+    const isActive = row?.isActive === 1;
+    const pending = actionLoading === cat.id;
+    const label = getCategoryLabel(cat.id);
+    const chip = CATEGORY_COLORS[label]?.chip || 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300';
+
+    return (
+      <div key={cat.id} className={`px-4 py-3 ${paused ? 'opacity-60' : ''}`}>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <span className={`inline-block text-xs px-2 py-0.5 rounded-full font-medium ${chip}`}>{label}</span>
+            {pending && <Spinner />}
+          </div>
+          <ToggleSwitch checked={isActive} onChange={() => toggleAlert(cat.id, isActive)} disabled={pending} />
+        </div>
+        {error?.scope === cat.id && <p className="mt-1.5 text-xs text-red-600 dark:text-red-400">{error.message}</p>}
+      </div>
+    );
+  };
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
@@ -401,93 +405,79 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* 상태 카드. 예전의 만료일 상자·갱신 배너·결제 버튼이 여기 한 장으로 접혔다. */}
-      <section className="mb-6 rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-5">
-        <div className="flex items-center justify-between gap-3">
-          <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${style.badge}`}>
-            <span className={`w-1.5 h-1.5 rounded-full ${style.dot}`} aria-hidden="true" />
-            {statusLabel}
-          </span>
-          {expiryLabel && (
-            <span className="text-xs text-gray-500 dark:text-gray-400">
-              {covered ? '만료일' : '만료됨'}{' '}
-              <span className="font-medium text-gray-700 dark:text-gray-300">{expiryLabel}</span>
-            </span>
-          )}
+      {/* 구독. 결제된 기간 하나가 이 카드의 전부다 — 카테고리는 아래 알림 설정이 맡는다. */}
+      <section className="mb-8">
+        <div className="mb-2 px-1">
+          <SectionTitle>구독</SectionTitle>
         </div>
-        <h2 className="mt-3 text-lg font-bold text-gray-900 dark:text-gray-100">{headline}</h2>
-        <p className="mt-1 text-sm leading-relaxed text-gray-500 dark:text-gray-400">{detail}</p>
-        {cta && <div className="mt-4">{cta}</div>}
-        {(error?.scope === 'pay' || error?.scope === 'cta') && <InlineError message={error.message} className="mt-2" />}
+        <div className="rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-5">
+          <div className="flex items-center justify-between gap-3">
+            <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${style.badge}`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${style.dot}`} aria-hidden="true" />
+              {state.label}
+            </span>
+            {expiryLabel && (
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                {state.key === 'active' ? '만료일' : '만료됨'}{' '}
+                <span className="font-medium text-gray-700 dark:text-gray-300">{expiryLabel}</span>
+              </span>
+            )}
+          </div>
+          <h3 className="mt-3 text-lg font-bold text-gray-900 dark:text-gray-100">{headline}</h3>
+          <p className="mt-1 text-sm leading-relaxed text-gray-500 dark:text-gray-400">{detail}</p>
+          {cta && <div className="mt-4">{cta}</div>}
+          {error?.scope === 'pay' && <InlineError message={error.message} className="mt-2" />}
+        </div>
       </section>
 
-      {/* 카테고리 토글. "구독" 은 결제된 기간을 뜻하므로 여기서는 켠다·끈다로 부른다. */}
+      {/* 알림 설정. 구독이 어느 게시판의 글을 배달할지 — 켜고 끄는 데 돈이 들지 않는다. */}
       <section>
         <div className="mb-2 px-1 flex items-end justify-between gap-3">
-          <div>
-            <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">알림 카테고리</h2>
-            {!covered && (
-              <p className="mt-0.5 text-xs text-gray-400 dark:text-gray-500">{payVerb} 전에는 켜 두어도 발송되지 않습니다.</p>
-            )}
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <SectionTitle>알림 설정</SectionTitle>
+              <span
+                className={`text-[11px] px-1.5 py-0.5 rounded ${
+                  summary.delivering
+                    ? 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
+                    : 'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400'
+                }`}
+              >
+                {summary.label}
+              </span>
+            </div>
+            {alertNote && <p className="mt-0.5 text-xs text-gray-400 dark:text-gray-500">{alertNote}</p>}
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            {confirmingUnsubscribeAll ? (
-              <>
-                <span className="text-xs text-gray-500 dark:text-gray-400">모두 끌까요?</span>
-                <button onClick={() => setAll(false, 'bulk')} className={BUTTON_GHOST_DANGER}>끄기</button>
-                <button onClick={() => setConfirmingUnsubscribeAll(false)} className={BUTTON_GHOST}>취소</button>
-              </>
-            ) : hasActiveSubs ? (
-              <button
-                onClick={() => setConfirmingUnsubscribeAll(true)}
-                disabled={actionLoading === 'unsubscribe_all'}
-                className={BUTTON_GHOST_DANGER}
-              >
-                {actionLoading === 'unsubscribe_all' ? '처리 중...' : '전체 끄기'}
-              </button>
-            ) : (
-              <button
-                onClick={() => setAll(true, 'bulk')}
-                disabled={actionLoading === 'subscribe_all'}
-                className={BUTTON_GHOST}
-              >
-                {actionLoading === 'subscribe_all' ? '처리 중...' : '전체 켜기'}
-              </button>
-            )}
+          <div className="flex items-center gap-2 shrink-0 text-xs text-gray-500 dark:text-gray-400">
+            {actionLoading === 'pause' && <Spinner />}
+            <span>일시중지</span>
+            <ToggleSwitch checked={paused} onChange={() => setPause(!paused)} disabled={actionLoading === 'pause'} />
           </div>
         </div>
-        {error?.scope === 'bulk' && <InlineError message={error.message} className="mb-2 px-1" />}
+        {(error?.scope === 'pause' || error?.scope === 'bulk') && <InlineError message={error.message} className="mb-2 px-1" />}
 
         <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 divide-y divide-gray-100 dark:divide-gray-800">
-          {SUBSCRIPTION_CATEGORIES.map((cat) => {
-            const sub = subs.find((s) => s.category === cat.id);
-            const isActive = sub?.isActive === 1;
-            const pending = actionLoading === cat.id;
-
-            return (
-              <div key={cat.id} className="px-4 py-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-gray-100">
-                    {cat.label.replace('공지 - ', '')}
-                    {pending && <Spinner />}
-                  </div>
-                  <ToggleSwitch
-                    checked={isActive}
-                    onChange={() => toggleSubscription(cat.id, isActive)}
-                    disabled={pending}
-                  />
-                </div>
-                {error?.scope === cat.id && <p className="mt-1.5 text-xs text-red-600 dark:text-red-400">{error.message}</p>}
-              </div>
-            );
-          })}
+          <div className="px-4 pt-3 pb-1 text-xs font-medium text-gray-400 dark:text-gray-500">공지사항</div>
+          {NOTICE_ALERTS.map(renderAlertRow)}
+          <div className="px-4 pt-3 pb-1 text-xs font-medium text-gray-400 dark:text-gray-500">게시판</div>
+          {BOARD_ALERTS.map(renderAlertRow)}
         </div>
+
+        {activeCount < ALERT_CATEGORIES.length && (
+          <div className="mt-2 flex justify-end">
+            <button onClick={enableAll} disabled={actionLoading === 'bulk'} className={BUTTON_GHOST}>
+              {actionLoading === 'bulk' ? '처리 중...' : '전체 켜기'}
+            </button>
+          </div>
+        )}
       </section>
 
       {/* Payment history */}
       {payments.length > 0 && (
         <section className="mt-8">
-          <h2 className="mb-2 px-1 text-sm font-semibold text-gray-700 dark:text-gray-300">결제 내역</h2>
+          <div className="mb-2 px-1">
+            <SectionTitle>결제 내역</SectionTitle>
+          </div>
           <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 divide-y divide-gray-100 dark:divide-gray-800">
             {payments.map((payment) => {
               const expanded = expandedOrder === payment.orderId;
@@ -549,7 +539,7 @@ export default function DashboardPage() {
           <div className="text-xs font-semibold uppercase tracking-wide text-red-600 dark:text-red-400">계정 관리</div>
           <h2 className="mt-1 text-lg font-bold text-gray-900 dark:text-gray-100">회원 탈퇴</h2>
           <p className="mt-2 text-sm leading-relaxed text-gray-500 dark:text-gray-400">
-            탈퇴하면 구독 정보와 남은 구독 기간이 즉시 소멸되며 환불되지 않습니다.
+            탈퇴하면 알림 설정과 남은 구독 기간이 즉시 소멸되며 환불되지 않습니다.
             재가입 여부 확인에 필요한 계정 식별 정보와 결제 기록은 남습니다.
             진행 중인 결제가 있으면 끝난 뒤에 탈퇴할 수 있습니다.
           </p>

@@ -7,8 +7,8 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { getDb } from './db';
-import { users, subscriptions } from './db/schema';
-import { PRIVACY_CONSENT_VERSION, SUBSCRIPTION_CATEGORIES } from './constants';
+import { users, alertPreferences } from './db/schema';
+import { PRIVACY_CONSENT_VERSION, ALERT_CATEGORIES } from './constants';
 
 // users.google_id 자리에 들어가는 고정값. 실제 Google sub 는 숫자열이라 겹치지 않는다.
 export const REVIEW_GOOGLE_ID = 'review-account';
@@ -47,9 +47,9 @@ export function getOrCreateReviewUser() {
           .set({ deletedAt: null, subscriptionExpiresAt: null })
           .where(eq(users.id, existing.id))
           .run();
-        tx.update(subscriptions)
+        tx.update(alertPreferences)
           .set({ isActive: 1 })
-          .where(eq(subscriptions.userId, existing.id))
+          .where(eq(alertPreferences.userId, existing.id))
           .run();
       }, { behavior: 'immediate' });
     }
@@ -68,8 +68,8 @@ export function getOrCreateReviewUser() {
     }).run();
 
     const userId = Number(result.lastInsertRowid);
-    for (const cat of SUBSCRIPTION_CATEGORIES) {
-      tx.insert(subscriptions).values({ userId, category: cat.id, isActive: 1 }).run();
+    for (const cat of ALERT_CATEGORIES) {
+      tx.insert(alertPreferences).values({ userId, category: cat.id, isActive: 1 }).run();
     }
     return tx.select().from(users).where(eq(users.id, userId)).get()!;
   }, { behavior: 'immediate' });

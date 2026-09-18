@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { and, eq, gte, sql } from 'drizzle-orm';
 import { auth } from '@/lib/auth';
 import { getDb } from '@/lib/db';
-import { users, subscriptions, payments } from '@/lib/db/schema';
+import { users, alertPreferences, payments } from '@/lib/db/schema';
 import { ACCOUNT_DELETE_CONFIRMATION } from '@/lib/constants';
 
 export async function DELETE(request: Request) {
@@ -42,7 +42,7 @@ export async function DELETE(request: Request) {
   // 탈퇴는 남은 구독 기간을 포기하는 것이다 — /policy 와 확인 문구가 그렇게 말한다.
   // 기간을 남겨두면 재로그인만으로 결제 없이 되살아난다.
   db.transaction((tx) => {
-    tx.update(subscriptions).set({ isActive: 0 }).where(eq(subscriptions.userId, userId)).run();
+    tx.update(alertPreferences).set({ isActive: 0 }).where(eq(alertPreferences.userId, userId)).run();
     tx.update(users)
       .set({ deletedAt: new Date().toISOString(), subscriptionExpiresAt: null })
       .where(eq(users.id, userId))

@@ -13,12 +13,19 @@ export const users = sqliteTable('users', {
   // covers all of the user's categories at once. NULL means no period at all.
   subscriptionExpiresAt: text('subscription_expires_at'),
   subscriptionRenewedAt: text('subscription_renewed_at'),
+  // 알림 일시중지. 구독(기간)과 알림 설정은 다른 축이라, 잠시 안 받고 싶은 사람이
+  // 카테고리 여덟 개를 끄고 나중에 하나씩 되살리는 대신 이 하나를 세운다. 좌석은 그대로다.
+  alertsPausedAt: text('alerts_paused_at'),
   // 가입 시 받은 개인정보 동의. 이 흐름 이전에 만들어진 계정은 NULL 로 남는다.
   privacyConsentAt: text('privacy_consent_at'),
   privacyConsentVersion: text('privacy_consent_version'),
 });
 
-export const subscriptions = sqliteTable(
+// 알림 설정: 사용자 × 카테고리 켬/끔. 테이블 이름이 subscriptions 인 것은 이 행이
+// "구독" 이라 불리던 시절의 흔적이다 — 구독은 users.subscription_expires_at 하나고,
+// 이 행은 그 구독이 어느 게시판의 글을 배달할지 정하는 설정일 뿐이다. 테이블 이름을
+// 바꾸면 운영 DB 마이그레이션이 필요하므로 코드 쪽 이름만 바로잡았다.
+export const alertPreferences = sqliteTable(
   'subscriptions',
   {
     id: integer('id').primaryKey({ autoIncrement: true }),

@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
-import { SUBSCRIPTION_CATEGORIES, CATEGORY_COLORS, getCategoryLabel, getBoardLabel } from '@/lib/constants';
+import { ALERT_CATEGORIES, CATEGORY_COLORS, getCategoryLabel, getBoardLabel } from '@/lib/constants';
 import { formatLocalDateTime } from '@/lib/format';
-import { subscriptionStatus, type SubscriptionStatusKey } from '@/lib/subscription/status';
+import { alertSummary, subscriptionState, type SubscriptionStateKey } from '@/lib/subscription/status';
 import ToggleSwitch from '@/components/ToggleSwitch';
 
 interface UserInfo {
@@ -14,7 +14,8 @@ interface UserInfo {
   createdAt: string;
   deletedAt: string | null;
   subscriptionExpiresAt: string | null;
-  subscriptions: { category: string; isActive: number }[];
+  alerts: { category: string; isActive: number }[];
+  alertsPausedAt: string | null;
   emailsSent: number;
   emailsSkipped: number;
 }
@@ -30,7 +31,7 @@ interface FailedEmail {
 interface AdminStats {
   totalUsers: number;
   deletedUsers: number;
-  activeSubscribers: number;
+  seats: number;
   totalPosts: number;
   emails: {
     totalSent: number;
@@ -81,11 +82,11 @@ interface Payment {
   cancelledAt: string | null;
 }
 
-const STATUS_BADGE: Record<SubscriptionStatusKey, string> = {
-  receiving: 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300',
-  unpaid: 'bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',
-  paused: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400',
-  inactive: 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500',
+// 구독 상태 배지. 기간 하나로 정해지고, 알림 설정은 옆 열이 따로 말한다.
+const STATE_BADGE: Record<SubscriptionStateKey, string> = {
+  active: 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300',
+  none: 'bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',
+  expired: 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500',
   withdrawn: 'bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-600',
 };
 
@@ -181,7 +182,7 @@ export default function AdminPage() {
   // 무상 제공이나 계좌이체 처리 같은 예외를 다룰 손잡이. 결제와 같은 규칙으로
   // 한 번에 정확히 한 해를 준다.
   const grantYear = async (userId: number) => {
-    if (!confirm('이 유저에게 결제 없이 1년 구독을 부여하시겠습니까?')) return;
+    if (!confirm('이 유저에게 결제 없이 구독 1년(좌석)을 부여하시겠습니까?')) return;
     try {
       const res = await fetch('/api/admin/users', {
         method: 'PATCH',
@@ -195,7 +196,7 @@ export default function AdminPage() {
   };
 
   const revokePeriod = async (userId: number) => {
-    if (!confirm('이 유저의 구독 기간을 회수하시겠습니까? 알림 메일이 중단됩니다.')) return;
+    if (!confirm('이 유저의 구독(좌석)을 회수하시겠습니까? 알림 메일이 중단됩니다.')) return;
     try {
       const res = await fetch('/api/admin/users', {
         method: 'PATCH',
@@ -237,11 +238,11 @@ export default function AdminPage() {
     }
   };
 
-  const deactivateUser = async (userId: number) => {
+  const disableAllAlerts = async (userId: number) => {
     setUsers((prev) =>
       prev.map((u) =>
         u.id === userId
-          ? { ...u, subscriptions: u.subscriptions.map((s) => ({ ...s, isActive: 0 })) }
+          ? { ...u, alerts: u.alerts.map((s) => ({ ...s, isActive: 0 })) }
           : u,
       ),
     );
@@ -249,7 +250,7 @@ export default function AdminPage() {
       const res = await fetch('/api/admin/users', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, action: 'deactivate' }),
+        body: JSON.stringify({ userId, action: 'disable_all_alerts' }),
       });
       if (!res.ok) await fetchAll();
     } catch {
@@ -272,22 +273,22 @@ export default function AdminPage() {
     }
   };
 
-  const toggleUserSubscription = async (userId: number, category: string, currentlyActive: boolean) => {
+  const toggleUserAlert = async (userId: number, category: string, currentlyActive: boolean) => {
     setUsers((prev) =>
       prev.map((u) => {
         if (u.id !== userId) return u;
-        const existing = u.subscriptions.find((s) => s.category === category);
+        const existing = u.alerts.find((s) => s.category === category);
         if (existing) {
           return {
             ...u,
-            subscriptions: u.subscriptions.map((s) =>
+            alerts: u.alerts.map((s) =>
               s.category === category ? { ...s, isActive: currentlyActive ? 0 : 1 } : s,
             ),
           };
         }
         return {
           ...u,
-          subscriptions: [...u.subscriptions, { category, isActive: 1 }],
+          alerts: [...u.alerts, { category, isActive: 1 }],
         };
       }),
     );
@@ -297,7 +298,7 @@ export default function AdminPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId,
-          action: currentlyActive ? 'unsubscribe' : 'subscribe',
+          action: currentlyActive ? 'disable_alert' : 'enable_alert',
           category,
         }),
       });
@@ -307,13 +308,13 @@ export default function AdminPage() {
     }
   };
 
-  const subscribeAll = async (userId: number) => {
+  const enableAllAlerts = async (userId: number) => {
     setUsers((prev) =>
       prev.map((u) => {
         if (u.id !== userId) return u;
         return {
           ...u,
-          subscriptions: SUBSCRIPTION_CATEGORIES.map((cat) => ({
+          alerts: ALERT_CATEGORIES.map((cat) => ({
             category: cat.id,
             isActive: 1,
           })),
@@ -324,7 +325,7 @@ export default function AdminPage() {
       const res = await fetch('/api/admin/users', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, action: 'subscribe_all' }),
+        body: JSON.stringify({ userId, action: 'enable_all_alerts' }),
       });
       if (!res.ok) await fetchAll();
     } catch {
@@ -349,13 +350,12 @@ export default function AdminPage() {
     setSendingTestEmail(false);
   };
 
-  // 표에 찍히는 "수신 중" 개수. 서버의 정원 집계와 같은 판정을 쓰므로 헤더 숫자와
-  // 배지 개수가 어긋날 수 없다.
-  const slotsHeld = users.filter((user) => subscriptionStatus({
+  // 표에 찍히는 좌석 수. 서버의 정원 집계와 같은 판정을 쓰므로 헤더 숫자와 "이용 중"
+  // 배지 개수가 어긋날 수 없다. 알림 설정은 좌석과 무관하다.
+  const seatsHeld = users.filter((user) => subscriptionState({
     deletedAt: user.deletedAt,
     subscriptionExpiresAt: user.subscriptionExpiresAt,
-    hasActiveCategory: user.subscriptions.some((s) => s.isActive),
-  }).holdsSlot).length;
+  }).holdsSeat).length;
 
   if (loading) {
     return <div className="max-w-screen-xl mx-auto px-4 py-12 text-center text-gray-400 dark:text-gray-500">불러오는 중...</div>;
@@ -371,7 +371,7 @@ export default function AdminPage() {
 
       {/* Stats cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
-        <StatCard label="활성/비활성/탈퇴/전체" value={`${stats?.activeSubscribers ?? 0}/${(stats?.totalUsers ?? 0) - (stats?.activeSubscribers ?? 0) - (stats?.deletedUsers ?? 0)}/${stats?.deletedUsers ?? 0}/${stats?.totalUsers ?? 0}`} />
+        <StatCard label="구독 중/미구독/탈퇴/전체" value={`${stats?.seats ?? 0}/${(stats?.totalUsers ?? 0) - (stats?.seats ?? 0) - (stats?.deletedUsers ?? 0)}/${stats?.deletedUsers ?? 0}/${stats?.totalUsers ?? 0}`} />
         <StatCard label="오늘 생략" value={stats?.emails.todaySkipped ?? 0} />
         <StatCard label="오늘 발송" value={stats?.emails.todaySent ?? 0} />
         <StatCard label="Brevo 잔량" value={brevoRemaining ?? '...'} />
@@ -650,7 +650,7 @@ export default function AdminPage() {
         <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
           유저 목록 ({users.length}명)
           <span className="ml-2 text-sm font-normal text-gray-500 dark:text-gray-400">
-            구독자 자리 {slotsHeld} / {settings.maxSubscribers}
+            좌석 {seatsHeld} / {settings.maxSubscribers}
           </span>
         </h2>
         <div className="overflow-x-auto">
@@ -662,7 +662,7 @@ export default function AdminPage() {
                 <th className="pb-2 pr-4 whitespace-nowrap w-[1%]">상태</th>
                 <th className="pb-2 pr-4 whitespace-nowrap w-[1%]">가입일</th>
                 <th className="pb-2 pr-4 whitespace-nowrap w-[1%]">만료일</th>
-                <th className="pb-2 pr-4 whitespace-nowrap text-center">구독</th>
+                <th className="pb-2 pr-4 whitespace-nowrap text-center">알림</th>
                 <th className="pb-2 pr-4 whitespace-nowrap w-[1%] text-center">발송</th>
                 <th className="pb-2 pr-4 whitespace-nowrap w-[1%] text-center">생략</th>
                 <th className="pb-2 whitespace-nowrap w-[1%]">관리</th>
@@ -671,13 +671,14 @@ export default function AdminPage() {
             <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
               {users.map((user, index) => {
                 const isDeleted = !!user.deletedAt;
-                const hasActive = user.subscriptions.some((s) => s.isActive);
-                // 두 축을 곱한 결과. 이 값이 곧 정원에 잡히는지 여부다.
-                const status = subscriptionStatus({
+                const activeCount = user.alerts.filter((s) => s.isActive).length;
+                const hasActive = activeCount > 0;
+                // 구독 상태는 기간 하나로 정해진다. 알림 설정은 옆 열이 따로 말한다.
+                const state = subscriptionState({
                   deletedAt: user.deletedAt,
                   subscriptionExpiresAt: user.subscriptionExpiresAt,
-                  hasActiveCategory: hasActive,
                 });
+                const alerts = alertSummary({ activeCount, total: ALERT_CATEGORIES.length, paused: !!user.alertsPausedAt });
                 return (
                   <tr key={user.id} className={isDeleted ? 'text-gray-300 dark:text-gray-600 line-through' : ''}>
                     <td className="py-3 pr-4 text-gray-400 dark:text-gray-500 whitespace-nowrap">{index + 1}</td>
@@ -686,8 +687,8 @@ export default function AdminPage() {
                       <div className="font-mono text-xs text-gray-500 dark:text-gray-400">{user.email}</div>
                     </td>
                     <td className="py-3 pr-4 whitespace-nowrap">
-                      <span className={`text-xs px-2 py-0.5 rounded no-underline ${STATUS_BADGE[status.key]}`}>
-                        {status.label}
+                      <span className={`text-xs px-2 py-0.5 rounded no-underline ${STATE_BADGE[state.key]}`}>
+                        {state.label}
                       </span>
                     </td>
                     <td className="py-3 pr-4 whitespace-nowrap">{user.createdAt.slice(0, 10)}</td>
@@ -695,22 +696,26 @@ export default function AdminPage() {
                       {user.subscriptionExpiresAt ? (
                         user.subscriptionExpiresAt.slice(0, 10)
                       ) : (
-                        <span className="text-xs text-amber-500 dark:text-amber-400">미결제</span>
+                        <span className="text-xs text-amber-500 dark:text-amber-400">없음</span>
                       )}
                     </td>
                     <td className="py-3 pr-4 whitespace-nowrap text-center">
                       {isDeleted ? (
                         <span className="text-xs text-gray-300 dark:text-gray-600">탈퇴 ({user.deletedAt!.slice(0, 10)})</span>
                       ) : (
-                        <div className="flex justify-center gap-1.5">
-                          {SUBSCRIPTION_CATEGORIES.map((cat) => {
-                            const sub = user.subscriptions.find((s) => s.category === cat.id);
+                        <div className="flex flex-col items-center gap-1">
+                          {!alerts.delivering && (
+                            <span className="text-[11px] text-amber-600 dark:text-amber-400 no-underline">{alerts.label}</span>
+                          )}
+                          <div className="flex justify-center gap-1.5">
+                          {ALERT_CATEGORIES.map((cat) => {
+                            const sub = user.alerts.find((s) => s.category === cat.id);
                             const isActive = sub?.isActive === 1;
                             const label = getCategoryLabel(cat.id);
                             return (
                               <button
                                 key={cat.id}
-                                onClick={() => toggleUserSubscription(user.id, cat.id, isActive)}
+                                onClick={() => toggleUserAlert(user.id, cat.id, isActive)}
                                 className={`text-xs px-2 py-0.5 rounded transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${
                                   isActive
                                     ? (CATEGORY_COLORS[label]?.chipHover || 'bg-blue-100 text-blue-700 hover:bg-blue-200')
@@ -721,6 +726,7 @@ export default function AdminPage() {
                               </button>
                             );
                           })}
+                          </div>
                         </div>
                       )}
                     </td>
@@ -733,17 +739,17 @@ export default function AdminPage() {
                         <div className="flex gap-1">
                           {hasActive ? (
                             <button
-                              onClick={() => deactivateUser(user.id)}
+                              onClick={() => disableAllAlerts(user.id)}
                               className="text-xs px-3 py-1 rounded bg-red-50 text-red-600 hover:bg-red-100 active:bg-red-100 dark:bg-red-500/10 dark:text-red-400 dark:hover:bg-red-500/20 dark:active:bg-red-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 transition cursor-pointer"
                             >
-                              카테고리 해제
+                              알림 모두 끄기
                             </button>
                           ) : (
                             <button
-                              onClick={() => subscribeAll(user.id)}
+                              onClick={() => enableAllAlerts(user.id)}
                               className="text-xs px-3 py-1 rounded bg-green-50 text-green-600 hover:bg-green-100 active:bg-green-100 dark:bg-green-500/10 dark:text-green-400 dark:hover:bg-green-500/20 dark:active:bg-green-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 transition cursor-pointer"
                             >
-                              카테고리 구독
+                              알림 모두 켜기
                             </button>
                           )}
                           {user.subscriptionExpiresAt ? (
@@ -751,14 +757,14 @@ export default function AdminPage() {
                               onClick={() => revokePeriod(user.id)}
                               className="text-xs px-3 py-1 rounded bg-amber-50 text-amber-600 hover:bg-amber-100 active:bg-amber-100 dark:bg-amber-500/10 dark:text-amber-400 dark:hover:bg-amber-500/20 dark:active:bg-amber-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 transition cursor-pointer"
                             >
-                              기간 회수
+                              구독 회수
                             </button>
                           ) : (
                             <button
                               onClick={() => grantYear(user.id)}
                               className="text-xs px-3 py-1 rounded bg-blue-50 text-blue-600 hover:bg-blue-100 active:bg-blue-100 dark:bg-blue-500/10 dark:text-blue-400 dark:hover:bg-blue-500/20 dark:active:bg-blue-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition cursor-pointer"
                             >
-                              기간 1년 부여
+                              구독 1년 부여
                             </button>
                           )}
                           <button

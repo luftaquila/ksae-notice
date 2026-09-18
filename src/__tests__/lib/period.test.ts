@@ -45,15 +45,9 @@ describe('renewalPrompt', () => {
 
   for (const [name, now, expiresAt, show] of cases) {
     it(`${show ? 'prompts' : 'stays quiet'}: ${name}`, () => {
-      expect(renewalPrompt(kst(now), expiresAt, true).show).toBe(show);
+      expect(renewalPrompt(kst(now), expiresAt).show).toBe(show);
     });
   }
-
-  it('never prompts an account with no active category', () => {
-    for (const [, now, expiresAt] of cases) {
-      expect(renewalPrompt(kst(now), expiresAt, false).show).toBe(false);
-    }
-  });
 
   // The reason the prefix comparison is load-bearing: through Date, a 2027-12-31
   // 23:59:59 UTC period reads as year 2028 in KST, so a renewed account would
@@ -62,19 +56,19 @@ describe('renewalPrompt', () => {
   it('keeps the December prompt up for a period ending this year', () => {
     const now = kst('2026-12-15T12:00:00+09:00');
     expect(new Date(endOfYear(2026)).getFullYear()).toBe(2027); // the trap itself
-    expect(renewalPrompt(now, endOfYear(2026), true).show).toBe(true);
+    expect(renewalPrompt(now, endOfYear(2026)).show).toBe(true);
   });
 
   it('reports the year the server would write', () => {
     for (const [, now, expiresAt] of cases) {
       const at = kst(now);
-      expect(renewalPrompt(at, expiresAt, true).targetYear).toBe(renewalTargetYear(at, expiresAt));
+      expect(renewalPrompt(at, expiresAt).targetYear).toBe(renewalTargetYear(at, expiresAt));
     }
   });
 
   it('marks a lapsed period expired and a covered one not', () => {
-    expect(renewalPrompt(kst('2027-03-01T12:00:00+09:00'), endOfYear(2026), true).isExpired).toBe(true);
-    expect(renewalPrompt(kst('2026-12-15T12:00:00+09:00'), endOfYear(2026), true).isExpired).toBe(false);
+    expect(renewalPrompt(kst('2027-03-01T12:00:00+09:00'), endOfYear(2026)).isExpired).toBe(true);
+    expect(renewalPrompt(kst('2026-12-15T12:00:00+09:00'), endOfYear(2026)).isExpired).toBe(false);
   });
 });
 
@@ -101,7 +95,7 @@ describe('canPurchase', () => {
   it('is open whenever the renewal prompt is up', () => {
     for (const [, now, expiresAt] of cases) {
       const at = kst(now);
-      if (renewalPrompt(at, expiresAt, true).show) expect(canPurchase(at, expiresAt)).toBe(true);
+      if (renewalPrompt(at, expiresAt).show) expect(canPurchase(at, expiresAt)).toBe(true);
     }
   });
 });

@@ -3,7 +3,7 @@ import { eq, sql, and, gte, desc, isNotNull } from 'drizzle-orm';
 import { requireAdmin } from '@/lib/auth';
 import { getDb } from '@/lib/db';
 import { users, emailLogs, crawlLogs, posts } from '@/lib/db/schema';
-import { getActiveSubscriberCount } from '@/lib/subscription/capacity';
+import { getSeatCount } from '@/lib/subscription/capacity';
 
 export async function GET() {
   if (!(await requireAdmin())) {
@@ -85,7 +85,7 @@ export async function GET() {
   return NextResponse.json({
     totalUsers: totalUsers?.count || 0,
     deletedUsers: deletedUsers?.count || 0,
-    activeSubscribers: getActiveSubscriberCount(),
+    seats: getSeatCount(),
     totalPosts: totalPosts?.count || 0,
     emails: {
       totalSent: totalEmailsSent?.count || 0,
