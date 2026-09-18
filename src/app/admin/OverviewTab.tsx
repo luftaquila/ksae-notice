@@ -68,7 +68,7 @@ export default function OverviewTab({
   const recipients = stats?.recipients ?? 0;
   const failedToday = emails?.todayFailed ?? 0;
 
-  // 잔량이 "수신인 전원에게 한 번" 을 감당하는지. 글 한 건이 뜨면 그만큼 나간다.
+  // 잔량이 수신인 전원에게 한 번 보낼 분량이 안 되면 숫자를 경고색으로.
   const brevoShort = brevoRemaining !== null && recipients > 0 && brevoRemaining < recipients;
 
   const latest = stats?.recentCrawls?.[0] ?? null;
@@ -107,7 +107,7 @@ export default function OverviewTab({
           label="구독자"
           value={<>{seats} <span className="text-base font-medium text-gray-400 dark:text-gray-500">/ {maxSubscribers || '-'}</span></>}
           tone={maxSubscribers > 0 && seats >= maxSubscribers ? 'warn' : 'default'}
-          sub={<>수신인 {recipients}명 · 미구독 {(stats?.totalUsers ?? 0) - seats - (stats?.deletedUsers ?? 0)} · 탈퇴 {stats?.deletedUsers ?? 0}</>}
+          sub={<>수신인 {recipients}</>}
         >
           <div className="mt-3 h-1.5 rounded-full bg-gray-100 dark:bg-gray-800 overflow-hidden">
             <div
@@ -117,20 +117,7 @@ export default function OverviewTab({
           </div>
         </Signal>
 
-        <Signal
-          label="Brevo 잔량"
-          value={brevoRemaining ?? '...'}
-          tone={brevoShort ? 'warn' : 'default'}
-          sub={
-            brevoRemaining === null
-              ? '잔량을 읽는 중'
-              : recipients === 0
-                ? '수신인이 없습니다'
-                : brevoShort
-                  ? `수신인 ${recipients}명에게 한 번 보낼 분량이 안 됩니다`
-                  : `수신인 ${recipients}명 × 글 1건 = ${recipients}통 확보`
-          }
-        />
+        <Signal label="Brevo 잔량" value={brevoRemaining ?? '...'} tone={brevoShort ? 'warn' : 'default'} />
 
         <Signal
           label="마지막 크롤링"
