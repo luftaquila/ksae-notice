@@ -54,6 +54,13 @@ export async function GET() {
     .where(and(gte(emailLogs.sentAt, today), eq(emailLogs.status, 'skipped')))
     .get();
 
+  // 오늘 실패가 있는지가 관리자가 첫 화면에서 봐야 할 신호다. 누적은 계속 늘기만 한다.
+  const todayFailed = db
+    .select({ count: sql<number>`count(*)` })
+    .from(emailLogs)
+    .where(and(gte(emailLogs.sentAt, today), eq(emailLogs.status, 'failed')))
+    .get();
+
   const totalPosts = db
     .select({ count: sql<number>`count(*)` })
     .from(posts)
@@ -94,6 +101,7 @@ export async function GET() {
       totalSkipped: totalEmailsSkipped?.count || 0,
       todaySent: todayEmails?.count || 0,
       todaySkipped: todaySkipped?.count || 0,
+      todayFailed: todayFailed?.count || 0,
       recentFailed,
     },
     recentCrawls,

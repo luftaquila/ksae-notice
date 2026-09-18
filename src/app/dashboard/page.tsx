@@ -7,6 +7,7 @@ import { canPurchase, renewalPrompt, renewalTargetYear } from '@/lib/subscriptio
 import { alertSummary, subscriptionState, type SubscriptionStateKey } from '@/lib/subscription/status';
 import { formatCalendarDate, formatLocalDateTime } from '@/lib/format';
 import ToggleSwitch from '@/components/ToggleSwitch';
+import { BUTTON_GHOST, BUTTON_PRIMARY, Skeleton, Spinner } from '@/components/ui';
 
 interface AlertPreference {
   id: number;
@@ -72,24 +73,6 @@ const BOARD_ALERTS = ALERT_CATEGORIES.filter((c) => !c.id.startsWith('notice_'))
 interface ScopedError {
   scope: string;
   message: string;
-}
-
-const BUTTON_PRIMARY =
-  'text-sm px-4 py-2 rounded-lg text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed';
-const BUTTON_GHOST =
-  'text-xs px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-blue-300 hover:text-blue-500 active:border-blue-300 active:text-blue-500 dark:hover:border-blue-500/50 dark:hover:text-blue-400 dark:active:border-blue-500/50 dark:active:text-blue-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed';
-
-function Spinner() {
-  return (
-    <svg className="w-4 h-4 animate-spin text-gray-400 dark:text-gray-500" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8v4a4 4 0 0 0-4 4H4z" />
-    </svg>
-  );
-}
-
-function Skeleton({ className }: { className: string }) {
-  return <div className={`animate-pulse rounded bg-gray-200 dark:bg-gray-800 ${className}`} />;
 }
 
 function InlineError({ message, className = '' }: { message: string; className?: string }) {
