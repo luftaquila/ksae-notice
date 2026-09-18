@@ -1,6 +1,6 @@
-import { eq, and, gte, lt } from 'drizzle-orm';
+import { eq, and, gte, isNull, lt } from 'drizzle-orm';
 import { getDb } from '../db';
-import { users, subscriptions, emailLogs } from '../db/schema';
+import { users, emailLogs } from '../db/schema';
 import { sendEmail, getRemainingCredits } from '../email/brevo';
 import { renewalReminder } from '../email/templates';
 
@@ -22,27 +22,26 @@ export async function checkAndSendRenewalReminders(): Promise<void> {
 
   const db = getDb();
 
-  // Find users with active subscriptions expiring this year who haven't renewed
+  // 올해로 끝나는 좌석을 가진 사람 전부. 알림 설정은 보지 않는다 — 갱신 안내는
+  // 구독(좌석)에 대한 것이라, 카테고리를 꺼 두었거나 일시중지한 사람에게도 간다.
   const nextYearExpiry = `${year + 1}-01-01`;
 
-  const subscribedUsers = db
+  const seatHolders = db
     .select({
       userId: users.id,
       email: users.email,
       name: users.name,
     })
     .from(users)
-    .innerJoin(subscriptions, eq(users.id, subscriptions.userId))
     .where(and(
-      eq(subscriptions.isActive, 1),
       gte(users.subscriptionExpiresAt, new Date().toISOString()),
       lt(users.subscriptionExpiresAt, nextYearExpiry),
+      isNull(users.deletedAt),
     ))
-    .groupBy(users.id)
     .all();
 
   // Filter to today's recipients first
-  const todayRecipients = subscribedUsers.filter((user) => {
+  const todayRecipients = seatHolders.filter((user) => {
     const assignedDay = windowStart + (user.userId % 7);
     return day === assignedDay;
   });

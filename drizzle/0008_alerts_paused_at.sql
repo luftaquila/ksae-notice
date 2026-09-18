@@ -1,0 +1,1 @@
+ALTER TABLE `users` ADD `alerts_paused_at` text;

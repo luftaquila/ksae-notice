@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { createTestDb, seedUser, seedSubscription, seedPost, seedEmailLog, seedCrawlLog, type MockSession, type TestDb } from '../helpers';
+import { createTestDb, seedUser, seedAlertPreference, seedPost, seedEmailLog, seedCrawlLog, type MockSession, type TestDb } from '../helpers';
 
 let db: TestDb;
 let mockAdminSession: MockSession = null;
@@ -30,9 +30,15 @@ describe('GET /api/admin/stats', () => {
 
     const u1 = seedUser(db, { googleId: 'g1', email: 'a@test.com' });
     const u2 = seedUser(db, { googleId: 'g2', email: 'b@test.com' });
-    seedSubscription(db, u1, 'notice_Z');
-    seedSubscription(db, u2, 'rule');
-    seedSubscription(db, u2, 'notice_A', { isActive: 0 });
+    seedAlertPreference(db, u1, 'notice_Z');
+    seedAlertPreference(db, u2, 'rule');
+    seedAlertPreference(db, u2, 'notice_A', { isActive: 0 });
+    // 좌석은 있지만 일시중지 — 구독자에는 잡히고 수신인에는 안 잡힌다.
+    const u3 = seedUser(db, { googleId: 'g3', email: 'c@test.com', alertsPausedAt: '2026-01-01T00:00:00.000Z' });
+    seedAlertPreference(db, u3, 'notice_Z');
+    // 좌석은 있지만 알림을 전부 꺼 둠 — 역시 수신인이 아니다. 수신인 + 꺼짐 + 일시중지 = 좌석.
+    const u4 = seedUser(db, { googleId: 'g4', email: 'd@test.com' });
+    seedAlertPreference(db, u4, 'notice_Z', { isActive: 0 });
 
     seedPost(db, { postNumber: 1 });
     seedPost(db, { postNumber: 2 });
@@ -48,11 +54,16 @@ describe('GET /api/admin/stats', () => {
     const res = await GET();
     const data = await res.json();
 
-    expect(data.totalUsers).toBe(2);
-    expect(data.activeSubscribers).toBe(2);
+    expect(data.totalUsers).toBe(4);
+    expect(data.seats).toBe(4);
+    expect(data.recipients).toBe(2);
+    expect(data.seatsAlertsOff).toBe(1);
+    expect(data.seatsPaused).toBe(1);
+    expect(data.recipients + data.seatsAlertsOff + data.seatsPaused).toBe(data.seats);
     expect(data.totalPosts).toBe(3);
     expect(data.emails.totalSent).toBe(2);
     expect(data.emails.totalFailed).toBe(1);
+    expect(data.emails.todayFailed).toBe(1);
     expect(data.recentCrawls.length).toBe(2);
     expect(data.emails.recentFailed.length).toBe(1);
     expect(data.emails.recentFailed[0].error).toBe('timeout');
@@ -63,7 +74,10 @@ describe('GET /api/admin/stats', () => {
     const res = await GET();
     const data = await res.json();
     expect(data.totalUsers).toBe(0);
-    expect(data.activeSubscribers).toBe(0);
+    expect(data.seats).toBe(0);
+    expect(data.recipients).toBe(0);
+    expect(data.seatsAlertsOff).toBe(0);
+    expect(data.seatsPaused).toBe(0);
     expect(data.totalPosts).toBe(0);
     expect(data.emails.totalSent).toBe(0);
     expect(data.recentCrawls).toEqual([]);

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { createTestDb, seedUser, seedSubscription, seedSetting, seedCrawlLog, type TestDb } from '../helpers';
+import { createTestDb, seedUser, seedAlertPreference, seedSetting, seedCrawlLog, type TestDb } from '../helpers';
 
 let db: TestDb;
 
@@ -23,17 +23,18 @@ describe('GET /api/stats', () => {
     expect(data.lastCrawl).toBeNull();
   });
 
-  it('counts distinct active subscribers', async () => {
-    const u1 = seedUser(db, { googleId: 'g1', email: 'a@test.com' });
-    const u2 = seedUser(db, { googleId: 'g2', email: 'b@test.com' });
-    seedSubscription(db, u1, 'notice_Z');
-    seedSubscription(db, u1, 'notice_A');
-    seedSubscription(db, u2, 'notice_Z');
-    seedSubscription(db, u2, 'rule', { isActive: 0 });
+  // 구독자 수 = 결제된 좌석 수. 알림을 전부 꺼 둔 사람도 좌석은 가지고 있고,
+  // 기간이 없는 사람은 카테고리를 아무리 켜도 좌석이 없다.
+  it('counts paid seats, not switched-on categories', async () => {
+    const paid = seedUser(db, { googleId: 'g1', email: 'a@test.com' });
+    seedAlertPreference(db, paid, 'notice_Z');
+    const paidButMuted = seedUser(db, { googleId: 'g2', email: 'b@test.com' });
+    seedAlertPreference(db, paidButMuted, 'notice_Z', { isActive: 0 });
+    const unpaid = seedUser(db, { googleId: 'g3', email: 'c@test.com', subscriptionExpiresAt: null });
+    seedAlertPreference(db, unpaid, 'notice_Z');
 
-    const res = await GET();
-    const data = await res.json();
-    expect(data.activeSubscribers).toBe(2); // distinct users with active subs
+    const data = await (await GET()).json();
+    expect(data.activeSubscribers).toBe(2);
   });
 
   it('reads maxSubscribers and registrationOpen from settings', async () => {

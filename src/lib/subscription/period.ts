@@ -36,7 +36,10 @@ export interface RenewalPrompt {
 // December is the reminder window, so the prompt goes up then as well as after an
 // actual lapse — but not once the period already runs past this year, or it would
 // keep offering a 12/31 expiry that has already moved.
-export function renewalPrompt(now: Date, expiresAt: string | null, hasActiveSubs: boolean): RenewalPrompt {
+//
+// Alert settings do not gate the prompt: the renewal is about the seat, and an
+// account that switched every category off still has a seat that is lapsing.
+export function renewalPrompt(now: Date, expiresAt: string | null): RenewalPrompt {
   const isExpired = !!expiresAt && new Date(expiresAt) < now;
   const isDecember = now.getMonth() === 11;
   // Compared on the ISO prefix rather than through Date: a 12/31 23:59:59 UTC
@@ -45,7 +48,7 @@ export function renewalPrompt(now: Date, expiresAt: string | null, hasActiveSubs
   const renewedAhead = !!expiresAt && Number(expiresAt.slice(0, 4)) > now.getFullYear();
 
   return {
-    show: hasActiveSubs && (isExpired || (isDecember && !renewedAhead)),
+    show: isExpired || (isDecember && !renewedAhead),
     isExpired,
     targetYear: renewalTargetYear(now, expiresAt),
   };

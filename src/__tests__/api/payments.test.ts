@@ -4,7 +4,7 @@ import { NextRequest } from 'next/server';
 import {
   createTestDb,
   seedUser,
-  seedSubscription,
+  seedAlertPreference,
   seedSetting,
   EXPIRED,
   UNEXPIRED,
@@ -144,6 +144,11 @@ function inDecember() {
   setClock(`${new Date().getFullYear()}-12-15T12:00:00+09:00`);
 }
 
+// 구독료를 0원으로 돌린다 — 무료 구독 설정.
+function free() {
+  db.update(settings).set({ value: '0' }).where(eq(settings.key, 'subscriptionPrice')).run();
+}
+
 // 결제 한 건을 승인까지 태운다.
 async function buyOnce(userId: number, email = 'a@test.com') {
   mockSessionValue = { user: { id: userId, email } };
@@ -214,6 +219,17 @@ describe('POST /api/payments/orders', () => {
     expect((await (await createOrderRoute(orderReq())).json()).amount).toBe(1000);
   });
 
+  // 0 은 최소금액 미만이지만 잘못 적힌 값이 아니라 "무료" 다.
+  it('keeps a price of 0 as free instead of falling back to the default', async () => {
+    free();
+    const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com', subscriptionExpiresAt: null });
+    mockSessionValue = { user: { id: userId, email: 'a@test.com' } };
+
+    const body = await (await createOrderRoute(orderReq())).json();
+    expect(body.amount).toBe(0);
+    expect(body.free).toBe(true);
+  });
+
   it('quotes this year for a lapsed account and, in December, next year for one ending this year', async () => {
     const lapsed = seedUser(db, { googleId: 'g1', email: 'a@test.com', subscriptionExpiresAt: EXPIRED });
     mockSessionValue = { user: { id: lapsed, email: 'a@test.com' } };
@@ -250,7 +266,7 @@ describe('POST /api/payments/orders', () => {
   it('blocks a new payer when every subscriber slot is taken', async () => {
     db.update(settings).set({ value: '1' }).where(eq(settings.key, 'maxSubscribers')).run();
     const taker = seedUser(db, { googleId: 'g1', email: 'a@test.com' });
-    seedSubscription(db, taker, 'notice_Z');
+    seedAlertPreference(db, taker, 'notice_Z');
     const newcomer = seedUser(db, { googleId: 'g2', email: 'b@test.com', subscriptionExpiresAt: null });
     mockSessionValue = { user: { id: newcomer, email: 'b@test.com' } };
 
@@ -263,7 +279,7 @@ describe('POST /api/payments/orders', () => {
     inDecember();
     db.update(settings).set({ value: '1' }).where(eq(settings.key, 'maxSubscribers')).run();
     const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com', subscriptionExpiresAt: THIS_YEAR });
-    seedSubscription(db, userId, 'notice_Z');
+    seedAlertPreference(db, userId, 'notice_Z');
     mockSessionValue = { user: { id: userId, email: 'a@test.com' } };
 
     expect((await createOrderRoute(orderReq())).status).toBe(200);
@@ -277,6 +293,87 @@ describe('POST /api/payments/orders', () => {
     const res = await createOrderRoute(orderReq());
     expect(res.status).toBe(403);
     expect((await res.json()).error).toBe('현재 신규 구독이 중단되었습니다.');
+  });
+});
+
+describe('무료 구독 (구독료 0원)', () => {
+  beforeEach(free);
+
+  it('grants the period on the spot without opening the payment window', async () => {
+    const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com', subscriptionExpiresAt: null });
+    mockSessionValue = { user: { id: userId, email: 'a@test.com' } };
+
+    const body = await (await createOrderRoute(orderReq())).json();
+
+    expect(body.free).toBe(true);
+    expect(body.expiresAt).toBe(endOfYear(new Date().getFullYear()));
+    // 승인 API 는 부르지 않는다. 결제창을 열 재료도 내려보내지 않는다.
+    expect(approveCalls).toHaveLength(0);
+    expect(body.clientId).toBeUndefined();
+    expect(body.returnUrl).toBeUndefined();
+
+    const order = orderOf(body.orderId);
+    expect(order.status).toBe('paid');
+    expect(order.amount).toBe(0);
+    expect(order.tid).toBeNull();
+    expect(order.method).toBe('free');
+    expect(order.grantedTo).toBe(endOfYear(new Date().getFullYear()));
+    expect(periodOf(userId)).toBe(endOfYear(new Date().getFullYear()));
+  });
+
+  // 게이트웨이 키는 결제할 때만 필요하다.
+  it('works with no gateway keys configured', async () => {
+    vi.stubEnv('NICEPAY_SECRET_KEY', '');
+    const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com', subscriptionExpiresAt: null });
+    mockSessionValue = { user: { id: userId, email: 'a@test.com' } };
+
+    const res = await createOrderRoute(orderReq());
+    expect(res.status).toBe(200);
+    expect((await res.json()).free).toBe(true);
+  });
+
+  // 공짜라고 한 해를 두 번 주지 않는다 — 기간 규칙은 유료와 같다.
+  it('does not stack a second year on a repeat request', async () => {
+    const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com', subscriptionExpiresAt: null });
+    mockSessionValue = { user: { id: userId, email: 'a@test.com' } };
+
+    await createOrderRoute(orderReq());
+    const second = await createOrderRoute(orderReq());
+
+    expect(second.status).toBe(403);
+    expect(periodOf(userId)).toBe(endOfYear(new Date().getFullYear()));
+    expect(db.select().from(payments).all()).toHaveLength(1);
+  });
+
+  // 정원과 접수 중단은 발송 한도의 문제라 돈과 무관하게 그대로 걸린다.
+  it('still respects the subscriber limit and a closed registration', async () => {
+    db.update(settings).set({ value: '1' }).where(eq(settings.key, 'maxSubscribers')).run();
+    const taker = seedUser(db, { googleId: 'g1', email: 'a@test.com' });
+    seedAlertPreference(db, taker, 'notice_Z');
+    const newcomer = seedUser(db, { googleId: 'g2', email: 'b@test.com', subscriptionExpiresAt: null });
+    mockSessionValue = { user: { id: newcomer, email: 'b@test.com' } };
+
+    expect((await createOrderRoute(orderReq())).status).toBe(403);
+
+    db.update(settings).set({ value: '50' }).where(eq(settings.key, 'maxSubscribers')).run();
+    db.update(settings).set({ value: 'false' }).where(eq(settings.key, 'registrationOpen')).run();
+    expect((await createOrderRoute(orderReq())).status).toBe(403);
+    expect(db.select().from(payments).all()).toHaveLength(0);
+  });
+
+  // 되돌릴 승인이 없으니 게이트웨이를 부르지 않는다. 부르면 거래키가 없어 실패한다.
+  it('cancels without calling the gateway and rolls the period back', async () => {
+    const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com', subscriptionExpiresAt: null });
+    mockSessionValue = { user: { id: userId, email: 'a@test.com' } };
+    const { orderId } = await (await createOrderRoute(orderReq())).json();
+
+    mockSessionValue = { user: { id: userId, email: 'a@test.com', isAdmin: true } };
+    const res = await adminCancelRoute(adminCancelReq({ orderId, reason: '무료 구독 회수' }));
+
+    expect(res.status).toBe(200);
+    expect(cancelCalls).toHaveLength(0);
+    expect(orderOf(orderId).status).toBe('cancelled');
+    expect(periodOf(userId)).toBeNull();
   });
 });
 

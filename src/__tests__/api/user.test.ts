@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { createTestDb, seedUser, seedSubscription, seedPayment, UNEXPIRED, type MockSession, type TestDb } from '../helpers';
+import { createTestDb, seedUser, seedAlertPreference, seedPayment, UNEXPIRED, type MockSession, type TestDb } from '../helpers';
 import { eq } from 'drizzle-orm';
-import { users, subscriptions } from '@/lib/db/schema';
+import { users, alertPreferences } from '@/lib/db/schema';
 import { ACCOUNT_DELETE_CONFIRMATION } from '@/lib/constants';
 
 let db: TestDb;
@@ -38,8 +38,8 @@ describe('DELETE /api/user', () => {
 
   it('soft deletes user and deactivates subscriptions', async () => {
     const userId = seedUser(db, { googleId: 'g1', email: 'test@test.com' });
-    seedSubscription(db, userId, 'notice_Z');
-    seedSubscription(db, userId, 'rule');
+    seedAlertPreference(db, userId, 'notice_Z');
+    seedAlertPreference(db, userId, 'rule');
 
     mockSessionValue = { user: { id: userId, email: 'test@test.com' } };
     const res = await withdraw();
@@ -49,7 +49,7 @@ describe('DELETE /api/user', () => {
     const user = db.select().from(users).where(eq(users.id, userId)).get();
     expect(user!.deletedAt).not.toBeNull();
 
-    const subs = db.select().from(subscriptions).where(eq(subscriptions.userId, userId)).all();
+    const subs = db.select().from(alertPreferences).where(eq(alertPreferences.userId, userId)).all();
     expect(subs.every(s => s.isActive === 0)).toBe(true);
   });
 
@@ -149,7 +149,7 @@ describe('DELETE /api/user - subscription period', () => {
 
   it('forfeits the remaining period', async () => {
     const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com', subscriptionExpiresAt: UNEXPIRED });
-    seedSubscription(db, userId, 'notice_Z');
+    seedAlertPreference(db, userId, 'notice_Z');
     mockSessionValue = { user: { id: userId, email: 'a@test.com' } };
 
     await withdraw();

@@ -62,10 +62,10 @@ export function newPostNotification(postsByCategory: PostInfo[], siteUrl: string
       <h1>KSAE 공지봇 - ${hasNew && hasUpdated ? '게시글 알림' : hasUpdated ? '게시글 수정 알림' : '새 게시글 알림'}</h1>
     </div>
     <div class="content">
-      <p style="color: #4a5568;">${hasNew && hasUpdated ? '구독 중인 카테고리에 새 게시글이 등록되고, 기존 게시글이 수정되었습니다.' : hasUpdated ? '구독 중인 카테고리의 게시글이 수정되었습니다.' : '구독 중인 카테고리에 새 게시글이 등록되었습니다.'}</p>
+      <p style="color: #4a5568;">${hasNew && hasUpdated ? '알림을 켠 카테고리에 새 게시글이 등록되고, 기존 게시글이 수정되었습니다.' : hasUpdated ? '알림을 켠 카테고리의 게시글이 수정되었습니다.' : '알림을 켠 카테고리에 새 게시글이 등록되었습니다.'}</p>
       ${postsHtml}
       <p style="text-align: center; margin-top: 24px;">
-        <a href="${siteUrl}/dashboard" class="btn" style="color: #ffffff;">구독 설정 관리</a>
+        <a href="${siteUrl}/dashboard" class="btn" style="color: #ffffff;">알림 설정 관리</a>
       </p>
     </div>
   </div>
