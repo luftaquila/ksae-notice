@@ -32,6 +32,7 @@ interface AdminStats {
   totalUsers: number;
   deletedUsers: number;
   seats: number;
+  recipients: number;
   totalPosts: number;
   emails: {
     totalSent: number;
@@ -356,6 +357,15 @@ export default function AdminPage() {
     deletedAt: user.deletedAt,
     subscriptionExpiresAt: user.subscriptionExpiresAt,
   }).holdsSeat).length;
+  // 좌석 중 지금 메일이 나가는 사람. 서버의 getRecipientCount 와 같은 판정이다.
+  const recipientsHeld = users.filter((user) =>
+    subscriptionState({ deletedAt: user.deletedAt, subscriptionExpiresAt: user.subscriptionExpiresAt }).holdsSeat
+    && alertSummary({
+      activeCount: user.alerts.filter((s) => s.isActive).length,
+      total: ALERT_CATEGORIES.length,
+      paused: !!user.alertsPausedAt,
+    }).delivering,
+  ).length;
 
   if (loading) {
     return <div className="max-w-screen-xl mx-auto px-4 py-12 text-center text-gray-400 dark:text-gray-500">불러오는 중...</div>;
@@ -370,8 +380,11 @@ export default function AdminPage() {
       )}
 
       {/* Stats cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
-        <StatCard label="구독 중/미구독/탈퇴/전체" value={`${stats?.seats ?? 0}/${(stats?.totalUsers ?? 0) - (stats?.seats ?? 0) - (stats?.deletedUsers ?? 0)}/${stats?.deletedUsers ?? 0}/${stats?.totalUsers ?? 0}`} />
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-4">
+        {/* 구독자(좌석)와 실제 수신인은 다른 수다. 좌석은 정원이 세는 것, 수신인은 지금 새 글이
+            뜨면 메일이 나가는 사람 — 좌석 중 알림을 하나라도 켜 두고 일시중지하지 않은 사람. */}
+        <StatCard label="구독자 / 수신인" value={`${stats?.seats ?? 0} / ${stats?.recipients ?? 0}`} />
+        <StatCard label="미구독/탈퇴/전체" value={`${(stats?.totalUsers ?? 0) - (stats?.seats ?? 0) - (stats?.deletedUsers ?? 0)}/${stats?.deletedUsers ?? 0}/${stats?.totalUsers ?? 0}`} />
         <StatCard label="오늘 생략" value={stats?.emails.todaySkipped ?? 0} />
         <StatCard label="오늘 발송" value={stats?.emails.todaySent ?? 0} />
         <StatCard label="Brevo 잔량" value={brevoRemaining ?? '...'} />
@@ -650,7 +663,7 @@ export default function AdminPage() {
         <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
           유저 목록 ({users.length}명)
           <span className="ml-2 text-sm font-normal text-gray-500 dark:text-gray-400">
-            좌석 {seatsHeld} / {settings.maxSubscribers}
+            구독자 {seatsHeld} / {settings.maxSubscribers} · 수신인 {recipientsHeld}
           </span>
         </h2>
         <div className="overflow-x-auto">

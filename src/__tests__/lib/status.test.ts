@@ -8,7 +8,7 @@ vi.mock('@/lib/db', () => ({
   getDb: () => db,
 }));
 
-const { getSeatCount } = await import('@/lib/subscription/capacity');
+const { getRecipientCount, getSeatCount } = await import('@/lib/subscription/capacity');
 
 describe('subscriptionState', () => {
   const now = new Date('2026-08-19T00:00:00.000Z');
@@ -78,12 +78,21 @@ describe('subscriptionState agrees with the seat count', () => {
         alertsPausedAt: paused ? '2026-01-01T00:00:00.000Z' : null,
       });
       seedAlertPreference(db, id, 'notice_Z', { isActive: on ? 1 : 0 });
-      return { deletedAt, subscriptionExpiresAt: expiresAt };
+      return { deletedAt, subscriptionExpiresAt: expiresAt, on, paused };
     });
 
     const held = rows.filter((row) => subscriptionState(row).holdsSeat).length;
 
     expect(held).toBe(3);
     expect(held).toBe(getSeatCount());
+
+    // 관리자 표의 "수신인" 도 같은 두 함수로 접는다 — 서버 집계와 어긋나면 안 된다.
+    const delivering = rows.filter((row) =>
+      subscriptionState(row).holdsSeat
+      && alertSummary({ activeCount: row.on ? 1 : 0, total: 8, paused: row.paused }).delivering,
+    ).length;
+
+    expect(delivering).toBe(1);
+    expect(delivering).toBe(getRecipientCount());
   });
 });

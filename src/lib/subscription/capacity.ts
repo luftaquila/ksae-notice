@@ -1,6 +1,6 @@
 import { and, eq, gte, isNull, sql } from 'drizzle-orm';
 import { getDb } from '../db';
-import { settings, users } from '../db/schema';
+import { alertPreferences, settings, users } from '../db/schema';
 
 export const DEFAULT_MAX_SUBSCRIBERS = 50;
 
@@ -39,6 +39,24 @@ export function getSeatCount(db: DbClient = getDb()): number {
     .where(and(
       gte(users.subscriptionExpiresAt, new Date().toISOString()),
       isNull(users.deletedAt),
+    ))
+    .get();
+  return result?.count || 0;
+}
+
+// 실제 수신인 = 좌석 중 알림을 하나라도 켜 두고 일시중지하지 않은 사람 — 지금 새 글이
+// 뜨면 메일이 나가는 사람 수. 정원은 이 수가 아니라 좌석을 세고, 관리자 화면이 둘을
+// 나란히 보여준다. 조건은 lib/email/sender.ts 의 수신자 조회와 같아야 한다.
+export function getRecipientCount(db: DbClient = getDb()): number {
+  const result = db
+    .select({ count: sql<number>`count(DISTINCT ${alertPreferences.userId})` })
+    .from(alertPreferences)
+    .innerJoin(users, eq(alertPreferences.userId, users.id))
+    .where(and(
+      eq(alertPreferences.isActive, 1),
+      gte(users.subscriptionExpiresAt, new Date().toISOString()),
+      isNull(users.deletedAt),
+      isNull(users.alertsPausedAt),
     ))
     .get();
   return result?.count || 0;

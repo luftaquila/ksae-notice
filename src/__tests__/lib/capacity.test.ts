@@ -10,6 +10,7 @@ vi.mock('@/lib/db', () => ({
 const {
   DEFAULT_MAX_SUBSCRIBERS,
   getMaxSubscribers,
+  getRecipientCount,
   getSeatCount,
   holdsSeat,
   isRegistrationOpen,
@@ -94,6 +95,35 @@ describe('getSeatCount', () => {
     seedUser(db, { googleId: 'g1', email: 'a@test.com', deletedAt: '2026-01-01T00:00:00.000Z' });
 
     expect(getSeatCount()).toBe(0);
+  });
+});
+
+// 실제 수신인 = 좌석 ∩ 알림 하나 이상 켬 ∖ 일시중지. 좌석보다 작거나 같다.
+describe('getRecipientCount', () => {
+  beforeEach(() => {
+    db = createTestDb();
+  });
+
+  it('counts a seat once however many categories it has on, and drops muted or paused seats', () => {
+    const chatty = seedUser(db, { googleId: 'g1', email: 'a@test.com' });
+    seedAlertPreference(db, chatty, 'notice_Z');
+    seedAlertPreference(db, chatty, 'rule');
+    const muted = seedUser(db, { googleId: 'g2', email: 'b@test.com' });
+    seedAlertPreference(db, muted, 'notice_Z', { isActive: 0 });
+    const pausedUser = seedUser(db, { googleId: 'g3', email: 'c@test.com', alertsPausedAt: '2026-01-01T00:00:00.000Z' });
+    seedAlertPreference(db, pausedUser, 'notice_Z');
+
+    expect(getSeatCount()).toBe(3);
+    expect(getRecipientCount()).toBe(1);
+  });
+
+  it('never counts someone without a seat, however loud their settings', () => {
+    const unpaid = seedUser(db, { googleId: 'g1', email: 'a@test.com', subscriptionExpiresAt: null });
+    seedAlertPreference(db, unpaid, 'notice_Z');
+    const lapsed = seedUser(db, { googleId: 'g2', email: 'b@test.com', subscriptionExpiresAt: EXPIRED });
+    seedAlertPreference(db, lapsed, 'notice_Z');
+
+    expect(getRecipientCount()).toBe(0);
   });
 });
 

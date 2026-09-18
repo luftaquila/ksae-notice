@@ -33,6 +33,9 @@ describe('GET /api/admin/stats', () => {
     seedAlertPreference(db, u1, 'notice_Z');
     seedAlertPreference(db, u2, 'rule');
     seedAlertPreference(db, u2, 'notice_A', { isActive: 0 });
+    // 좌석은 있지만 일시중지 — 구독자에는 잡히고 수신인에는 안 잡힌다.
+    const u3 = seedUser(db, { googleId: 'g3', email: 'c@test.com', alertsPausedAt: '2026-01-01T00:00:00.000Z' });
+    seedAlertPreference(db, u3, 'notice_Z');
 
     seedPost(db, { postNumber: 1 });
     seedPost(db, { postNumber: 2 });
@@ -48,8 +51,9 @@ describe('GET /api/admin/stats', () => {
     const res = await GET();
     const data = await res.json();
 
-    expect(data.totalUsers).toBe(2);
-    expect(data.seats).toBe(2);
+    expect(data.totalUsers).toBe(3);
+    expect(data.seats).toBe(3);
+    expect(data.recipients).toBe(2);
     expect(data.totalPosts).toBe(3);
     expect(data.emails.totalSent).toBe(2);
     expect(data.emails.totalFailed).toBe(1);
@@ -64,6 +68,7 @@ describe('GET /api/admin/stats', () => {
     const data = await res.json();
     expect(data.totalUsers).toBe(0);
     expect(data.seats).toBe(0);
+    expect(data.recipients).toBe(0);
     expect(data.totalPosts).toBe(0);
     expect(data.emails.totalSent).toBe(0);
     expect(data.recentCrawls).toEqual([]);
