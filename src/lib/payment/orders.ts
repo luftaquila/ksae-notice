@@ -109,7 +109,8 @@ export function failOrder(
 // 대상이다 — 만료는 정리용 라벨이지 승인 게이트가 아니다.
 export function settleOrder(params: {
   orderId: string;
-  tid: string;
+  // 무료 구독에는 거래키가 없다. 결제창도 승인 API 도 거치지 않기 때문이다.
+  tid: string | null;
   method?: string | null;
   rawApprove: unknown;
   rawAuth?: unknown;
@@ -161,6 +162,22 @@ export function settleOrder(params: {
 
     return tx.select().from(payments).where(eq(payments.orderId, params.orderId)).get() ?? null;
   }, { behavior: 'immediate' });
+}
+
+// 무료 구독(구독료 0원)의 지급. 결제창도 승인도 없으므로 거래키가 없고, 주문은
+// 만들어진 자리에서 바로 확정된다.
+//
+// 기간 계산과 멱등성은 유료 결제와 같은 settleOrder 를 그대로 쓴다 — 두 경로가
+// 기간을 다르게 계산하면 무료로 바꾼 해에만 만료일이 어긋난다.
+export const FREE_METHOD = 'free';
+
+export function settleFreeOrder(orderId: string): PaymentRow | null {
+  return settleOrder({
+    orderId,
+    tid: null,
+    method: FREE_METHOD,
+    rawApprove: { free: true, grantedAt: new Date().toISOString() },
+  });
 }
 
 // 취소된 주문의 기간을 되돌린다. 실제로 취소 처리가 일어났을 때만 결과를 준다.

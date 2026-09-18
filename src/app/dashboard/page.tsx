@@ -46,6 +46,8 @@ export default function DashboardPage() {
   // One expiry for the whole account, not one per category.
   const [expiresAt, setExpiresAt] = useState<string | null>(null);
   const [price, setPrice] = useState<number | null>(null);
+  // 구독료 0원. 버튼 문구와 결제창 호출 여부가 여기서 갈린다.
+  const [free, setFree] = useState(false);
   const [paymentEnabled, setPaymentEnabled] = useState(false);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -62,6 +64,7 @@ export default function DashboardPage() {
       setSubs(data.subscriptions || []);
       setExpiresAt(data.expiresAt ?? null);
       setPrice(data.price ?? null);
+      setFree(!!data.free);
       setPaymentEnabled(!!data.paymentEnabled);
     } catch {
       setError('구독 정보를 불러오는데 실패했습니다.');
@@ -176,6 +179,13 @@ export default function DashboardPage() {
       const res = await fetch('/api/payments/orders', { method: 'POST' });
       const order = await res.json();
       if (!res.ok) throw new Error(order.error || '결제를 시작하지 못했습니다.');
+
+      // 무료 구독은 서버가 주문을 그 자리에서 확정해 돌려준다. 결제창은 없다.
+      if (order.free) {
+        await Promise.all([fetchSubs(), fetchPayments()]);
+        return;
+      }
+
       if (!window.AUTHNICE) {
         throw new Error('결제 모듈을 불러오지 못했습니다. 새로고침 후 다시 시도해주세요.');
       }
@@ -244,7 +254,7 @@ export default function DashboardPage() {
   // 기간이 없거나 지났을 때, 그리고 12월에 올해로 끝나는 기간만 결제 대상이다.
   // 서버의 주문 라우트와 같은 규칙이라 버튼이 있으면 주문도 열려 있다.
   const canPay = canPurchase(now, expiresAt);
-  const priceLabel = price === null ? '' : ` · ${price.toLocaleString('ko-KR')}원`;
+  const priceLabel = price === null ? '' : free ? ' · 무료' : ` · ${price.toLocaleString('ko-KR')}원`;
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
@@ -349,7 +359,11 @@ export default function DashboardPage() {
             disabled={actionLoading === 'pay'}
             className="text-sm px-4 py-2 rounded-lg text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition cursor-pointer disabled:opacity-50"
           >
-            {actionLoading === 'pay' ? '결제창 여는 중...' : `${targetYear}년까지 구독${priceLabel}`}
+            {actionLoading === 'pay'
+              ? free
+                ? '신청하는 중...'
+                : '결제창 여는 중...'
+              : `${targetYear}년까지 구독${priceLabel}`}
           </button>
         )}
       </div>
