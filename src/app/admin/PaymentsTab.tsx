@@ -177,7 +177,7 @@ export default function PaymentsTab({
                 const open = cancelling === p.orderId || rowMessage?.orderId === p.orderId;
                 return (
                   <Fragment key={p.orderId}>
-                    <tr className={open ? 'bg-gray-50 dark:bg-gray-800/40 [&>td]:pb-1' : ''}>
+                    <tr className={open ? 'bg-gray-50 dark:bg-gray-800/40' : ''}>
                       <td className={`${TD} pl-4 whitespace-nowrap`}>
                         <div className={`font-mono text-xs truncate max-w-[20rem] ${muted}`} title={p.userEmail}>{p.userEmail}</div>
                       </td>
@@ -194,8 +194,15 @@ export default function PaymentsTab({
                       <td className={`${TD} whitespace-nowrap text-gray-500 dark:text-gray-400 tabular-nums`}>{when(p)}</td>
                       <td className={`${TD} whitespace-nowrap`}>{orderIdButton(p, 'whitespace-nowrap')}</td>
                       <td className={`${TD} pr-4 whitespace-nowrap text-right`}>
-                        {p.status === 'paid' && cancelling !== p.orderId && (
-                          <button onClick={() => openCancel(p.orderId)} disabled={busy !== null} className={BUTTON_DANGER}>결제 취소</button>
+                        {/* 폼이 열려도 버튼 자리는 남긴다 — 빼면 행 높이가 버튼만큼 줄어든다. */}
+                        {p.status === 'paid' && (
+                          <button
+                            onClick={() => openCancel(p.orderId)}
+                            disabled={busy !== null}
+                            className={`${BUTTON_DANGER} ${cancelling === p.orderId ? 'invisible' : ''}`}
+                          >
+                            결제 취소
+                          </button>
                         )}
                       </td>
                     </tr>

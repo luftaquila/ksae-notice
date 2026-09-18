@@ -1,4 +1,4 @@
-import { and, eq, gte, isNull, sql } from 'drizzle-orm';
+import { and, eq, gte, isNotNull, isNull, notExists, sql } from 'drizzle-orm';
 import { getDb } from '../db';
 import { alertPreferences, settings, users } from '../db/schema';
 
@@ -60,6 +60,28 @@ export function getRecipientCount(db: DbClient = getDb()): number {
     ))
     .get();
   return result?.count || 0;
+}
+
+// 좌석을 셋으로 쪼갠 것: 수신인 + 알림 모두 꺼짐 + 일시중지 = 좌석. 관리자 카드가 "구독자
+// 141 인데 수신인은 왜 138 인가" 에 답할 수 있어야 한다 — 차이는 이 두 수다.
+export function getSeatBreakdown(db: DbClient = getDb()): { seats: number; recipients: number; alertsOff: number; paused: number } {
+  const now = new Date().toISOString();
+  const seated = and(gte(users.subscriptionExpiresAt, now), isNull(users.deletedAt));
+  const count = (where: ReturnType<typeof and>) =>
+    db.select({ count: sql<number>`count(*)` }).from(users).where(where).get()?.count || 0;
+
+  const seats = count(seated);
+  const paused = count(and(seated, isNotNull(users.alertsPausedAt)));
+  const alertsOff = count(and(
+    seated,
+    isNull(users.alertsPausedAt),
+    notExists(
+      db.select({ id: alertPreferences.id })
+        .from(alertPreferences)
+        .where(and(eq(alertPreferences.userId, users.id), eq(alertPreferences.isActive, 1))),
+    ),
+  ));
+  return { seats, recipients: seats - paused - alertsOff, alertsOff, paused };
 }
 
 // Whether this user already holds a seat, i.e. is part of the count above.

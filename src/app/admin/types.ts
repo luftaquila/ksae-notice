@@ -44,6 +44,9 @@ export interface AdminStats {
   deletedUsers: number;
   seats: number;
   recipients: number;
+  // 좌석 중 수신인이 아닌 사람: 알림을 전부 꺼 둔 사람과 일시중지한 사람. 셋을 더하면 seats.
+  seatsAlertsOff: number;
+  seatsPaused: number;
   totalPosts: number;
   emails: {
     totalSent: number;

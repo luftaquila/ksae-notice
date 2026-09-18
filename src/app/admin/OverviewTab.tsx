@@ -43,7 +43,7 @@ function Signal({
     <div className={`bg-white dark:bg-gray-900 rounded-lg border p-4 ${border}`}>
       <div className="text-xs font-medium text-gray-500 dark:text-gray-400">{label}</div>
       <div className={`mt-1 text-2xl font-bold tabular-nums ${valueColor}`}>{value}</div>
-      {sub && <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{sub}</div>}
+      {sub && <div className="mt-1 text-xs text-gray-500 dark:text-gray-400 tabular-nums space-y-0.5">{sub}</div>}
       {children}
     </div>
   );
@@ -112,7 +112,12 @@ export default function OverviewTab({
           label="구독자"
           value={<>{seats} <span className="text-base font-medium text-gray-400 dark:text-gray-500">/ {maxSubscribers || '-'}</span></>}
           tone={maxSubscribers > 0 && seats >= maxSubscribers ? 'warn' : 'default'}
-          sub={<>수신인 {recipients}</>}
+          sub={
+            <>
+              <div>수신인 {recipients} · 알림 꺼짐 {stats?.seatsAlertsOff ?? 0} · 일시중지 {stats?.seatsPaused ?? 0}</div>
+              <div>미구독 {(stats?.totalUsers ?? 0) - seats - (stats?.deletedUsers ?? 0)} · 탈퇴 {stats?.deletedUsers ?? 0} · 전체 {stats?.totalUsers ?? 0}</div>
+            </>
+          }
         >
           <div className="mt-3 h-1.5 rounded-full bg-gray-100 dark:bg-gray-800 overflow-hidden">
             <div
