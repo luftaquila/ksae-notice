@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 import { createTestDb, seedUser, seedSubscription, seedSetting, createUpsertSubscriptionMock, EXPIRED, type MockSession, type TestDb } from '../helpers';
+import { SUBSCRIPTION_CATEGORIES } from '@/lib/constants';
 import { eq, and } from 'drizzle-orm';
 import { users, subscriptions, settings } from '@/lib/db/schema';
 
@@ -20,6 +21,7 @@ vi.mock('@/lib/subscription/upsert', () => ({
 }));
 
 const { GET, POST, DELETE } = await import('@/app/api/subscriptions/route');
+const { POST: subscribeAll, DELETE: unsubscribeAll } = await import('@/app/api/subscriptions/all/route');
 
 function jsonReq(body: unknown) {
   return new NextRequest('http://localhost/api/subscriptions', {
@@ -205,5 +207,57 @@ describe('POST /api/subscriptions - edge cases', () => {
 
     const data = await (await GET()).json();
     expect(data.price).toBe(3000);
+  });
+});
+
+// 대시보드의 "전체 켜기 / 전체 끄기". 왕복 한 번으로 끝나야 하고, 기간은 건드리지 않는다.
+describe('/api/subscriptions/all', () => {
+  beforeEach(() => {
+    db = createTestDb();
+    mockSessionValue = null;
+  });
+
+  function activeCategories(userId: number) {
+    return db.select().from(subscriptions)
+      .where(and(eq(subscriptions.userId, userId), eq(subscriptions.isActive, 1)))
+      .all()
+      .map((s) => s.category)
+      .sort();
+  }
+
+  it('returns 401 when not authenticated', async () => {
+    expect((await subscribeAll()).status).toBe(401);
+    expect((await unsubscribeAll()).status).toBe(401);
+  });
+
+  // 행이 없는 카테고리(나중에 추가된 게시판)도 채우고, 꺼 둔 것도 되살린다.
+  it('turns every category on, filling missing rows and reviving switched-off ones', async () => {
+    const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com', subscriptionExpiresAt: EXPIRED });
+    seedSubscription(db, userId, 'notice_Z', { isActive: 0 });
+    seedSubscription(db, userId, 'rule');
+    mockSessionValue = { user: { id: userId, email: 'a@test.com' } };
+
+    const res = await subscribeAll();
+
+    expect(res.status).toBe(200);
+    expect(activeCategories(userId)).toEqual([...SUBSCRIPTION_CATEGORIES].map((c) => c.id).sort());
+    // 카테고리는 무료다. 기간은 결제만이 준다.
+    expect(db.select().from(users).where(eq(users.id, userId)).get()!.subscriptionExpiresAt).toBe(EXPIRED);
+  });
+
+  it('turns every category off but keeps the rows', async () => {
+    const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com' });
+    for (const cat of SUBSCRIPTION_CATEGORIES) seedSubscription(db, userId, cat.id);
+    const other = seedUser(db, { googleId: 'g2', email: 'b@test.com' });
+    seedSubscription(db, other, 'notice_Z');
+    mockSessionValue = { user: { id: userId, email: 'a@test.com' } };
+
+    const res = await unsubscribeAll();
+
+    expect(res.status).toBe(200);
+    expect(activeCategories(userId)).toEqual([]);
+    expect(db.select().from(subscriptions).where(eq(subscriptions.userId, userId)).all()).toHaveLength(SUBSCRIPTION_CATEGORIES.length);
+    // 남의 것은 그대로다.
+    expect(activeCategories(other)).toEqual(['notice_Z']);
   });
 });

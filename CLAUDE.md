@@ -27,7 +27,7 @@ src/
 │       ├── review-login/   # 심사용 로그인 API
 │       ├── user/           # 계정 삭제 API
 │       ├── posts/          # 게시글 조회 API
-│       ├── subscriptions/  # 구독 카테고리 관리 API (무료)
+│       ├── subscriptions/  # 구독 카테고리 관리 API (무료), all/ 은 전체 켬·끔
 │       ├── payments/       # 결제 (orders/ return/ webhook/) + 내 결제 내역
 │       ├── stats/          # 공개 통계 API
 │       └── admin/          # 관리자 전용 API (settings, users, stats, test-email, payments)
