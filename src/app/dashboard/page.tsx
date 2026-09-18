@@ -64,10 +64,6 @@ const STATE_STYLE: Record<SubscriptionStateKey, { dot: string; badge: string }> 
   },
 };
 
-// 알림 카테고리는 두 묶음이다: 공지사항 게시판 안의 다섯 분류, 그리고 게시판 자체인 셋.
-const NOTICE_ALERTS = ALERT_CATEGORIES.filter((c) => c.id.startsWith('notice_'));
-const BOARD_ALERTS = ALERT_CATEGORIES.filter((c) => !c.id.startsWith('notice_'));
-
 // 오류는 일으킨 자리 옆에 보인다. 맨 위 배너 하나로 모으면 아래쪽 토글이 실패했을
 // 때 화면 밖에서 조용히 뜬다. scope 는 'load' | 'pay' | 'bulk' | 'pause' | 카테고리 id.
 interface ScopedError {
@@ -440,10 +436,7 @@ export default function DashboardPage() {
         {(error?.scope === 'pause' || error?.scope === 'bulk') && <InlineError message={error.message} className="mb-2 px-1" />}
 
         <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 divide-y divide-gray-100 dark:divide-gray-800">
-          <div className="px-4 pt-3 pb-1 text-xs font-medium text-gray-400 dark:text-gray-500">공지사항</div>
-          {NOTICE_ALERTS.map(renderAlertRow)}
-          <div className="px-4 pt-3 pb-1 text-xs font-medium text-gray-400 dark:text-gray-500">게시판</div>
-          {BOARD_ALERTS.map(renderAlertRow)}
+          {ALERT_CATEGORIES.map(renderAlertRow)}
         </div>
 
         {activeCount < ALERT_CATEGORIES.length && (

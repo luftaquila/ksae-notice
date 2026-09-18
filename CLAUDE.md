@@ -39,7 +39,7 @@ KSAE 대학생 자작자동차대회 공지사항·규정·경기결과·양식 
 src/
 ├── app/                    # Next.js App Router pages & API routes
 │   ├── page.tsx            # 메인 페이지 (공개, 게시글 목록 + 필터)
-│   ├── dashboard/page.tsx  # 구독 관리 (로그인 필요): 구독 카드 + 알림 설정
+│   ├── dashboard/page.tsx  # 구독 관리 (로그인 필요): 구독 카드 + 알림 설정(카테고리 8개 한 목록)
 │   ├── admin/              # 관리자: page.tsx 가 자료를 읽고 탭(URL 해시)을 고른다
 │   │   ├── OverviewTab.tsx #   개요 — 오늘 발송·좌석·Brevo 잔량·마지막 크롤 신호 + 크롤/실패 로그
 │   │   ├── UsersTab.tsx    #   유저 — 검색·상태 필터·정렬, 한 행에 칩·조작 전부 (그리드 트랙, 접힘 없음)
