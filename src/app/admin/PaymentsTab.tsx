@@ -65,6 +65,12 @@ export default function PaymentsTab({
     setRowMessage(null);
   };
 
+  // 닫기는 폼과 함께 그 행의 메시지도 지운다 — 실패 문구가 폼이 사라진 뒤에도 남아 있었다.
+  const closeCancel = () => {
+    setCancelling(null);
+    setRowMessage(null);
+  };
+
   const confirmCancel = async (orderId: string) => {
     const text = reason.trim();
     if (!text) return;
@@ -98,29 +104,23 @@ export default function PaymentsTab({
     </button>
   );
 
-  const cancelForm = (p: Payment): ReactNode => (
-    <>
-      {cancelling === p.orderId && (
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0">전액 취소 · 사유</span>
-          <input value={reason} onChange={(e) => setReason(e.target.value)} maxLength={100} className={`${INPUT} sm:w-72`} autoFocus />
-          <button
-            onClick={() => confirmCancel(p.orderId)}
-            disabled={busy !== null || !reason.trim()}
-            className={`${BUTTON_DANGER} border-red-300 text-red-600 dark:border-red-500/50 dark:text-red-400`}
-          >
-            {busy === p.orderId ? '취소 중...' : '취소 확정'}
-          </button>
-          <button onClick={() => setCancelling(null)} disabled={busy !== null} className={BUTTON_GHOST}>닫기</button>
-        </div>
-      )}
-      {rowMessage?.orderId === p.orderId && (
-        <p className={`text-xs ${rowMessage.tone === 'error' ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-400'}`}>
-          {rowMessage.text}
-        </p>
-      )}
-    </>
-  );
+  const cancelForm = (p: Payment): ReactNode => {
+    const open = cancelling === p.orderId;
+    const message = rowMessage?.orderId === p.orderId ? rowMessage : null;
+    if (!open && !message) return null;
+    return (
+      <CancelPanel
+        open={open}
+        reason={reason}
+        onReason={setReason}
+        busy={busy === p.orderId}
+        message={message}
+        onConfirm={() => confirmCancel(p.orderId)}
+        onClose={closeCancel}
+        onDismiss={() => setRowMessage(null)}
+      />
+    );
+  };
 
   return (
     <div className="space-y-4">
@@ -177,7 +177,7 @@ export default function PaymentsTab({
                 const open = cancelling === p.orderId || rowMessage?.orderId === p.orderId;
                 return (
                   <Fragment key={p.orderId}>
-                    <tr className={open ? 'bg-gray-50 dark:bg-gray-800/40' : ''}>
+                    <tr className={open ? 'bg-gray-50 dark:bg-gray-800/40 [&>td]:pb-1' : ''}>
                       <td className={`${TD} pl-4 whitespace-nowrap`}>
                         <div className={`font-mono text-xs truncate max-w-[20rem] ${muted}`} title={p.userEmail}>{p.userEmail}</div>
                       </td>
@@ -201,7 +201,7 @@ export default function PaymentsTab({
                     </tr>
                     {open && (
                       <tr className="bg-gray-50 dark:bg-gray-800/40">
-                        <td colSpan={7} className="px-4 pb-4 pt-0 space-y-2">{cancelForm(p)}</td>
+                        <td colSpan={7} className="px-4 py-3">{cancelForm(p)}</td>
                       </tr>
                     )}
                   </Fragment>
@@ -238,6 +238,63 @@ export default function PaymentsTab({
             );
           })}
         </div>
+      )}
+    </div>
+  );
+}
+
+// 취소 패널. 표에서는 그 행 바로 아래 한 줄이다 — 문구는 왼쪽, 사유 입력과 버튼 둘은 오른쪽
+// (결제 취소 버튼이 있던 자리 밑). 좁은 화면(카드)에서는 입력 한 줄, 버튼 한 줄로 쌓인다.
+// 닫기는 폼과 문구를 함께 지운다.
+export function CancelPanel({
+  open,
+  reason,
+  onReason,
+  busy,
+  message,
+  onConfirm,
+  onClose,
+  onDismiss,
+}: {
+  open: boolean;
+  reason: string;
+  onReason: (value: string) => void;
+  busy: boolean;
+  message: { text: string; tone: 'error' | 'notice' } | null;
+  onConfirm: () => void;
+  onClose: () => void;
+  onDismiss: () => void;
+}) {
+  return (
+    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+      {message && (
+        <p className={`text-xs sm:mr-auto ${message.tone === 'error' ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-400'}`}>
+          {message.text}
+        </p>
+      )}
+      {open ? (
+        <>
+          <input
+            value={reason}
+            onChange={(e) => onReason(e.target.value)}
+            maxLength={100}
+            placeholder="취소 사유"
+            className={`${INPUT} sm:w-64`}
+            autoFocus
+          />
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onConfirm}
+              disabled={busy || !reason.trim()}
+              className={`${BUTTON_DANGER} border-red-300 text-red-600 dark:border-red-500/50 dark:text-red-400`}
+            >
+              {busy ? '취소 중...' : '전액 취소 확정'}
+            </button>
+            <button onClick={onClose} disabled={busy} className={BUTTON_GHOST}>닫기</button>
+          </div>
+        </>
+      ) : (
+        <button onClick={onDismiss} className={BUTTON_GHOST}>닫기</button>
       )}
     </div>
   );

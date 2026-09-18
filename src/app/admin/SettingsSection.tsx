@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import ToggleSwitch from '@/components/ToggleSwitch';
-import { BUTTON_PRIMARY, Card, INPUT } from '@/components/ui';
+import { BUTTON_GHOST, BUTTON_PRIMARY, Card, INPUT } from '@/components/ui';
 import type { Settings } from './types';
 
 // 판매자 정보 입력칸. 라벨과 설정 키를 한 곳에 묶어 둔다.
@@ -26,13 +26,25 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
   );
 }
 
-export default function SettingsTab({
+// 개요 탭 안의 설정 섹션. 운영 값 넷과 판매자 정보, 그리고 테스트 메일.
+export default function SettingsSection({
   settings,
   onSave,
+  onTestEmail,
 }: {
   settings: Settings;
   onSave: (next: Settings) => Promise<string | null>;
+  onTestEmail: () => Promise<string>;
 }) {
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<string | null>(null);
+  const runTest = async () => {
+    setTesting(true);
+    setTestResult(null);
+    setTestResult(await onTestEmail());
+    setTesting(false);
+  };
+
   // 저장된 값(props)과 편집 중인 값을 따로 둔다. 다르면 저장 버튼이 켜지고, 같으면 꺼진다.
   // 이 탭은 설정이 다 읽힌 뒤에만 마운트되고, 저장하면 부모가 같은 값을 다시 읽어 오므로
   // props 를 다시 draft 로 옮길 일이 없다.
@@ -59,7 +71,15 @@ export default function SettingsTab({
   return (
     <div className="space-y-6">
       <Card className="p-6">
-        <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-4">운영</h2>
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">운영</h2>
+          <div className="flex items-center gap-2">
+            {testResult && <span className="text-[11px] text-gray-500 dark:text-gray-400">{testResult}</span>}
+            <button onClick={runTest} disabled={testing} className={BUTTON_GHOST}>
+              {testing ? '발송 중...' : '테스트 메일'}
+            </button>
+          </div>
+        </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
           <Field label="최대 구독자 수" hint="좌석 수 상한. Brevo 일 300통에 맞춰 잡습니다.">
             <input type="number" min={0} value={draft.maxSubscribers} onChange={(e) => set('maxSubscribers', e.target.value)} className={INPUT} />

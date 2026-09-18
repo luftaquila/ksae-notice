@@ -7,16 +7,14 @@ import type { AdminStats, Payment, Settings, UserAction, UserInfo } from './type
 import OverviewTab from './OverviewTab';
 import UsersTab from './UsersTab';
 import PaymentsTab from './PaymentsTab';
-import SettingsTab from './SettingsTab';
 
-// 관리자 화면은 네 탭이다. 한 페이지에 다 펼쳐 놓았을 때는 설정 열한 칸이 두 번째 블록을
-// 차지하고 가장 자주 보는 유저 표가 맨 아래에 있었다. 탭은 URL 해시에 둬서 새로고침해도,
+// 관리자 화면은 세 탭이다: 개요(신호·설정·로그), 유저, 결제. 한 페이지에 다 펼쳐 놓았을
+// 때는 가장 자주 보는 유저 표가 맨 아래에 있었다. 탭은 URL 해시에 둬서 새로고침해도,
 // 링크를 넘겨도 같은 탭이 열린다.
 const TABS = [
   { id: 'overview', label: '개요' },
   { id: 'users', label: '유저' },
   { id: 'payments', label: '결제' },
-  { id: 'settings', label: '설정' },
 ] as const;
 type TabId = (typeof TABS)[number]['id'];
 
@@ -246,7 +244,8 @@ export default function AdminPage() {
         <OverviewTab
           stats={stats}
           brevoRemaining={brevoRemaining}
-          maxSubscribers={parseInt(settings.maxSubscribers, 10) || 0}
+          settings={settings}
+          onSave={saveSettings}
           onTestEmail={sendTestEmail}
         />
       )}
@@ -259,7 +258,6 @@ export default function AdminPage() {
         />
       )}
       {tab === 'payments' && <PaymentsTab payments={payments} onCancel={cancelPayment} />}
-      {tab === 'settings' && <SettingsTab settings={settings} onSave={saveSettings} />}
     </div>
   );
 }
