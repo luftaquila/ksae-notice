@@ -147,17 +147,19 @@ export default function OverviewTab({
         />
       </div>
 
+      {/* 로그 둘은 열이 적어 전체 폭에 펼치면 허전하다. 나란히 놓고 좁은 열은 내용 폭만 쓴다. */}
+      <div className="grid gap-6 lg:grid-cols-2">
       <Card className="p-6">
         <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-4">최근 크롤링</h2>
-        <div className="overflow-x-auto">
+        <div>
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-200 dark:border-gray-800">
-                <th className={TH}>게시판</th>
-                <th className={TH}>상태</th>
+                <th className={`${TH} w-[1%]`}>게시판</th>
+                <th className={`${TH} w-[1%]`}>상태</th>
                 <th className={TH}>시작</th>
-                <th className={`${TH} text-right`}>소요</th>
-                <th className={`${TH} text-right`}>신규</th>
+                <th className={`${TH} w-[1%] text-right`}>소요</th>
+                <th className={`${TH} w-[1%] pr-0 text-right`}>신규</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
@@ -179,7 +181,7 @@ export default function OverviewTab({
                         ? `${Math.round((new Date(crawl.finishedAt).getTime() - new Date(crawl.startedAt).getTime()) / 1000)}s`
                         : '-'}
                     </td>
-                    <td className={`${TD} whitespace-nowrap text-right tabular-nums`}>{crawl.newPostsCount}</td>
+                    <td className={`${TD} pr-0 whitespace-nowrap text-right tabular-nums`}>{crawl.newPostsCount}</td>
                   </tr>
                 );
               })}
@@ -194,11 +196,11 @@ export default function OverviewTab({
       <Card className="p-6">
         <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-1">최근 발송 실패</h2>
         <p className="text-xs text-gray-400 dark:text-gray-500 mb-4">누적 실패 {emails?.totalFailed ?? 0}건 중 최근 20건</p>
-        <div className="overflow-x-auto">
+        <div>
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-200 dark:border-gray-800">
-                <th className={TH}>시각</th>
+                <th className={`${TH} w-[1%]`}>시각</th>
                 <th className={TH}>이메일</th>
                 <th className={`${TH} pr-0`}>에러</th>
               </tr>
@@ -210,14 +212,15 @@ export default function OverviewTab({
               {emails?.recentFailed?.map((log) => (
                 <tr key={log.id}>
                   <td className={`${TD} whitespace-nowrap text-gray-500 dark:text-gray-400 tabular-nums`}>{formatLocalDateTime(log.sentAt)}</td>
-                  <td className={`${TD} whitespace-nowrap font-mono text-xs`}>{log.email}</td>
-                  <td className={`${TD} pr-0 text-xs text-red-600 dark:text-red-400`}>{log.error || '-'}</td>
+                  <td className={`${TD} font-mono text-xs break-all`}>{log.email}</td>
+                  <td className={`${TD} pr-0 text-xs text-red-600 dark:text-red-400 break-words`}>{log.error || '-'}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       </Card>
+      </div>
     </div>
   );
 }

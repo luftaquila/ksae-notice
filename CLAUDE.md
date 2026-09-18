@@ -42,9 +42,9 @@ src/
 │   ├── dashboard/page.tsx  # 구독 관리 (로그인 필요): 구독 카드 + 알림 설정
 │   ├── admin/              # 관리자: page.tsx 가 자료를 읽고 탭(URL 해시)을 고른다
 │   │   ├── OverviewTab.tsx #   개요 — 오늘 발송·좌석·Brevo 잔량·마지막 크롤 신호 + 크롤/실패 로그
-│   │   ├── UsersTab.tsx    #   유저 — 검색·상태 필터·정렬, 행을 펼치면 카테고리 칩과 조작
+│   │   ├── UsersTab.tsx    #   유저 — 검색·상태 필터·정렬, 한 행에 칩·조작 전부 (그리드 트랙, 접힘 없음)
 │   │   ├── PaymentsTab.tsx #   결제 — 상태 필터, 인라인 취소 폼
-│   │   └── SettingsTab.tsx #   설정 — dirty 체크, 판매자 정보는 접힘
+│   │   └── SettingsTab.tsx #   설정 — dirty 체크
 │   ├── signup/consent/     # 가입 동의 화면 (계정은 여기서 동의한 뒤에 생긴다)
 │   ├── review-login/       # 심사용 ID/PW 로그인 (환경변수 없으면 404)
 │   ├── go/[id]/route.ts    # 게시글 리다이렉트 (모바일 UA 감지)

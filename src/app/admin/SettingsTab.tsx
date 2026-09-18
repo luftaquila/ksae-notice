@@ -60,7 +60,7 @@ export default function SettingsTab({
     <div className="space-y-6">
       <Card className="p-6">
         <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-4">운영</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 max-w-2xl">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
           <Field label="최대 구독자 수" hint="좌석 수 상한. Brevo 일 300통에 맞춰 잡습니다.">
             <input type="number" min={0} value={draft.maxSubscribers} onChange={(e) => set('maxSubscribers', e.target.value)} className={INPUT} />
           </Field>
@@ -83,19 +83,18 @@ export default function SettingsTab({
       </Card>
 
       <Card className="p-6">
-        <details>
-          <summary className="cursor-pointer select-none text-base font-semibold text-gray-900 dark:text-gray-100 marker:text-gray-400">
-            판매자 정보 <span className="ml-1 text-xs font-normal text-gray-400 dark:text-gray-500">전자상거래 고지 · /policy 에 그대로 표시</span>
-          </summary>
-          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {BUSINESS_FIELDS.map(([key, label]) => (
-              <Field key={key} label={label}>
+        <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+          판매자 정보 <span className="ml-1 text-xs font-normal text-gray-400 dark:text-gray-500">전자상거래 고지 · /policy 에 그대로 표시, 비워두면 &quot;미등록&quot;</span>
+        </h2>
+        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {BUSINESS_FIELDS.map(([key, label]) => (
+            <div key={key} className={key === 'bizAddress' ? 'lg:col-span-2' : ''}>
+              <Field label={label}>
                 <input type="text" maxLength={200} value={draft[key]} onChange={(e) => set(key, e.target.value)} className={INPUT} />
               </Field>
-            ))}
-          </div>
-          <p className="mt-3 text-xs text-gray-400 dark:text-gray-500">비워두면 &quot;미등록&quot;으로 나옵니다.</p>
-        </details>
+            </div>
+          ))}
+        </div>
       </Card>
 
       <div className="flex items-center gap-3">
