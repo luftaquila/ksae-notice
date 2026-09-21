@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { decode } from 'next-auth/jwt';
-import { createTestDb, seedUser, seedSubscription, UNEXPIRED, type TestDb } from '../helpers';
-import { users, subscriptions } from '@/lib/db/schema';
-import { PRIVACY_CONSENT_VERSION, SUBSCRIPTION_CATEGORIES } from '@/lib/constants';
+import { createTestDb, seedUser, seedAlertPreference, UNEXPIRED, type TestDb } from '../helpers';
+import { users, alertPreferences } from '@/lib/db/schema';
+import { PRIVACY_CONSENT_VERSION, ALERT_CATEGORIES } from '@/lib/constants';
 
 let db: TestDb;
 let jar: Map<string, string>;
@@ -72,8 +72,8 @@ describe('POST /api/auth/signup-consent', () => {
     expect(user.privacyConsentAt).not.toBeNull();
     expect(user.privacyConsentVersion).toBe(PRIVACY_CONSENT_VERSION);
 
-    const subs = db.select().from(subscriptions).where(eq(subscriptions.userId, user.id)).all();
-    expect(subs.length).toBe(SUBSCRIPTION_CATEGORIES.length);
+    const subs = db.select().from(alertPreferences).where(eq(alertPreferences.userId, user.id)).all();
+    expect(subs.length).toBe(ALERT_CATEGORIES.length);
     expect(subs.every((s) => s.isActive === 1)).toBe(true);
 
     // 쿠키는 한 번 쓰고 버린다.
@@ -109,7 +109,7 @@ describe('POST /api/auth/signup-consent', () => {
 
     const user = db.select().from(users).where(eq(users.id, userId)).get()!;
     expect(user.privacyConsentVersion).toBe(PRIVACY_CONSENT_VERSION);
-    expect(db.select().from(subscriptions).where(eq(subscriptions.userId, userId)).all().length).toBe(0);
+    expect(db.select().from(alertPreferences).where(eq(alertPreferences.userId, userId)).all().length).toBe(0);
     expect(db.select().from(users).all().length).toBe(1);
     expect(await sessionUserId()).toBe(userId);
   });
@@ -126,7 +126,7 @@ describe('POST /api/auth/signup-consent', () => {
       privacyConsentAt: '2020-01-01T00:00:00.000Z',
       privacyConsentVersion: 'old',
     });
-    seedSubscription(db, userId, 'notice_Z', { isActive: 0 });
+    seedAlertPreference(db, userId, 'notice_Z', { isActive: 0 });
     pend();
 
     const res = await consent(consentRequest());
@@ -142,8 +142,8 @@ describe('POST /api/auth/signup-consent', () => {
     expect(user.privacyConsentVersion).toBe(PRIVACY_CONSENT_VERSION);
 
     // 새 가입처럼 카테고리는 전부 켜진다 — 빠져 있던 것은 채운다.
-    const subs = db.select().from(subscriptions).where(eq(subscriptions.userId, userId)).all();
-    expect(subs.length).toBe(SUBSCRIPTION_CATEGORIES.length);
+    const subs = db.select().from(alertPreferences).where(eq(alertPreferences.userId, userId)).all();
+    expect(subs.length).toBe(ALERT_CATEGORIES.length);
     expect(subs.every((s) => s.isActive === 1)).toBe(true);
 
     // 같은 행을 되살린다. 새 행을 만들지 않는다.

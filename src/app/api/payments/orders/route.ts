@@ -4,9 +4,9 @@ import { auth } from '@/lib/auth';
 import { getDb } from '@/lib/db';
 import { users } from '@/lib/db/schema';
 import {
-  getActiveSubscriberCount,
   getMaxSubscribers,
-  isCountedSubscriber,
+  getSeatCount,
+  holdsSeat,
   isRegistrationOpen,
 } from '@/lib/subscription/capacity';
 import { canPurchase, renewalTargetYear } from '@/lib/subscription/period';
@@ -34,12 +34,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: '결제가 준비되지 않았습니다.' }, { status: 503 });
   }
 
-  // 슬롯을 차지하는 것은 결제된 기간이다. 이미 슬롯을 가진 사람은 신규가 아니다.
-  if (!isCountedSubscriber(session.user.id)) {
+  // 좌석을 차지하는 것은 결제된 기간이다. 이미 좌석을 가진 사람의 갱신은 신규가 아니다.
+  if (!holdsSeat(session.user.id)) {
     if (!isRegistrationOpen()) {
       return NextResponse.json({ error: '현재 신규 구독이 중단되었습니다.' }, { status: 403 });
     }
-    if (getActiveSubscriberCount() >= getMaxSubscribers()) {
+    if (getSeatCount() >= getMaxSubscribers()) {
       return NextResponse.json({ error: '최대 구독자 수에 도달했습니다.' }, { status: 403 });
     }
   }

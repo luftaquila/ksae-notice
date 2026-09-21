@@ -1,6 +1,5 @@
 import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
-import { and, eq } from 'drizzle-orm';
 import * as schema from '@/lib/db/schema';
 
 // ── In-memory DB ──────────────────────────────────────────────
@@ -22,7 +21,8 @@ export function createTestDb() {
       subscription_expires_at TEXT,
       subscription_renewed_at TEXT,
       privacy_consent_at TEXT,
-      privacy_consent_version TEXT
+      privacy_consent_version TEXT,
+      alerts_paused_at TEXT
     );
     CREATE TABLE subscriptions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -147,8 +147,8 @@ export function seedPost(db: TestDb, overrides: Partial<typeof schema.posts.$inf
   return Number(result.lastInsertRowid);
 }
 
-export function seedSubscription(db: TestDb, userId: number, category: string, overrides: Partial<typeof schema.subscriptions.$inferInsert> = {}) {
-  const result = db.insert(schema.subscriptions).values({
+export function seedAlertPreference(db: TestDb, userId: number, category: string, overrides: Partial<typeof schema.alertPreferences.$inferInsert> = {}) {
+  const result = db.insert(schema.alertPreferences).values({
     userId,
     category,
     isActive: 1,
@@ -194,28 +194,4 @@ export function seedPayment(db: TestDb, overrides: Partial<typeof schema.payment
     ...overrides,
   }).run();
   return Number(result.lastInsertRowid);
-}
-
-// ── Shared upsertSubscription mock implementation ─────────────
-// Mirrors src/lib/subscription/upsert.ts: the row carries only isActive. The
-// account period is deliberately untouched — only a settled payment writes it.
-export function createUpsertSubscriptionMock(getTestDb: () => TestDb) {
-  return (userId: number, category: string) => {
-    const testDb = getTestDb();
-    const existing = testDb.select().from(schema.subscriptions)
-      .where(and(
-        eq(schema.subscriptions.userId, userId),
-        eq(schema.subscriptions.category, category),
-      ))
-      .get();
-
-    if (existing) {
-      testDb.update(schema.subscriptions)
-        .set({ isActive: 1 })
-        .where(eq(schema.subscriptions.id, existing.id))
-        .run();
-    } else {
-      testDb.insert(schema.subscriptions).values({ userId, category, isActive: 1 }).run();
-    }
-  };
 }

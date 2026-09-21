@@ -3,8 +3,8 @@ import { eq, desc } from 'drizzle-orm';
 import { getDb } from '@/lib/db';
 import { crawlLogs } from '@/lib/db/schema';
 import {
-  getActiveSubscriberCount,
   getMaxSubscribers,
+  getSeatCount,
   isRegistrationOpen,
 } from '@/lib/subscription/capacity';
 
@@ -20,7 +20,8 @@ export async function GET() {
     .get();
 
   return NextResponse.json({
-    activeSubscribers: getActiveSubscriberCount(),
+    // 구독자 수 = 결제된 좌석 수. 메인이 `n / max` 로 보여준다.
+    activeSubscribers: getSeatCount(),
     maxSubscribers: getMaxSubscribers(),
     registrationOpen: isRegistrationOpen(),
     lastCrawl: lastCrawl
