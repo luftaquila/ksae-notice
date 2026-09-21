@@ -40,7 +40,11 @@ src/
 ├── app/                    # Next.js App Router pages & API routes
 │   ├── page.tsx            # 메인 페이지 (공개, 게시글 목록 + 필터)
 │   ├── dashboard/page.tsx  # 구독 관리 (로그인 필요): 구독 카드 + 알림 설정(카테고리 8개 한 목록)
-│   ├── admin/page.tsx      # 관리자 대시보드
+│   ├── admin/              # 관리자: page.tsx 가 자료를 읽고 탭(URL 해시)을 고른다 — 개요·유저·결제
+│   │   ├── OverviewTab.tsx #   개요 — 신호 카드 넷 → 설정(SettingsSection) → 접힌 크롤/실패 로그
+│   │   ├── SettingsSection.tsx # 운영 값·판매자 정보·테스트 메일, dirty 체크
+│   │   ├── UsersTab.tsx    #   유저 — 검색·상태 필터·정렬; lg 이상 표(한 행에 칩·조작 전부), 미만 카드
+│   │   └── PaymentsTab.tsx #   결제 — 상태 필터, 인라인 취소 폼; md 이상 표, 미만 카드
 │   ├── signup/consent/     # 가입 동의 화면 (계정은 여기서 동의한 뒤에 생긴다)
 │   ├── review-login/       # 심사용 ID/PW 로그인 (환경변수 없으면 404)
 │   ├── go/[id]/route.ts    # 게시글 리다이렉트 (모바일 UA 감지)
@@ -85,7 +89,7 @@ src/
 │       ├── status.ts       # subscriptionState(없음/이용 중/만료) + alertSummary
 │       ├── renewal.ts      # 12월 구독 갱신 리마인더 (좌석 기준)
 │       └── period.ts       # 기간 규칙 (한 번의 결제 = 한 해)
-├── components/             # React 컴포넌트
+├── components/             # React 컴포넌트 (ui.tsx: Badge·Spinner·Skeleton·Card·버튼/입력 클래스)
 ├── __tests__/              # vitest 단위 테스트 (fixtures/ 에 실제 게시판 HTML 발췌)
 └── middleware.ts            # /dashboard, /admin 라우트 보호
 server.ts                   # 커스텀 서버 (Next.js + node-cron)

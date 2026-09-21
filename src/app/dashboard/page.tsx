@@ -7,6 +7,7 @@ import { canPurchase, renewalPrompt, renewalTargetYear } from '@/lib/subscriptio
 import { alertSummary, subscriptionState, type SubscriptionStateKey } from '@/lib/subscription/status';
 import { formatCalendarDate, formatLocalDateTime } from '@/lib/format';
 import ToggleSwitch from '@/components/ToggleSwitch';
+import { BUTTON_GHOST, BUTTON_PRIMARY, Skeleton, Spinner } from '@/components/ui';
 
 interface AlertPreference {
   id: number;
@@ -70,24 +71,6 @@ interface ScopedError {
   message: string;
 }
 
-const BUTTON_PRIMARY =
-  'text-sm px-4 py-2 rounded-lg text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed';
-const BUTTON_GHOST =
-  'text-xs px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-blue-300 hover:text-blue-500 active:border-blue-300 active:text-blue-500 dark:hover:border-blue-500/50 dark:hover:text-blue-400 dark:active:border-blue-500/50 dark:active:text-blue-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed';
-
-function Spinner() {
-  return (
-    <svg className="w-4 h-4 animate-spin text-gray-400 dark:text-gray-500" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8v4a4 4 0 0 0-4 4H4z" />
-    </svg>
-  );
-}
-
-function Skeleton({ className }: { className: string }) {
-  return <div className={`animate-pulse rounded bg-gray-200 dark:bg-gray-800 ${className}`} />;
-}
-
 function InlineError({ message, className = '' }: { message: string; className?: string }) {
   return <p className={`text-sm text-red-600 dark:text-red-400 ${className}`}>{message}</p>;
 }
@@ -113,7 +96,8 @@ export default function DashboardPage() {
   // 주문번호는 환불 문의에만 쓰인다. 펼친 행에서만 보이고, 복사 버튼을 붙인다.
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
   const [copiedOrder, setCopiedOrder] = useState<string | null>(null);
-  // 탈퇴는 확인 문구를 그대로 쳐야 한다. 오류도 그 카드 안에서 보여준다.
+  // 탈퇴는 접어 두고 누르면 펼친다. 확인 문구를 그대로 쳐야 하고, 오류도 그 카드 안에서 보여준다.
+  const [showDelete, setShowDelete] = useState(false);
   const [deleteConfirmation, setDeleteConfirmation] = useState('');
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
@@ -526,11 +510,33 @@ export default function DashboardPage() {
         </section>
       )}
 
-      {/* Account deletion (not for admin) */}
-      {!session?.user?.isAdmin && (
+      {/* Account deletion (not for admin). 접혀 있다가 누르면 펼쳐진다. */}
+      {!session?.user?.isAdmin && !showDelete && (
+        <div className="mt-10 text-right">
+          <button
+            type="button"
+            onClick={() => setShowDelete(true)}
+            className="text-xs text-gray-400 dark:text-gray-500 underline underline-offset-2 hover:text-red-600 dark:hover:text-red-400 cursor-pointer"
+          >
+            회원 탈퇴
+          </button>
+        </div>
+      )}
+      {!session?.user?.isAdmin && showDelete && (
         <div className="mt-10 rounded-lg border border-red-200 dark:border-red-500/30 bg-white dark:bg-gray-900 p-5">
-          <div className="text-xs font-semibold uppercase tracking-wide text-red-600 dark:text-red-400">계정 관리</div>
-          <h2 className="mt-1 text-lg font-bold text-gray-900 dark:text-gray-100">회원 탈퇴</h2>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-red-600 dark:text-red-400">계정 관리</div>
+              <h2 className="mt-1 text-lg font-bold text-gray-900 dark:text-gray-100">회원 탈퇴</h2>
+            </div>
+            <button
+              type="button"
+              onClick={() => { setShowDelete(false); setDeleteConfirmation(''); setDeleteError(null); }}
+              className={BUTTON_GHOST}
+            >
+              닫기
+            </button>
+          </div>
           <p className="mt-2 text-sm leading-relaxed text-gray-500 dark:text-gray-400">
             탈퇴하면 알림 설정과 남은 구독 기간이 즉시 소멸되며 환불되지 않습니다.
             재가입 여부 확인에 필요한 계정 식별 정보와 결제 기록은 남습니다.

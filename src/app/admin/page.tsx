@@ -1,810 +1,263 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import { useSession } from 'next-auth/react';
-import { ALERT_CATEGORIES, CATEGORY_COLORS, getCategoryLabel, getBoardLabel } from '@/lib/constants';
-import { formatLocalDateTime } from '@/lib/format';
-import { alertSummary, subscriptionState, type SubscriptionStateKey } from '@/lib/subscription/status';
-import ToggleSwitch from '@/components/ToggleSwitch';
+import { Skeleton } from '@/components/ui';
+import type { AdminStats, Payment, Settings, UserAction, UserInfo } from './types';
+import OverviewTab from './OverviewTab';
+import UsersTab from './UsersTab';
+import PaymentsTab from './PaymentsTab';
 
-interface UserInfo {
-  id: number;
-  email: string;
-  name: string | null;
-  createdAt: string;
-  deletedAt: string | null;
-  subscriptionExpiresAt: string | null;
-  alerts: { category: string; isActive: number }[];
-  alertsPausedAt: string | null;
-  emailsSent: number;
-  emailsSkipped: number;
+// 관리자 화면은 세 탭이다: 개요(신호·설정·로그), 유저, 결제. 한 페이지에 다 펼쳐 놓았을
+// 때는 가장 자주 보는 유저 표가 맨 아래에 있었다. 탭은 URL 해시에 둬서 새로고침해도,
+// 링크를 넘겨도 같은 탭이 열린다.
+const TABS = [
+  { id: 'overview', label: '개요' },
+  { id: 'users', label: '유저' },
+  { id: 'payments', label: '결제' },
+] as const;
+type TabId = (typeof TABS)[number]['id'];
+
+// 탭 상태는 URL 해시 그 자체다. 서버 렌더에서는 첫 탭으로 그리고, 브라우저에서 해시를 읽는다.
+function readTabFromHash(): TabId {
+  const fromHash = window.location.hash.slice(1);
+  return TABS.some((t) => t.id === fromHash) ? (fromHash as TabId) : 'overview';
+}
+function subscribeHash(onChange: () => void) {
+  window.addEventListener('hashchange', onChange);
+  return () => window.removeEventListener('hashchange', onChange);
 }
 
-interface FailedEmail {
-  id: number;
-  userId: number;
-  email: string;
-  error: string | null;
-  sentAt: string;
-}
-
-interface AdminStats {
-  totalUsers: number;
-  deletedUsers: number;
-  seats: number;
-  recipients: number;
-  totalPosts: number;
-  emails: {
-    totalSent: number;
-    totalFailed: number;
-    totalSkipped: number;
-    todaySent: number;
-    todaySkipped: number;
-    recentFailed: FailedEmail[];
-  };
-  recentCrawls: {
-    id: number;
-    boardType: string;
-    startedAt: string;
-    finishedAt: string | null;
-    newPostsCount: number;
-    status: string;
-  }[];
-}
-
-interface Settings {
-  maxSubscribers: string;
-  registrationOpen: string;
-  maxEmailsPerUserPerDay: string;
-  subscriptionPrice: string;
-  bizName: string;
-  bizOwner: string;
-  bizRegNo: string;
-  bizMailOrderNo: string;
-  bizAddress: string;
-  bizTel: string;
-  bizEmail: string;
-}
-
-interface Payment {
-  orderId: string;
-  userEmail: string;
-  goodsName: string;
-  targetYear: number;
-  amount: number;
-  status: string;
-  method: string | null;
-  grantedFrom: string | null;
-  grantedTo: string | null;
-  failReason: string | null;
-  cancelReason: string | null;
-  createdAt: string;
-  approvedAt: string | null;
-  cancelledAt: string | null;
-}
-
-// 구독 상태 배지. 기간 하나로 정해지고, 알림 설정은 옆 열이 따로 말한다.
-const STATE_BADGE: Record<SubscriptionStateKey, string> = {
-  active: 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300',
-  none: 'bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',
-  expired: 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500',
-  withdrawn: 'bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-600',
+const DEFAULT_SETTINGS: Settings = {
+  maxSubscribers: '50',
+  registrationOpen: 'true',
+  maxEmailsPerUserPerDay: '2',
+  subscriptionPrice: '1000',
+  bizName: '',
+  bizOwner: '',
+  bizRegNo: '',
+  bizMailOrderNo: '',
+  bizAddress: '',
+  bizTel: '',
+  bizEmail: '',
 };
-
-const PAYMENT_STATUS: Record<string, string> = {
-  pending: '진행 중',
-  paid: '완료',
-  failed: '실패',
-  cancelled: '취소',
-  expired: '미완료',
-};
-
-// 판매자 정보 입력칸. 라벨과 설정 키를 한 곳에 묶어 둔다.
-const BUSINESS_FIELDS: [keyof Settings, string][] = [
-  ['bizName', '상호'],
-  ['bizOwner', '대표자'],
-  ['bizRegNo', '사업자등록번호'],
-  ['bizMailOrderNo', '통신판매업신고번호'],
-  ['bizAddress', '사업장 주소'],
-  ['bizTel', '연락처'],
-  ['bizEmail', '이메일'],
-];
 
 export default function AdminPage() {
   const { data: session } = useSession();
+  const tab = useSyncExternalStore(subscribeHash, readTabFromHash, () => 'overview' as TabId);
   const [users, setUsers] = useState<UserInfo[]>([]);
   const [stats, setStats] = useState<AdminStats | null>(null);
-  const [settings, setSettings] = useState<Settings>({
-    maxSubscribers: '50',
-    registrationOpen: 'true',
-    maxEmailsPerUserPerDay: '2',
-    subscriptionPrice: '1000',
-    bizName: '',
-    bizOwner: '',
-    bizRegNo: '',
-    bizMailOrderNo: '',
-    bizAddress: '',
-    bizTel: '',
-    bizEmail: '',
-  });
+  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [payments, setPayments] = useState<Payment[]>([]);
-  const [cancelling, setCancelling] = useState<string | null>(null);
   const [brevoRemaining, setBrevoRemaining] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [showFailedModal, setShowFailedModal] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchAll = async () => {
-    setLoading(true);
-    try {
-      const [usersRes, statsRes, settingsRes, paymentsRes] = await Promise.all([
-        fetch('/api/admin/users'),
-        fetch('/api/admin/stats'),
-        fetch('/api/admin/settings'),
-        fetch('/api/admin/payments'),
-      ]);
-      const usersData = await usersRes.json();
-      const statsData = await statsRes.json();
-      const settingsData = await settingsRes.json();
-      const paymentsData = await paymentsRes.json();
-      setUsers(usersData.users || []);
-      setStats(statsData);
-      setSettings((prev) => ({ ...prev, ...settingsData }));
-      setPayments(paymentsData.payments || []);
-    } catch {
-      setError('데이터 로딩에 실패했습니다.');
-    }
-    setLoading(false);
+  // replaceState 는 hashchange 를 내지 않으므로 직접 알린다. 뒤로가기 히스토리는 쌓지 않는다.
+  const selectTab = (id: TabId) => {
+    window.history.replaceState(null, '', `#${id}`);
+    window.dispatchEvent(new HashChangeEvent('hashchange'));
   };
 
-  useEffect(() => {
-    fetchAll();
-    fetch('/api/admin/brevo').then((r) => r.json()).then((d) => setBrevoRemaining(d.remaining)).catch(() => {});
+  // 자료마다 읽는 함수를 따로 둔다. 조작 뒤에는 건드린 것만 다시 읽어 표 전체가 깜빡이지
+  // 않게 — 예전에는 무엇을 눌러도 fetchAll() 이 loading 을 다시 켜서 페이지가 통째로
+  // 언마운트됐고, 그래서 스크롤이 맨 위로 튀었다. loading 은 첫 로드에만 쓴다.
+  // 실패는 각자 상단 배너에 적는다 — 넷 중 하나가 막혀도 나머지 탭은 쓸 수 있어야 한다.
+  const loadFailed = (what: string) => setError(`${what}을 불러오지 못했습니다.`);
+
+  const fetchUsers = useCallback(async () => {
+    try {
+      const res = await fetch('/api/admin/users');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error);
+      setUsers(data.users || []);
+    } catch {
+      loadFailed('유저 목록');
+    }
+  }, []);
+  const fetchStats = useCallback(async () => {
+    try {
+      const res = await fetch('/api/admin/stats');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error);
+      setStats(data);
+    } catch {
+      loadFailed('통계');
+    }
+  }, []);
+  const fetchSettings = useCallback(async () => {
+    try {
+      const res = await fetch('/api/admin/settings');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error);
+      setSettings((prev) => ({ ...prev, ...data }));
+    } catch {
+      loadFailed('설정');
+    }
+  }, []);
+  const fetchPayments = useCallback(async () => {
+    try {
+      const res = await fetch('/api/admin/payments');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error);
+      setPayments(data.payments || []);
+    } catch {
+      loadFailed('결제 내역');
+    }
+  }, []);
+  const fetchBrevo = useCallback(async () => {
+    try {
+      const res = await fetch('/api/admin/brevo');
+      const data = await res.json();
+      setBrevoRemaining(data.remaining);
+    } catch {
+      // 잔량은 부가 정보다. 못 읽으면 '...' 로 남는다.
+    }
   }, []);
 
-  const saveSettings = async () => {
-    setSaving(true);
-    setError(null);
+  useEffect(() => {
+    Promise.all([fetchUsers(), fetchStats(), fetchSettings(), fetchPayments()]).finally(() => setLoading(false));
+    fetchBrevo();
+  }, [fetchUsers, fetchStats, fetchSettings, fetchPayments, fetchBrevo]);
+
+  // 실패 문구를 돌려준다(성공이면 null). 표시는 부른 쪽이 그 자리에서 한다.
+  const patchUser = async (userId: number, action: UserAction, category?: string): Promise<string | null> => {
     try {
-      const res = await fetch('/api/admin/settings', {
-        method: 'PUT',
+      const res = await fetch('/api/admin/users', {
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(settings),
+        body: JSON.stringify({ userId, action, category }),
       });
-      if (!res.ok) setError('설정 저장에 실패했습니다.');
-      await fetchAll();
+      const data = await res.json().catch(() => null);
+      await Promise.all([fetchUsers(), fetchStats()]);
+      return res.ok ? null : data?.error || '요청에 실패했습니다.';
     } catch {
-      setError('설정 저장에 실패했습니다.');
-    }
-    setSaving(false);
-  };
-
-  // 무상 제공이나 계좌이체 처리 같은 예외를 다룰 손잡이. 결제와 같은 규칙으로
-  // 한 번에 정확히 한 해를 준다.
-  const grantYear = async (userId: number) => {
-    if (!confirm('이 유저에게 결제 없이 구독 1년(좌석)을 부여하시겠습니까?')) return;
-    try {
-      const res = await fetch('/api/admin/users', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, action: 'grant_year' }),
-      });
-      if (!res.ok) setError('구독 기간 부여에 실패했습니다.');
-    } finally {
-      await fetchAll();
+      return '요청에 실패했습니다.';
     }
   };
 
-  const revokePeriod = async (userId: number) => {
-    if (!confirm('이 유저의 구독(좌석)을 회수하시겠습니까? 알림 메일이 중단됩니다.')) return;
-    try {
-      const res = await fetch('/api/admin/users', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, action: 'revoke_period' }),
-      });
-      if (!res.ok) setError('구독 기간 회수에 실패했습니다.');
-    } finally {
-      await fetchAll();
-    }
-  };
-
-  // 나이스페이 취소가 성립한 뒤에야 구독 기간이 되돌아간다. 실패하면 아무것도
-  // 바뀌지 않으므로 그대로 다시 시도하면 된다.
-  const cancelPayment = async (orderId: string) => {
-    const reason = prompt('취소 사유를 입력하세요 (100자 이내)', '관리자 취소');
-    if (reason === null || !reason.trim()) return;
-    if (!confirm('결제를 전액 취소하고 구독 기간을 되돌립니다. 계속하시겠습니까?')) return;
-
-    setCancelling(orderId);
-    setError(null);
+  // 나이스페이 취소가 성립한 뒤에야 구독 기간이 되돌아간다. 실패하면 아무것도 바뀌지 않는다.
+  const cancelPayment = async (orderId: string, reason: string): Promise<{ error?: string; notice?: string }> => {
     try {
       const res = await fetch('/api/admin/payments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId, reason: reason.trim() }),
+        body: JSON.stringify({ orderId, reason }),
       });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || '결제 취소에 실패했습니다.');
-      } else if (data.rolledBack === false) {
-        setError('취소는 되었지만 이후 결제가 기간을 더 늘려두어 만료일은 그대로 두었습니다. 직접 확인해주세요.');
+      const data = await res.json().catch(() => null);
+      await Promise.all([fetchPayments(), fetchUsers(), fetchStats()]);
+      if (!res.ok) return { error: data?.error || '결제 취소에 실패했습니다.' };
+      if (data?.rolledBack === false) {
+        return { notice: '취소는 되었지만 이후 결제가 기간을 더 늘려두어 만료일은 그대로 두었습니다. 직접 확인해주세요.' };
       }
-      await fetchAll();
+      return {};
     } catch {
-      setError('결제 취소에 실패했습니다.');
-    } finally {
-      setCancelling(null);
+      return { error: '결제 취소에 실패했습니다.' };
     }
   };
 
-  const disableAllAlerts = async (userId: number) => {
-    setUsers((prev) =>
-      prev.map((u) =>
-        u.id === userId
-          ? { ...u, alerts: u.alerts.map((s) => ({ ...s, isActive: 0 })) }
-          : u,
-      ),
-    );
+  const saveSettings = async (next: Settings): Promise<string | null> => {
     try {
-      const res = await fetch('/api/admin/users', {
-        method: 'PATCH',
+      const res = await fetch('/api/admin/settings', {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, action: 'disable_all_alerts' }),
+        body: JSON.stringify(next),
       });
-      if (!res.ok) await fetchAll();
+      if (!res.ok) return '설정 저장에 실패했습니다.';
+      await Promise.all([fetchSettings(), fetchStats()]);
+      return null;
     } catch {
-      await fetchAll();
+      return '설정 저장에 실패했습니다.';
     }
   };
 
-  const deleteUser = async (userId: number) => {
-    if (!confirm('이 유저를 삭제하시겠습니까? 모든 데이터가 삭제됩니다.')) return;
-    setUsers((prev) => prev.filter((u) => u.id !== userId));
-    try {
-      const res = await fetch('/api/admin/users', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, action: 'delete' }),
-      });
-      if (!res.ok) await fetchAll();
-    } catch {
-      await fetchAll();
-    }
-  };
-
-  const toggleUserAlert = async (userId: number, category: string, currentlyActive: boolean) => {
-    setUsers((prev) =>
-      prev.map((u) => {
-        if (u.id !== userId) return u;
-        const existing = u.alerts.find((s) => s.category === category);
-        if (existing) {
-          return {
-            ...u,
-            alerts: u.alerts.map((s) =>
-              s.category === category ? { ...s, isActive: currentlyActive ? 0 : 1 } : s,
-            ),
-          };
-        }
-        return {
-          ...u,
-          alerts: [...u.alerts, { category, isActive: 1 }],
-        };
-      }),
-    );
-    try {
-      const res = await fetch('/api/admin/users', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId,
-          action: currentlyActive ? 'disable_alert' : 'enable_alert',
-          category,
-        }),
-      });
-      if (!res.ok) await fetchAll();
-    } catch {
-      await fetchAll();
-    }
-  };
-
-  const enableAllAlerts = async (userId: number) => {
-    setUsers((prev) =>
-      prev.map((u) => {
-        if (u.id !== userId) return u;
-        return {
-          ...u,
-          alerts: ALERT_CATEGORIES.map((cat) => ({
-            category: cat.id,
-            isActive: 1,
-          })),
-        };
-      }),
-    );
-    try {
-      const res = await fetch('/api/admin/users', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, action: 'enable_all_alerts' }),
-      });
-      if (!res.ok) await fetchAll();
-    } catch {
-      await fetchAll();
-    }
-  };
-
-  const [sendingTestEmail, setSendingTestEmail] = useState(false);
-  const sendTestEmail = async () => {
-    setSendingTestEmail(true);
+  const sendTestEmail = async (): Promise<string> => {
     try {
       const res = await fetch('/api/admin/test-email', { method: 'POST' });
-      if (res.ok) {
-        alert('테스트 메일이 발송되었습니다.');
-      } else {
-        const data = await res.json();
-        alert(`발송 실패: ${data.error}`);
-      }
+      if (res.ok) return '테스트 메일을 보냈습니다.';
+      const data = await res.json().catch(() => null);
+      return `발송 실패: ${data?.error || res.status}`;
     } catch {
-      alert('발송 실패');
+      return '발송 실패';
     }
-    setSendingTestEmail(false);
   };
 
-  // 표에 찍히는 좌석 수. 서버의 정원 집계와 같은 판정을 쓰므로 헤더 숫자와 "이용 중"
-  // 배지 개수가 어긋날 수 없다. 알림 설정은 좌석과 무관하다.
-  const seatsHeld = users.filter((user) => subscriptionState({
-    deletedAt: user.deletedAt,
-    subscriptionExpiresAt: user.subscriptionExpiresAt,
-  }).holdsSeat).length;
-  // 좌석 중 지금 메일이 나가는 사람. 서버의 getRecipientCount 와 같은 판정이다.
-  const recipientsHeld = users.filter((user) =>
-    subscriptionState({ deletedAt: user.deletedAt, subscriptionExpiresAt: user.subscriptionExpiresAt }).holdsSeat
-    && alertSummary({
-      activeCount: user.alerts.filter((s) => s.isActive).length,
-      total: ALERT_CATEGORIES.length,
-      paused: !!user.alertsPausedAt,
-    }).delivering,
-  ).length;
+  const pendingPayments = payments.filter((p) => p.status === 'pending').length;
+  const tabCount: Partial<Record<TabId, number>> = {
+    users: users.filter((u) => !u.deletedAt).length,
+    payments: pendingPayments || undefined,
+  };
 
   if (loading) {
-    return <div className="max-w-screen-xl mx-auto px-4 py-12 text-center text-gray-400 dark:text-gray-500">불러오는 중...</div>;
+    return (
+      <div className="max-w-screen-xl mx-auto px-4 py-8">
+        <Skeleton className="h-8 w-32 mb-6" />
+        <Skeleton className="h-10 w-80 mb-6" />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-28" />)}
+        </div>
+        <Skeleton className="h-64" />
+      </div>
+    );
   }
 
   return (
     <div className="max-w-screen-xl mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">관리자 대시보드</h1>
+      <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">관리자</h1>
 
       {error && (
         <div className="mb-4 p-3 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 text-red-700 dark:text-red-400 text-sm rounded-lg">{error}</div>
       )}
 
-      {/* Stats cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-4">
-        {/* 구독자(좌석)와 실제 수신인은 다른 수다. 좌석은 정원이 세는 것, 수신인은 지금 새 글이
-            뜨면 메일이 나가는 사람 — 좌석 중 알림을 하나라도 켜 두고 일시중지하지 않은 사람. */}
-        <StatCard label="구독자 / 수신인" value={`${stats?.seats ?? 0} / ${stats?.recipients ?? 0}`} />
-        <StatCard label="미구독/탈퇴/전체" value={`${(stats?.totalUsers ?? 0) - (stats?.seats ?? 0) - (stats?.deletedUsers ?? 0)}/${stats?.deletedUsers ?? 0}/${stats?.totalUsers ?? 0}`} />
-        <StatCard label="오늘 생략" value={stats?.emails.todaySkipped ?? 0} />
-        <StatCard label="오늘 발송" value={stats?.emails.todaySent ?? 0} />
-        <StatCard label="Brevo 잔량" value={brevoRemaining ?? '...'} />
-      </div>
+      <nav className="mb-6 flex gap-1 border-b border-gray-200 dark:border-gray-800" role="tablist">
+        {TABS.map((t) => {
+          const active = tab === t.id;
+          const count = tabCount[t.id];
+          return (
+            <button
+              key={t.id}
+              role="tab"
+              aria-selected={active}
+              onClick={() => selectTab(t.id)}
+              className={`-mb-px flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded-t ${
+                active
+                  ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
+                  : 'border-transparent text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
+              }`}
+            >
+              {t.label}
+              {count !== undefined && (
+                <span className={`rounded-full px-1.5 text-[11px] tabular-nums ${
+                  t.id === 'payments'
+                    ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300'
+                    : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'
+                }`}>
+                  {count}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </nav>
 
-      {/* Email stats */}
-      <div className="grid grid-cols-3 gap-4 mb-8">
-        <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-4">
-          <div className="text-sm text-gray-500 dark:text-gray-400">누적 발송 성공</div>
-          <div className="text-xl font-bold text-green-600 dark:text-green-400 mt-1">{stats?.emails.totalSent ?? 0}건</div>
-        </div>
-        <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-4">
-          <div className="text-sm text-gray-500 dark:text-gray-400">누적 발송 생략</div>
-          <div className="text-xl font-bold text-yellow-600 dark:text-yellow-400 mt-1">{stats?.emails.totalSkipped ?? 0}건</div>
-        </div>
-        <button
-          onClick={() => setShowFailedModal(true)}
-          className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-4 text-left hover:border-red-300 active:border-red-300 dark:hover:border-red-500/50 dark:active:border-red-500/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition cursor-pointer"
-        >
-          <div className="text-sm text-gray-500 dark:text-gray-400">누적 발송 실패</div>
-          <div className="text-xl font-bold text-red-600 dark:text-red-400 mt-1">{stats?.emails.totalFailed ?? 0}건</div>
-          <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">클릭하여 상세 보기</div>
-        </button>
-      </div>
-
-      {/* Failed email modal */}
-      {showFailedModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowFailedModal(false)}>
-          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-800">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">최근 발송 실패</h2>
-              <button onClick={() => setShowFailedModal(false)} className="text-gray-400 hover:text-gray-600 active:text-gray-600 dark:hover:text-gray-300 dark:active:text-gray-300 text-xl cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 rounded">&times;</button>
-            </div>
-            <div className="overflow-auto p-6">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-gray-500 dark:text-gray-400 border-b dark:border-gray-800">
-                    <th className="pb-2 pr-4 whitespace-nowrap w-[1%]">시각</th>
-                    <th className="pb-2 pr-4 whitespace-nowrap w-[1%]">이메일</th>
-                    <th className="pb-2 whitespace-nowrap">에러</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
-                  {(!stats?.emails.recentFailed || stats.emails.recentFailed.length === 0) && (
-                    <tr><td colSpan={3} className="py-4 text-center text-gray-400 dark:text-gray-500">실패 기록 없음</td></tr>
-                  )}
-                  {stats?.emails.recentFailed?.map((log) => (
-                    <tr key={log.id}>
-                      <td className="py-2 pr-4 text-gray-400 dark:text-gray-500 whitespace-nowrap">
-                        {new Date(log.sentAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}
-                      </td>
-                      <td className="py-2 pr-4 font-mono text-xs whitespace-nowrap">{log.email}</td>
-                      <td className="py-2 text-red-600 dark:text-red-400 text-xs">{log.error || '-'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
+      {tab === 'overview' && (
+        <OverviewTab
+          stats={stats}
+          brevoRemaining={brevoRemaining}
+          settings={settings}
+          onSave={saveSettings}
+          onTestEmail={sendTestEmail}
+        />
       )}
-
-      {/* Settings */}
-      <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-6 mb-8">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">설정</h2>
-        {/* 필드 넷 + 버튼 묶음 = 자식 다섯. 열이 넷이면 버튼이 다음 줄로 밀린다. */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[auto_auto_auto_auto_1fr] gap-4 sm:items-end">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">최대 구독자 수</label>
-            <input
-              type="number"
-              value={settings.maxSubscribers}
-              onChange={(e) => setSettings({ ...settings, maxSubscribers: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm bg-white dark:bg-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">연간 구독료 (원, 0 = 무료)</label>
-            <input
-              type="number"
-              min={0}
-              value={settings.subscriptionPrice}
-              onChange={(e) => setSettings({ ...settings, subscriptionPrice: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm bg-white dark:bg-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">유저별 일일 최대 발송</label>
-            <input
-              type="number"
-              value={settings.maxEmailsPerUserPerDay}
-              onChange={(e) => setSettings({ ...settings, maxEmailsPerUserPerDay: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm bg-white dark:bg-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">신규 구독 접수</label>
-            <div className="flex items-center gap-3 h-[38px]">
-              <ToggleSwitch
-                checked={settings.registrationOpen === 'true'}
-                onChange={() =>
-                  setSettings({
-                    ...settings,
-                    registrationOpen: settings.registrationOpen === 'true' ? 'false' : 'true',
-                  })
-                }
-              />
-              <span className="text-sm text-gray-600 dark:text-gray-400">
-                {settings.registrationOpen === 'true' ? '접수 중' : '중단됨'}
-              </span>
-            </div>
-          </div>
-          <div className="sm:text-right flex gap-2 sm:justify-end">
-            <button
-              onClick={sendTestEmail}
-              disabled={sendingTestEmail}
-              className="px-4 py-2 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-sm font-medium rounded-lg hover:bg-gray-200 active:bg-gray-200 dark:hover:bg-gray-700 dark:active:bg-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition cursor-pointer disabled:opacity-50"
-            >
-              {sendingTestEmail ? '발송 중...' : '테스트 메일'}
-            </button>
-            <button
-              onClick={saveSettings}
-              disabled={saving}
-              className="px-6 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 active:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition cursor-pointer disabled:opacity-50"
-            >
-              {saving ? '저장 중...' : '설정 저장'}
-            </button>
-          </div>
-        </div>
-
-        <div className="mt-6 pt-6 border-t border-gray-100 dark:border-gray-800">
-          <div className="text-sm font-medium text-gray-700 dark:text-gray-300">판매자 정보 (전자상거래 고지)</div>
-          <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
-            /policy 페이지에 그대로 표시됩니다. 비워두면 &quot;미등록&quot;으로 나옵니다.
-          </p>
-          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {BUSINESS_FIELDS.map(([key, label]) => (
-              <div key={key}>
-                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{label}</label>
-                <input
-                  type="text"
-                  maxLength={200}
-                  value={settings[key]}
-                  onChange={(e) => setSettings({ ...settings, [key]: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm bg-white dark:bg-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Payments */}
-      <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-6 mb-8">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1">결제 내역</h2>
-        <p className="text-xs text-gray-400 dark:text-gray-500 mb-4">
-          취소는 나이스페이 전액 취소를 요청하고, 성공했을 때만 구독 기간을 결제 직전 값으로 되돌립니다.
-        </p>
-        {payments.length === 0 ? (
-          <div className="text-sm text-gray-400 dark:text-gray-500">결제 내역이 없습니다.</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-gray-500 dark:text-gray-400 border-b dark:border-gray-800">
-                  <th className="pb-2 pr-4 whitespace-nowrap">구매자</th>
-                  <th className="pb-2 pr-4 whitespace-nowrap">상품</th>
-                  <th className="pb-2 pr-4 whitespace-nowrap text-right">금액</th>
-                  <th className="pb-2 pr-4 whitespace-nowrap">상태</th>
-                  <th className="pb-2 pr-4 whitespace-nowrap">일시</th>
-                  <th className="pb-2 pr-4 whitespace-nowrap">주문번호</th>
-                  <th className="pb-2 whitespace-nowrap w-[1%]"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
-                {payments.map((payment) => (
-                  <tr key={payment.orderId} className={payment.status === 'paid' ? '' : 'text-gray-400 dark:text-gray-500'}>
-                    <td className="py-3 pr-4 font-mono text-xs whitespace-nowrap">{payment.userEmail}</td>
-                    <td className="py-3 pr-4 whitespace-nowrap">{payment.goodsName}</td>
-                    <td className="py-3 pr-4 whitespace-nowrap text-right">{payment.amount.toLocaleString('ko-KR')}원</td>
-                    <td className="py-3 pr-4 whitespace-nowrap">
-                      {PAYMENT_STATUS[payment.status] || payment.status}
-                      {payment.status === 'failed' && payment.failReason && (
-                        <span className="block text-xs text-red-400 dark:text-red-500">{payment.failReason}</span>
-                      )}
-                      {payment.status === 'cancelled' && payment.cancelReason && (
-                        <span className="block text-xs text-gray-400 dark:text-gray-500">{payment.cancelReason}</span>
-                      )}
-                    </td>
-                    <td className="py-3 pr-4 whitespace-nowrap">
-                      {formatLocalDateTime(payment.approvedAt || payment.cancelledAt || payment.createdAt)}
-                    </td>
-                    <td className="py-3 pr-4 font-mono text-[11px] text-gray-400 dark:text-gray-500 break-all">{payment.orderId}</td>
-                    <td className="py-3 whitespace-nowrap">
-                      {payment.status === 'paid' && (
-                        <button
-                          onClick={() => cancelPayment(payment.orderId)}
-                          disabled={cancelling === payment.orderId}
-                          className="text-xs px-3 py-1 rounded bg-red-50 text-red-600 hover:bg-red-100 active:bg-red-100 dark:bg-red-500/10 dark:text-red-400 dark:hover:bg-red-500/20 dark:active:bg-red-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 transition cursor-pointer disabled:opacity-50"
-                        >
-                          {cancelling === payment.orderId ? '취소 중...' : '결제 취소'}
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {/* Recent crawls */}
-      <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-6 mb-8">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">최근 크롤링</h2>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-gray-500 dark:text-gray-400 border-b dark:border-gray-800">
-                <th className="pb-2 pr-4 whitespace-nowrap w-[1%]">게시판</th>
-                <th className="pb-2 pr-4 whitespace-nowrap w-[1%]">상태</th>
-                <th className="pb-2 pr-4 whitespace-nowrap w-[1%]">시작</th>
-                <th className="pb-2 pr-4 whitespace-nowrap w-[1%]">종료</th>
-                <th className="pb-2 pr-4 whitespace-nowrap w-[1%] text-center">소요</th>
-                <th className="pb-2 whitespace-nowrap">신규</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
-              {stats?.recentCrawls.map((crawl) => (
-                <tr key={crawl.id}>
-                  <td className="py-2 pr-4 whitespace-nowrap">
-                    <span className={`inline-block px-1.5 py-0.5 rounded text-xs ${
-                      crawl.boardType === 'notice'
-                        ? 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400'
-                        : (CATEGORY_COLORS[getBoardLabel(crawl.boardType)]?.chip || 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400')
-                    }`}>
-                      {getBoardLabel(crawl.boardType)}
-                    </span>
-                  </td>
-                  <td className="py-2 pr-4 whitespace-nowrap">
-                    <span
-                      className={`inline-block px-2 py-0.5 rounded text-xs ${
-                        crawl.status === 'completed'
-                          ? 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
-                          : crawl.status === 'running'
-                            ? 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400'
-                            : 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400'
-                      }`}
-                    >
-                      {crawl.status === 'completed' ? '완료' : crawl.status === 'running' ? '진행 중' : '실패'}
-                    </span>
-                  </td>
-                  <td className="py-2 pr-4 text-gray-400 dark:text-gray-500 whitespace-nowrap">
-                    {new Date(crawl.startedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}
-                  </td>
-                  <td className="py-2 pr-4 text-gray-400 dark:text-gray-500 whitespace-nowrap">
-                    {crawl.finishedAt
-                      ? new Date(crawl.finishedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })
-                      : '-'}
-                  </td>
-                  <td className="py-2 pr-4 text-gray-400 dark:text-gray-500 whitespace-nowrap text-center">
-                    {crawl.finishedAt
-                      ? `${Math.round((new Date(crawl.finishedAt).getTime() - new Date(crawl.startedAt).getTime()) / 1000)}s`
-                      : '-'}
-                  </td>
-                  <td className="py-2 whitespace-nowrap">{crawl.newPostsCount}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* User list */}
-      <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-6">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
-          유저 목록 ({users.length}명)
-          <span className="ml-2 text-sm font-normal text-gray-500 dark:text-gray-400">
-            구독자 {seatsHeld} / {settings.maxSubscribers} · 수신인 {recipientsHeld}
-          </span>
-        </h2>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-gray-500 dark:text-gray-400 border-b dark:border-gray-800">
-                <th className="pb-2 pr-4 whitespace-nowrap w-[1%]">#</th>
-                <th className="pb-2 pr-4 whitespace-nowrap w-[1%]">이름</th>
-                <th className="pb-2 pr-4 whitespace-nowrap w-[1%]">상태</th>
-                <th className="pb-2 pr-4 whitespace-nowrap w-[1%]">가입일</th>
-                <th className="pb-2 pr-4 whitespace-nowrap w-[1%]">만료일</th>
-                <th className="pb-2 pr-4 whitespace-nowrap text-center">알림</th>
-                <th className="pb-2 pr-4 whitespace-nowrap w-[1%] text-center">발송</th>
-                <th className="pb-2 pr-4 whitespace-nowrap w-[1%] text-center">생략</th>
-                <th className="pb-2 whitespace-nowrap w-[1%]">관리</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
-              {users.map((user, index) => {
-                const isDeleted = !!user.deletedAt;
-                const activeCount = user.alerts.filter((s) => s.isActive).length;
-                const hasActive = activeCount > 0;
-                // 구독 상태는 기간 하나로 정해진다. 알림 설정은 옆 열이 따로 말한다.
-                const state = subscriptionState({
-                  deletedAt: user.deletedAt,
-                  subscriptionExpiresAt: user.subscriptionExpiresAt,
-                });
-                const alerts = alertSummary({ activeCount, total: ALERT_CATEGORIES.length, paused: !!user.alertsPausedAt });
-                return (
-                  <tr key={user.id} className={isDeleted ? 'text-gray-300 dark:text-gray-600 line-through' : ''}>
-                    <td className="py-3 pr-4 text-gray-400 dark:text-gray-500 whitespace-nowrap">{index + 1}</td>
-                    <td className="py-3 pr-4 whitespace-nowrap">
-                      <div>{user.name || '-'}</div>
-                      <div className="font-mono text-xs text-gray-500 dark:text-gray-400">{user.email}</div>
-                    </td>
-                    <td className="py-3 pr-4 whitespace-nowrap">
-                      <span className={`text-xs px-2 py-0.5 rounded no-underline ${STATE_BADGE[state.key]}`}>
-                        {state.label}
-                      </span>
-                    </td>
-                    <td className="py-3 pr-4 whitespace-nowrap">{user.createdAt.slice(0, 10)}</td>
-                    <td className="py-3 pr-4 whitespace-nowrap">
-                      {user.subscriptionExpiresAt ? (
-                        user.subscriptionExpiresAt.slice(0, 10)
-                      ) : (
-                        <span className="text-xs text-amber-500 dark:text-amber-400">없음</span>
-                      )}
-                    </td>
-                    <td className="py-3 pr-4 whitespace-nowrap text-center">
-                      {isDeleted ? (
-                        <span className="text-xs text-gray-300 dark:text-gray-600">탈퇴 ({user.deletedAt!.slice(0, 10)})</span>
-                      ) : (
-                        <div className="flex flex-col items-center gap-1">
-                          {!alerts.delivering && (
-                            <span className="text-[11px] text-amber-600 dark:text-amber-400 no-underline">{alerts.label}</span>
-                          )}
-                          <div className="flex justify-center gap-1.5">
-                          {ALERT_CATEGORIES.map((cat) => {
-                            const sub = user.alerts.find((s) => s.category === cat.id);
-                            const isActive = sub?.isActive === 1;
-                            const label = getCategoryLabel(cat.id);
-                            return (
-                              <button
-                                key={cat.id}
-                                onClick={() => toggleUserAlert(user.id, cat.id, isActive)}
-                                className={`text-xs px-2 py-0.5 rounded transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${
-                                  isActive
-                                    ? (CATEGORY_COLORS[label]?.chipHover || 'bg-blue-100 text-blue-700 hover:bg-blue-200')
-                                    : 'bg-gray-100 text-gray-400 hover:bg-gray-200 active:bg-gray-200 dark:bg-gray-800 dark:text-gray-500 dark:hover:bg-gray-700 dark:active:bg-gray-700'
-                                }`}
-                              >
-                                {label}
-                              </button>
-                            );
-                          })}
-                          </div>
-                        </div>
-                      )}
-                    </td>
-                    <td className="py-3 pr-4 whitespace-nowrap text-center">{user.emailsSent}</td>
-                    <td className="py-3 pr-4 whitespace-nowrap text-center">{user.emailsSkipped}</td>
-                    <td className="py-3 whitespace-nowrap">
-                      {isDeleted ? null : user.email === session?.user?.email ? (
-                        <span className="text-xs text-gray-400 dark:text-gray-500">관리자</span>
-                      ) : (
-                        <div className="flex gap-1">
-                          {hasActive ? (
-                            <button
-                              onClick={() => disableAllAlerts(user.id)}
-                              className="text-xs px-3 py-1 rounded bg-red-50 text-red-600 hover:bg-red-100 active:bg-red-100 dark:bg-red-500/10 dark:text-red-400 dark:hover:bg-red-500/20 dark:active:bg-red-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 transition cursor-pointer"
-                            >
-                              알림 모두 끄기
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => enableAllAlerts(user.id)}
-                              className="text-xs px-3 py-1 rounded bg-green-50 text-green-600 hover:bg-green-100 active:bg-green-100 dark:bg-green-500/10 dark:text-green-400 dark:hover:bg-green-500/20 dark:active:bg-green-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 transition cursor-pointer"
-                            >
-                              알림 모두 켜기
-                            </button>
-                          )}
-                          {user.subscriptionExpiresAt ? (
-                            <button
-                              onClick={() => revokePeriod(user.id)}
-                              className="text-xs px-3 py-1 rounded bg-amber-50 text-amber-600 hover:bg-amber-100 active:bg-amber-100 dark:bg-amber-500/10 dark:text-amber-400 dark:hover:bg-amber-500/20 dark:active:bg-amber-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 transition cursor-pointer"
-                            >
-                              구독 회수
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => grantYear(user.id)}
-                              className="text-xs px-3 py-1 rounded bg-blue-50 text-blue-600 hover:bg-blue-100 active:bg-blue-100 dark:bg-blue-500/10 dark:text-blue-400 dark:hover:bg-blue-500/20 dark:active:bg-blue-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition cursor-pointer"
-                            >
-                              구독 1년 부여
-                            </button>
-                          )}
-                          <button
-                            onClick={() => deleteUser(user.id)}
-                            className="text-xs px-3 py-1 rounded bg-gray-50 text-gray-500 hover:bg-gray-200 active:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:active:bg-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition cursor-pointer"
-                          >
-                            삭제
-                          </button>
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function StatCard({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-4">
-      <div className="text-sm text-gray-500 dark:text-gray-400">{label}</div>
-      <div className="text-xl font-bold text-gray-900 dark:text-gray-100 mt-1">{value}</div>
+      {tab === 'users' && (
+        <UsersTab
+          users={users}
+          maxSubscribers={parseInt(settings.maxSubscribers, 10) || 0}
+          adminEmail={session?.user?.email ?? null}
+          onPatch={patchUser}
+        />
+      )}
+      {tab === 'payments' && <PaymentsTab payments={payments} onCancel={cancelPayment} />}
     </div>
   );
 }
