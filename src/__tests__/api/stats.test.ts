@@ -21,6 +21,8 @@ describe('GET /api/stats', () => {
     expect(data.maxSubscribers).toBe(50); // default
     expect(data.registrationOpen).toBe(true); // default (not 'false')
     expect(data.lastCrawl).toBeNull();
+    // 메인 페이지가 언제 다시 읽을지는 서버가 정한다.
+    expect(data.refreshAfterMs).toBeGreaterThan(0);
   });
 
   // 구독자 수 = 결제된 좌석 수. 알림을 전부 꺼 둔 사람도 좌석은 가지고 있고,
@@ -57,6 +59,8 @@ describe('GET /api/stats', () => {
     expect(data.lastCrawl).not.toBeNull();
     expect(data.lastCrawl.boardType).toBe('rule');
     expect(data.lastCrawl.newPostsCount).toBe(1);
+    // 나이는 서버 시계로 잰다.
+    expect(data.lastCrawl.ageMs).toBeGreaterThan(0);
   });
 
   it('returns null lastCrawl when only failed crawls exist', async () => {

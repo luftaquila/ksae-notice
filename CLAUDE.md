@@ -56,7 +56,8 @@ src/
 │       ├── alerts/         # 알림 설정 API (카테고리 켬·끔, all/ 전체 켬, pause/ 일시중지)
 │       ├── subscriptions/  # 구 경로 shim → alerts/ (한 릴리스 유지)
 │       ├── payments/       # 결제 (orders/ return/ webhook/) + 내 결제 내역
-│       ├── stats/          # 공개 통계 API
+│       ├── stats/          # 공개 통계 API (lastCrawl.ageMs·refreshAfterMs 는 서버 시계 기준)
+│       ├── events/         # SSE — 크롤이 끝나면 `crawl` 이벤트, 메인 페이지가 받아 다시 읽는다
 │       └── admin/          # 관리자 전용 API (settings, users, stats, test-email, payments)
 ├── lib/
 │   ├── db/
@@ -69,7 +70,9 @@ src/
 │   ├── constants.ts        # 게시판 목록(BOARDS), 카테고리 매핑, 구독 카테고리 정의, 라벨·색상
 │   ├── crawler/
 │   │   ├── parser.ts       # cheerio HTML 파싱
-│   │   ├── index.ts        # 크롤 오케스트레이터 (crawlAll, crawlLatest)
+│   │   ├── index.ts        # 크롤 오케스트레이터 (crawlAll, crawlLatest) — 끝나면 events 로 알림
+│   │   ├── events.ts       # 크롤 완료 emitter (globalThis 공유 — 커스텀 서버와 라우트 번들이 모듈 그래프가 다름)
+│   │   ├── schedule.ts     # cron 식 + nextCrawlAt/lastCrawlBoundaryAt/refreshAfterMs (스케줄러·/api/stats 공용)
 │   │   └── scheduler.ts    # node-cron 스케줄러
 │   ├── email/
 │   │   ├── brevo.ts        # Brevo API 클라이언트

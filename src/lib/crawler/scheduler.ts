@@ -2,6 +2,7 @@ import cron, { type ScheduledTask } from 'node-cron';
 import { crawlLatest, crawlAll, boardsNeedingInitialCrawl, cleanupStaleCrawlLogs } from './index';
 import { checkAndSendRenewalReminders } from '../subscription/renewal';
 import { expireStaleOrders } from '../payment/orders';
+import { CRAWL_CRON, CRAWL_TIMEZONE } from './schedule';
 
 let crawlTask: ScheduledTask | null = null;
 let renewalTask: ScheduledTask | null = null;
@@ -17,9 +18,8 @@ export async function initScheduler() {
     await crawlAll(missing);
   }
 
-  // Schedule incremental crawl every 5 minutes, 7AM-7PM KST
-  // cron: minute 0,5,10,...55 of hours 7-18 (18:55 is the last run before 19:00)
-  crawlTask = cron.schedule('*/5 7-18 * * *', async () => {
+  // 증분 크롤. 일정은 ./schedule 에 있다 — 메인 페이지의 "다음 크롤" 계산과 같은 값.
+  crawlTask = cron.schedule(CRAWL_CRON, async () => {
     if (isCrawling) {
       console.log('[Scheduler] Previous crawl still running, skipping');
       return;
@@ -34,7 +34,7 @@ export async function initScheduler() {
       isCrawling = false;
     }
   }, {
-    timezone: 'Asia/Seoul',
+    timezone: CRAWL_TIMEZONE,
   });
 
   // Schedule renewal reminder check daily at 9AM KST (only matters in December)
