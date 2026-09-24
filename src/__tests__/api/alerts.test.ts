@@ -172,9 +172,26 @@ describe('/api/alerts/pause', () => {
 });
 
 describe('legacy /api/subscriptions', () => {
-  it('serves the same handlers as /api/alerts', () => {
-    expect(legacy.GET).toBe(GET);
+  it('serves the same write handlers as /api/alerts', () => {
     expect(legacy.POST).toBe(POST);
     expect(legacy.DELETE).toBe(DELETE);
+  });
+
+  // 구 대시보드는 `subscriptions` 를 읽는다. 새 이름만 주면 열려 있던 탭의 토글이 전부 꺼져 보인다.
+  it('answers GET with the alert list under the old name as well', async () => {
+    const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com' });
+    seedAlertPreference(db, userId, 'notice_Z');
+    seedAlertPreference(db, userId, 'rule', { isActive: 0 });
+    mockSessionValue = { user: { id: userId, email: 'a@test.com' } };
+
+    const data = await (await legacy.GET()).json();
+
+    expect(data.subscriptions).toEqual(data.alerts);
+    expect(data.subscriptions).toHaveLength(2);
+    expect(data.expiresAt).toBe(account(userId).subscriptionExpiresAt);
+  });
+
+  it('passes a 401 through unchanged', async () => {
+    expect((await legacy.GET()).status).toBe(401);
   });
 });
