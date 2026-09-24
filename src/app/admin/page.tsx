@@ -240,7 +240,9 @@ export default function AdminPage() {
         })}
       </nav>
 
-      {tab === 'overview' && (
+      {/* 세 탭을 모두 마운트해 두고 보이지 않는 것만 감춘다. 탭을 바꿀 때 언마운트하면 설정 섹션의
+          편집 중인 값, 유저 표의 검색어·필터, 결제 탭의 취소 폼이 말없이 사라진다. */}
+      <div role="tabpanel" hidden={tab !== 'overview'}>
         <OverviewTab
           stats={stats}
           brevoRemaining={brevoRemaining}
@@ -248,16 +250,18 @@ export default function AdminPage() {
           onSave={saveSettings}
           onTestEmail={sendTestEmail}
         />
-      )}
-      {tab === 'users' && (
+      </div>
+      <div role="tabpanel" hidden={tab !== 'users'}>
         <UsersTab
           users={users}
           maxSubscribers={parseInt(settings.maxSubscribers, 10) || 0}
           adminEmail={session?.user?.email ?? null}
           onPatch={patchUser}
         />
-      )}
-      {tab === 'payments' && <PaymentsTab payments={payments} onCancel={cancelPayment} />}
+      </div>
+      <div role="tabpanel" hidden={tab !== 'payments'}>
+        <PaymentsTab payments={payments} onCancel={cancelPayment} />
+      </div>
     </div>
   );
 }
