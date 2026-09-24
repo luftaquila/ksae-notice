@@ -104,6 +104,7 @@ export default function DashboardPage() {
   const fetchAlerts = async () => {
     try {
       const res = await fetch('/api/alerts');
+      if (!res.ok) throw new Error(String(res.status));
       const data = await res.json();
       setAlerts(data.alerts || []);
       setPaused(!!data.paused);
