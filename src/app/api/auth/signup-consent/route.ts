@@ -38,6 +38,7 @@ export async function POST(request: Request) {
           name: pending.name,
           avatar: pending.avatar,
           subscriptionExpiresAt: null,
+          alertsPausedAt: null,
           privacyConsentAt: new Date().toISOString(),
           privacyConsentVersion: PRIVACY_CONSENT_VERSION,
         })

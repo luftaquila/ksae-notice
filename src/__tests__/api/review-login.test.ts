@@ -105,6 +105,7 @@ describe('POST /api/review-login', () => {
       email: REVIEW_EMAIL,
       deletedAt: '2026-01-01T00:00:00.000Z',
       subscriptionExpiresAt: UNEXPIRED,
+      alertsPausedAt: '2026-01-02T00:00:00.000Z',
     });
     seedAlertPreference(db, userId, 'notice_Z', { isActive: 0 });
 
@@ -113,6 +114,7 @@ describe('POST /api/review-login', () => {
     const user = db.select().from(users).where(eq(users.id, userId)).get()!;
     expect(user.deletedAt).toBeNull();
     expect(user.subscriptionExpiresAt).toBeNull();
+    expect(user.alertsPausedAt).toBeNull();
     expect(db.select().from(alertPreferences).where(eq(alertPreferences.userId, userId)).get()!.isActive).toBe(1);
     expect(await sessionUserId()).toBe(userId);
   });

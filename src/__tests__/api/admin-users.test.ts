@@ -207,8 +207,13 @@ describe('PATCH /api/admin/users - delete forfeits the period', () => {
     mockAdminSession = { user: { id: 1, isAdmin: true } };
   });
 
-  it('clears the subscription period along with the account', async () => {
-    const userId = seedUser(db, { googleId: 'g9', email: 'gone@test.com', subscriptionExpiresAt: UNEXPIRED });
+  it('clears the subscription period and the alert pause along with the account', async () => {
+    const userId = seedUser(db, {
+      googleId: 'g9',
+      email: 'gone@test.com',
+      subscriptionExpiresAt: UNEXPIRED,
+      alertsPausedAt: '2026-01-01T00:00:00.000Z',
+    });
     seedAlertPreference(db, userId, 'notice_Z');
 
     await PATCH(patchReq({ userId, action: 'delete' }));
@@ -216,5 +221,6 @@ describe('PATCH /api/admin/users - delete forfeits the period', () => {
     const user = db.select().from(users).where(eq(users.id, userId)).get()!;
     expect(user.deletedAt).not.toBeNull();
     expect(user.subscriptionExpiresAt).toBeNull();
+    expect(user.alertsPausedAt).toBeNull();
   });
 });

@@ -147,8 +147,13 @@ describe('DELETE /api/user - subscription period', () => {
     mockSessionValue = null;
   });
 
-  it('forfeits the remaining period', async () => {
-    const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com', subscriptionExpiresAt: UNEXPIRED });
+  it('forfeits the remaining period and lifts the alert pause', async () => {
+    const userId = seedUser(db, {
+      googleId: 'g1',
+      email: 'a@test.com',
+      subscriptionExpiresAt: UNEXPIRED,
+      alertsPausedAt: '2026-01-01T00:00:00.000Z',
+    });
     seedAlertPreference(db, userId, 'notice_Z');
     mockSessionValue = { user: { id: userId, email: 'a@test.com' } };
 
@@ -157,5 +162,7 @@ describe('DELETE /api/user - subscription period', () => {
     const user = db.select().from(users).where(eq(users.id, userId)).get()!;
     expect(user.deletedAt).not.toBeNull();
     expect(user.subscriptionExpiresAt).toBeNull();
+    // 재가입은 알림 전부 켬으로 시작한다. 일시중지가 남으면 켜진 채 아무것도 오지 않는다.
+    expect(user.alertsPausedAt).toBeNull();
   });
 });

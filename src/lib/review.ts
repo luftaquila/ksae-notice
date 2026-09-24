@@ -44,7 +44,7 @@ export function getOrCreateReviewUser() {
       // signIn 콜백의 되살리기와 같은 규칙 — 탈퇴는 기간을 포기하는 것이다.
       db.transaction((tx) => {
         tx.update(users)
-          .set({ deletedAt: null, subscriptionExpiresAt: null })
+          .set({ deletedAt: null, subscriptionExpiresAt: null, alertsPausedAt: null })
           .where(eq(users.id, existing.id))
           .run();
         tx.update(alertPreferences)

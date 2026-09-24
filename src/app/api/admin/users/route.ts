@@ -83,10 +83,10 @@ export async function PATCH(request: NextRequest) {
   }
 
   if (action === 'delete') {
-    // 사용자 탈퇴와 같은 규칙: 기간까지 거둔다. 남겨두면 재로그인으로 부활한다.
+    // 사용자 탈퇴와 같은 규칙: 기간까지 거두고 일시중지도 푼다. 남겨두면 재로그인으로 부활한다.
     disableAllAlerts(userId);
     db.update(users)
-      .set({ deletedAt: new Date().toISOString(), subscriptionExpiresAt: null })
+      .set({ deletedAt: new Date().toISOString(), subscriptionExpiresAt: null, alertsPausedAt: null })
       .where(eq(users.id, userId))
       .run();
     return NextResponse.json({ ok: true });

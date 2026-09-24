@@ -125,6 +125,7 @@ describe('POST /api/auth/signup-consent', () => {
       subscriptionExpiresAt: UNEXPIRED,
       privacyConsentAt: '2020-01-01T00:00:00.000Z',
       privacyConsentVersion: 'old',
+      alertsPausedAt: '2026-01-02T00:00:00.000Z',
     });
     seedAlertPreference(db, userId, 'notice_Z', { isActive: 0 });
     pend();
@@ -137,6 +138,8 @@ describe('POST /api/auth/signup-consent', () => {
     expect(user.deletedAt).toBeNull();
     expect(user.name).toBe('홍길동');
     expect(user.subscriptionExpiresAt).toBeNull();
+    // 새 가입처럼 일시중지 없이 시작한다.
+    expect(user.alertsPausedAt).toBeNull();
     // 예전 동의가 아니라 지금 받은 동의가 기록돼야 한다.
     expect(user.privacyConsentAt).not.toBe('2020-01-01T00:00:00.000Z');
     expect(user.privacyConsentVersion).toBe(PRIVACY_CONSENT_VERSION);
