@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { MIN_CARD_AMOUNT } from '@/lib/payment/nicepay';
-import { getBusinessInfo, getSubscriptionPrice } from '@/lib/payment/pricing';
+import { getBusinessInfo, getSubscriptionPrice, isFreeSubscription } from '@/lib/payment/pricing';
 
 // 설정값을 읽으므로 빌드 시점에 미리 그릴 수 없다.
 export const dynamic = 'force-dynamic';
@@ -34,6 +34,8 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 export default async function PolicyPage() {
   const business = getBusinessInfo();
   const price = getSubscriptionPrice();
+  // 무료로 운영하는 동안에는 결제 고지가 사실이 아니게 된다. 해당 항목을 내린다.
+  const free = isFreeSubscription();
   // 값이 비어 있으면 그럴듯한 자리표시자 대신 사실대로 적는다.
   const or = (value: string) => value || '미등록';
   const contact = business.bizEmail ? (
@@ -61,17 +63,24 @@ export default async function PolicyPage() {
       <Section eyebrow="판매 상품" title="연간 구독">
         <dl>
           <Row label="상품" value="KSAE 공지사항·규정 이메일 알림 1년 이용권" />
-          <Row label="이용료" value={`${price.toLocaleString('ko-KR')}원 / 1년`} />
-          <Row label="이용 기간" value="결제일부터 해당 연도 12월 31일까지" />
-          <Row label="결제수단" value="신용·체크카드 및 간편결제" />
+          <Row label="이용료" value={free ? '무료' : `${price.toLocaleString('ko-KR')}원 / 1년`} />
           <Row
-            label="최소 결제금액"
-            value={`${MIN_CARD_AMOUNT.toLocaleString('ko-KR')}원 (카드사 최소 승인금액)`}
+            label="이용 기간"
+            value={free ? '신청일부터 해당 연도 12월 31일까지' : '결제일부터 해당 연도 12월 31일까지'}
           />
+          {!free && <Row label="결제수단" value="신용·체크카드 및 간편결제" />}
+          {!free && (
+            <Row
+              label="최소 결제금액"
+              value={`${MIN_CARD_AMOUNT.toLocaleString('ko-KR')}원 (카드사 최소 승인금액)`}
+            />
+          )}
         </dl>
         <p className="px-4 py-3 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
-          결제는 나이스페이먼츠(주)를 통해 처리되며, 카드정보는 공지봇 서버에 저장되지 않습니다.
-          알림 카테고리 선택은 무료이고, 이메일 발송은 결제된 구독 기간이 남아 있는 동안에만 이루어집니다.
+          {free
+            ? '현재 구독은 무료로 제공되며, 결제 절차 없이 신청 즉시 이용 기간이 부여됩니다.'
+            : '결제는 나이스페이먼츠(주)를 통해 처리되며, 카드정보는 공지봇 서버에 저장되지 않습니다.'}{' '}
+          알림 카테고리 선택은 무료이고, 이메일 발송은 구독 기간이 남아 있는 동안에만 이루어집니다.
         </p>
       </Section>
 

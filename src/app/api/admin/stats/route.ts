@@ -3,7 +3,7 @@ import { eq, sql, and, gte, desc, isNotNull } from 'drizzle-orm';
 import { requireAdmin } from '@/lib/auth';
 import { getDb } from '@/lib/db';
 import { users, emailLogs, crawlLogs, posts } from '@/lib/db/schema';
-import { getActiveSubscriberCount } from '@/lib/subscription/capacity';
+import { getSeatBreakdown } from '@/lib/subscription/capacity';
 
 export async function GET() {
   if (!(await requireAdmin())) {
@@ -54,6 +54,13 @@ export async function GET() {
     .where(and(gte(emailLogs.sentAt, today), eq(emailLogs.status, 'skipped')))
     .get();
 
+  // 오늘 실패가 있는지가 관리자가 첫 화면에서 봐야 할 신호다. 누적은 계속 늘기만 한다.
+  const todayFailed = db
+    .select({ count: sql<number>`count(*)` })
+    .from(emailLogs)
+    .where(and(gte(emailLogs.sentAt, today), eq(emailLogs.status, 'failed')))
+    .get();
+
   const totalPosts = db
     .select({ count: sql<number>`count(*)` })
     .from(posts)
@@ -82,10 +89,15 @@ export async function GET() {
     .limit(20)
     .all();
 
+  const breakdown = getSeatBreakdown();
+
   return NextResponse.json({
     totalUsers: totalUsers?.count || 0,
     deletedUsers: deletedUsers?.count || 0,
-    activeSubscribers: getActiveSubscriberCount(),
+    seats: breakdown.seats,
+    recipients: breakdown.recipients,
+    seatsAlertsOff: breakdown.alertsOff,
+    seatsPaused: breakdown.paused,
     totalPosts: totalPosts?.count || 0,
     emails: {
       totalSent: totalEmailsSent?.count || 0,
@@ -93,6 +105,7 @@ export async function GET() {
       totalSkipped: totalEmailsSkipped?.count || 0,
       todaySent: todayEmails?.count || 0,
       todaySkipped: todaySkipped?.count || 0,
+      todayFailed: todayFailed?.count || 0,
       recentFailed,
     },
     recentCrawls,

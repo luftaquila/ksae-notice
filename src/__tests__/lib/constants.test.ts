@@ -3,7 +3,7 @@ import {
   BOARDS,
   CATEGORY_COLORS,
   NOTICE_CATEGORIES,
-  SUBSCRIPTION_CATEGORIES,
+  ALERT_CATEGORIES,
   getBoardCode,
   getBoardLabel,
   getCategoryLabel,
@@ -36,7 +36,7 @@ describe('board and category mappings', () => {
   // 게시판을 추가하면 구독 카테고리와 색상도 같이 늘어나야 한다. 빠지면 크롤링은 되는데
   // 아무도 구독할 수 없거나, 칩이 회색으로 떨어진다.
   it('gives every non-notice board a subscription category with the same id', () => {
-    const ids = new Set(SUBSCRIPTION_CATEGORIES.map((c) => c.id));
+    const ids = new Set(ALERT_CATEGORIES.map((c) => c.id));
     for (const board of BOARDS) {
       if (board.type === 'notice') continue;
       expect(ids.has(board.type)).toBe(true);
@@ -45,7 +45,7 @@ describe('board and category mappings', () => {
   });
 
   it('has a colour entry for every label a post or subscription can wear', () => {
-    for (const cat of SUBSCRIPTION_CATEGORIES) {
+    for (const cat of ALERT_CATEGORIES) {
       expect(CATEGORY_COLORS[getCategoryLabel(cat.id)], cat.id).toBeDefined();
     }
     for (const label of Object.values(NOTICE_CATEGORIES)) {

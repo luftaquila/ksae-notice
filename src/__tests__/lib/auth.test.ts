@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { NextAuthConfig } from 'next-auth';
 import { eq } from 'drizzle-orm';
-import { createTestDb, seedUser, seedSubscription, seedSetting, UNEXPIRED, type TestDb } from '../helpers';
-import { users, subscriptions, settings } from '@/lib/db/schema';
-import { SUBSCRIPTION_CATEGORIES } from '@/lib/constants';
+import { createTestDb, seedUser, seedAlertPreference, seedSetting, UNEXPIRED, type TestDb } from '../helpers';
+import { users, alertPreferences, settings } from '@/lib/db/schema';
+import { ALERT_CATEGORIES } from '@/lib/constants';
 
 let db: TestDb;
 // 모킹된 NextAuth() 가 `await import('@/lib/auth')` 중에 채운다.
@@ -52,14 +52,14 @@ function googleProfile(overrides: Record<string, unknown> = {}) {
 }
 
 function subsOf(userId: number) {
-  return db.select().from(subscriptions).where(eq(subscriptions.userId, userId)).all();
+  return db.select().from(alertPreferences).where(eq(alertPreferences.userId, userId)).all();
 }
 
 // Fills the given number of subscriber slots with unrelated paid-up users.
 function fillSlots(count: number) {
   for (let i = 0; i < count; i++) {
     const id = seedUser(db, { googleId: `filler-${i}`, email: `filler-${i}@test.com` });
-    seedSubscription(db, id, 'notice_Z');
+    seedAlertPreference(db, id, 'notice_Z');
   }
 }
 
@@ -83,7 +83,7 @@ describe('signIn callback - new user', () => {
     expect(await signInCallback({ profile: googleProfile() })).toBe('/signup/consent');
 
     expect(db.select().from(users).all().length).toBe(0);
-    expect(db.select().from(subscriptions).all().length).toBe(0);
+    expect(db.select().from(alertPreferences).all().length).toBe(0);
 
     // 프로필은 봉인한 쿠키로만 넘어간다.
     expect(unsealPendingSignup(jar.get(PENDING_SIGNUP_COOKIE))).toEqual({
@@ -125,8 +125,8 @@ describe('signIn callback - returning user', () => {
       deletedAt: '2026-01-01T00:00:00.000Z',
       subscriptionExpiresAt: expiresAt,
     });
-    for (const cat of SUBSCRIPTION_CATEGORIES) {
-      seedSubscription(db, id, cat.id, { isActive: 0 });
+    for (const cat of ALERT_CATEGORIES) {
+      seedAlertPreference(db, id, cat.id, { isActive: 0 });
     }
     return id;
   }
@@ -163,7 +163,7 @@ describe('signIn callback - returning user', () => {
 
   it('only refreshes the profile for an active user, even past the limit', async () => {
     const id = seedUser(db, { googleId: 'google-old', email: 'old@test.com', name: 'Old Name' });
-    seedSubscription(db, id, 'notice_Z');
+    seedAlertPreference(db, id, 'notice_Z');
     fillSlots(2);
 
     expect(await signInCallback({
@@ -180,7 +180,7 @@ describe('signIn callback - returning user', () => {
   // reach it. This is the writer that used to be allowed to move it backwards.
   it('leaves the period alone when an existing user simply logs in', async () => {
     const id = seedUser(db, { googleId: 'google-old', email: 'old@test.com', subscriptionExpiresAt: UNEXPIRED });
-    seedSubscription(db, id, 'notice_Z');
+    seedAlertPreference(db, id, 'notice_Z');
 
     await signInCallback({ profile: googleProfile({ sub: 'google-old', email: 'old@test.com' }) });
 

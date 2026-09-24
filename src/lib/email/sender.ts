@@ -1,8 +1,8 @@
 import { randomUUID } from 'crypto';
 import { eq, and, sql, gte, isNull } from 'drizzle-orm';
 import { getDb } from '../db';
-import { users, subscriptions, emailLogs, settings } from '../db/schema';
-import { NOTICE_CATEGORY_CODES, SUBSCRIPTION_CATEGORIES, type BoardType } from '../constants';
+import { users, alertPreferences, emailLogs, settings } from '../db/schema';
+import { NOTICE_CATEGORY_CODES, ALERT_CATEGORIES, type BoardType } from '../constants';
 import { sendEmail, getRemainingCredits } from './brevo';
 import { newPostNotification } from './templates';
 
@@ -18,12 +18,12 @@ interface NewPost {
   previousTitle?: string;
 }
 
-function getSubscriptionCategory(post: NewPost): string | null {
+function getAlertCategory(post: NewPost): string | null {
   if (post.boardType !== 'notice') {
-    // 공지 밖의 게시판은 게시판 type 이 곧 구독 카테고리 ID 다 (rule, result, form).
-    return SUBSCRIPTION_CATEGORIES.some((c) => c.id === post.boardType) ? post.boardType : null;
+    // 공지 밖의 게시판은 게시판 type 이 곧 알림 카테고리 ID 다 (rule, result, form).
+    return ALERT_CATEGORIES.some((c) => c.id === post.boardType) ? post.boardType : null;
   }
-  // For notice board, map category label to subscription ID
+  // For notice board, map category label to alert category ID
   if (post.category) {
     const code = NOTICE_CATEGORY_CODES[post.category];
     if (code) return `notice_${code}`;
@@ -36,10 +36,10 @@ const SITE_URL = process.env.SITE_URL || 'http://localhost:3000';
 export async function notifyNewPosts(newPosts: NewPost[]): Promise<void> {
   const db = getDb();
 
-  // Group new posts by subscription category
+  // Group new posts by alert category
   const postsBySubCategory = new Map<string, NewPost[]>();
   for (const post of newPosts) {
-    const subCat = getSubscriptionCategory(post);
+    const subCat = getAlertCategory(post);
     if (!subCat) continue;
     if (!postsBySubCategory.has(subCat)) postsBySubCategory.set(subCat, []);
     postsBySubCategory.get(subCat)!.push(post);
@@ -47,24 +47,27 @@ export async function notifyNewPosts(newPosts: NewPost[]): Promise<void> {
 
   if (postsBySubCategory.size === 0) return;
 
-  // Find all users with active subscriptions for the affected categories
+  // 수신자 = 좌석(기간 유효·미탈퇴) ∩ 해당 카테고리를 켠 사람 ∖ 알림 일시중지.
+  // 좌석 조건은 lib/subscription/capacity 의 getSeatCount 와 같다 — 정원이 세는
+  // 사람보다 많은 사람에게 메일이 나갈 수는 없다. 카테고리와 일시중지는 그 위에
+  // 얹히는 사용자 설정이다.
   const categories = [...postsBySubCategory.keys()];
   const now = new Date().toISOString();
 
-  // Get all active subscriptions for affected categories
-  const activeSubscriptions = db
+  const recipients = db
     .select({
-      userId: subscriptions.userId,
-      category: subscriptions.category,
+      userId: alertPreferences.userId,
+      category: alertPreferences.category,
       email: users.email,
       name: users.name,
     })
-    .from(subscriptions)
-    .innerJoin(users, eq(subscriptions.userId, users.id))
+    .from(alertPreferences)
+    .innerJoin(users, eq(alertPreferences.userId, users.id))
     .where(and(
-      eq(subscriptions.isActive, 1),
+      eq(alertPreferences.isActive, 1),
       gte(users.subscriptionExpiresAt, now),
       isNull(users.deletedAt),
+      isNull(users.alertsPausedAt),
     ))
     .all()
     .filter((s) => categories.includes(s.category));
@@ -72,7 +75,7 @@ export async function notifyNewPosts(newPosts: NewPost[]): Promise<void> {
   // Group by user: collect all relevant posts for each user
   const userPosts = new Map<number, { email: string; name: string | null; posts: NewPost[] }>();
 
-  for (const sub of activeSubscriptions) {
+  for (const sub of recipients) {
     const postsForCategory = postsBySubCategory.get(sub.category) || [];
     if (postsForCategory.length === 0) continue;
 

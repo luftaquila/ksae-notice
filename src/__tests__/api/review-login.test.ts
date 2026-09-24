@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { decode } from 'next-auth/jwt';
-import { createTestDb, seedUser, seedSubscription, UNEXPIRED, type TestDb } from '../helpers';
-import { users, subscriptions } from '@/lib/db/schema';
-import { PRIVACY_CONSENT_VERSION, SUBSCRIPTION_CATEGORIES } from '@/lib/constants';
+import { createTestDb, seedUser, seedAlertPreference, UNEXPIRED, type TestDb } from '../helpers';
+import { users, alertPreferences } from '@/lib/db/schema';
+import { PRIVACY_CONSENT_VERSION, ALERT_CATEGORIES } from '@/lib/constants';
 
 let db: TestDb;
 let jar: Map<string, string>;
@@ -87,8 +87,8 @@ describe('POST /api/review-login', () => {
     expect(user.privacyConsentVersion).toBe(PRIVACY_CONSENT_VERSION);
     expect(user.subscriptionExpiresAt).toBeNull();
 
-    const subs = db.select().from(subscriptions).where(eq(subscriptions.userId, user.id)).all();
-    expect(subs.length).toBe(SUBSCRIPTION_CATEGORIES.length);
+    const subs = db.select().from(alertPreferences).where(eq(alertPreferences.userId, user.id)).all();
+    expect(subs.length).toBe(ALERT_CATEGORIES.length);
     expect(subs.every((s) => s.isActive === 1)).toBe(true);
 
     expect(await sessionUserId()).toBe(user.id);
@@ -105,15 +105,17 @@ describe('POST /api/review-login', () => {
       email: REVIEW_EMAIL,
       deletedAt: '2026-01-01T00:00:00.000Z',
       subscriptionExpiresAt: UNEXPIRED,
+      alertsPausedAt: '2026-01-02T00:00:00.000Z',
     });
-    seedSubscription(db, userId, 'notice_Z', { isActive: 0 });
+    seedAlertPreference(db, userId, 'notice_Z', { isActive: 0 });
 
     expect((await login(GOOD)).status).toBe(200);
 
     const user = db.select().from(users).where(eq(users.id, userId)).get()!;
     expect(user.deletedAt).toBeNull();
     expect(user.subscriptionExpiresAt).toBeNull();
-    expect(db.select().from(subscriptions).where(eq(subscriptions.userId, userId)).get()!.isActive).toBe(1);
+    expect(user.alertsPausedAt).toBeNull();
+    expect(db.select().from(alertPreferences).where(eq(alertPreferences.userId, userId)).get()!.isActive).toBe(1);
     expect(await sessionUserId()).toBe(userId);
   });
 

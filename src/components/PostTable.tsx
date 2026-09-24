@@ -37,7 +37,9 @@ function useIsMobile() {
   return isMobile;
 }
 
-export default function PostTable() {
+// refreshToken 이 바뀌면 같은 조건으로 목록을 다시 읽는다 — 크롤이 끝났다는 신호를 받은
+// 페이지가 올려 준다. 페이지 번호·필터는 그대로다.
+export default function PostTable({ refreshToken = 0 }: { refreshToken?: number }) {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
@@ -89,7 +91,7 @@ export default function PostTable() {
 
   useEffect(() => {
     fetchPosts();
-  }, [fetchPosts]);
+  }, [fetchPosts, refreshToken]);
 
   useEffect(() => {
     setPage(1);

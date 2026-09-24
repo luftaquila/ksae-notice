@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { eq } from 'drizzle-orm';
 import { getDb } from '@/lib/db';
-import { users, subscriptions } from '@/lib/db/schema';
-import { PRIVACY_CONSENT_VERSION, SUBSCRIPTION_CATEGORIES } from '@/lib/constants';
+import { users, alertPreferences } from '@/lib/db/schema';
+import { PRIVACY_CONSENT_VERSION, ALERT_CATEGORIES } from '@/lib/constants';
 import { PENDING_SIGNUP_COOKIE, unsealPendingSignup } from '@/lib/signup/pending';
 import { issueSessionCookie } from '@/lib/session';
 
@@ -38,6 +38,7 @@ export async function POST(request: Request) {
           name: pending.name,
           avatar: pending.avatar,
           subscriptionExpiresAt: null,
+          alertsPausedAt: null,
           privacyConsentAt: new Date().toISOString(),
           privacyConsentVersion: PRIVACY_CONSENT_VERSION,
         })
@@ -45,19 +46,19 @@ export async function POST(request: Request) {
         .run();
 
       const have = new Set(
-        tx.select({ category: subscriptions.category })
-          .from(subscriptions)
-          .where(eq(subscriptions.userId, existing.id))
+        tx.select({ category: alertPreferences.category })
+          .from(alertPreferences)
+          .where(eq(alertPreferences.userId, existing.id))
           .all()
           .map((s) => s.category),
       );
-      tx.update(subscriptions)
+      tx.update(alertPreferences)
         .set({ isActive: 1 })
-        .where(eq(subscriptions.userId, existing.id))
+        .where(eq(alertPreferences.userId, existing.id))
         .run();
-      for (const cat of SUBSCRIPTION_CATEGORIES) {
+      for (const cat of ALERT_CATEGORIES) {
         if (!have.has(cat.id)) {
-          tx.insert(subscriptions).values({ userId: existing.id, category: cat.id, isActive: 1 }).run();
+          tx.insert(alertPreferences).values({ userId: existing.id, category: cat.id, isActive: 1 }).run();
         }
       }
       return tx.select().from(users).where(eq(users.id, existing.id)).get()!;
@@ -89,8 +90,8 @@ export async function POST(request: Request) {
       }).run();
 
       const userId = Number(result.lastInsertRowid);
-      for (const cat of SUBSCRIPTION_CATEGORIES) {
-        tx.insert(subscriptions).values({ userId, category: cat.id, isActive: 1 }).run();
+      for (const cat of ALERT_CATEGORIES) {
+        tx.insert(alertPreferences).values({ userId, category: cat.id, isActive: 1 }).run();
       }
       return tx.select().from(users).where(eq(users.id, userId)).get()!;
     }, { behavior: 'immediate' });

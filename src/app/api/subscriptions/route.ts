@@ -1,82 +1,15 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { eq, and } from 'drizzle-orm';
-import { auth } from '@/lib/auth';
-import { getDb } from '@/lib/db';
-import { users, subscriptions } from '@/lib/db/schema';
-import { SUBSCRIPTION_CATEGORIES } from '@/lib/constants';
-import { getSubscriptionPrice } from '@/lib/payment/pricing';
-import { isConfigured } from '@/lib/payment/nicepay';
-import { upsertSubscription } from '@/lib/subscription/upsert';
+import { NextResponse } from 'next/server';
+import { GET as getAlerts } from '../alerts/route';
 
-// GET: get current user's subscriptions
+// 구 경로. 카테고리 켬/끔은 "구독" 이 아니라 알림 설정이라 /api/alerts 로 옮겼다.
+// 배포 사이에 열려 있던 대시보드가 깨지지 않도록 한 릴리스 동안 그대로 넘겨준다.
+export { POST, DELETE } from '../alerts/route';
+
+// 구 대시보드는 GET 응답에서 `subscriptions` 를 읽는다. 새 이름(`alerts`)만 주면 열려 있던
+// 탭의 토글이 전부 꺼진 것으로 보이므로, 같은 목록을 옛 이름으로도 얹어 준다.
 export async function GET() {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  const db = getDb();
-  const subs = db
-    .select()
-    .from(subscriptions)
-    .where(eq(subscriptions.userId, session.user.id))
-    .all();
-
-  // The expiry is one value for the account, not one per category.
-  const account = db
-    .select({ expiresAt: users.subscriptionExpiresAt })
-    .from(users)
-    .where(eq(users.id, session.user.id))
-    .get();
-
-  return NextResponse.json({
-    subscriptions: subs,
-    expiresAt: account?.expiresAt ?? null,
-    price: getSubscriptionPrice(),
-    paymentEnabled: isConfigured(),
-  });
-}
-
-// POST: subscribe to a category
-export async function POST(request: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  const body = await request.json();
-  const { category } = body;
-
-  if (!SUBSCRIPTION_CATEGORIES.some((c) => c.id === category)) {
-    return NextResponse.json({ error: 'Invalid category' }, { status: 400 });
-  }
-
-  // No capacity gate here: a category costs nothing on its own. Slots are held
-  // by paid periods, so the limit and the registration switch are enforced
-  // where a period is bought — POST /api/payments/orders.
-  upsertSubscription(session.user.id, category);
-
-  return NextResponse.json({ ok: true });
-}
-
-// DELETE: unsubscribe from a category
-export async function DELETE(request: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  const body = await request.json();
-  const { category } = body;
-
-  const db = getDb();
-  db.update(subscriptions)
-    .set({ isActive: 0 })
-    .where(and(
-      eq(subscriptions.userId, session.user.id),
-      eq(subscriptions.category, category),
-    ))
-    .run();
-
-  return NextResponse.json({ ok: true });
+  const res = await getAlerts();
+  if (!res.ok) return res;
+  const body = await res.json();
+  return NextResponse.json({ ...body, subscriptions: body.alerts });
 }

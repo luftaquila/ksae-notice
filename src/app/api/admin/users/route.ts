@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { eq, sql, and } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { requireAdmin } from '@/lib/auth';
 import { getDb } from '@/lib/db';
-import { users, subscriptions, emailLogs } from '@/lib/db/schema';
-import { SUBSCRIPTION_CATEGORIES } from '@/lib/constants';
-import { upsertSubscription } from '@/lib/subscription/upsert';
+import { users, alertPreferences, emailLogs } from '@/lib/db/schema';
+import { ALERT_CATEGORIES } from '@/lib/constants';
+import { disableAlert, disableAllAlerts, enableAlert, enableAllAlerts } from '@/lib/alerts/preferences';
 import { endOfYear, renewalTargetYear } from '@/lib/subscription/period';
 
 export async function GET() {
@@ -15,7 +15,7 @@ export async function GET() {
   const db = getDb();
 
   const allUsers = db.select().from(users).all();
-  const allSubs = db.select().from(subscriptions).all();
+  const allAlerts = db.select().from(alertPreferences).all();
   const emailCounts = db
     .select({ userId: emailLogs.userId, count: sql<number>`count(*)` })
     .from(emailLogs)
@@ -30,10 +30,10 @@ export async function GET() {
     .groupBy(emailLogs.userId)
     .all();
 
-  const subsByUser = new Map<number, { category: string; isActive: number }[]>();
-  for (const sub of allSubs) {
-    if (!subsByUser.has(sub.userId)) subsByUser.set(sub.userId, []);
-    subsByUser.get(sub.userId)!.push({ category: sub.category, isActive: sub.isActive });
+  const alertsByUser = new Map<number, { category: string; isActive: number }[]>();
+  for (const row of allAlerts) {
+    if (!alertsByUser.has(row.userId)) alertsByUser.set(row.userId, []);
+    alertsByUser.get(row.userId)!.push({ category: row.category, isActive: row.isActive });
   }
 
   const emailCountMap = new Map(emailCounts.map((e) => [e.userId, e.count]));
@@ -46,7 +46,8 @@ export async function GET() {
     createdAt: user.createdAt,
     deletedAt: user.deletedAt,
     subscriptionExpiresAt: user.subscriptionExpiresAt,
-    subscriptions: subsByUser.get(user.id) || [],
+    alerts: alertsByUser.get(user.id) || [],
+    alertsPausedAt: user.alertsPausedAt,
     emailsSent: emailCountMap.get(user.id) || 0,
     emailsSkipped: skippedCountMap.get(user.id) || 0,
   }));
@@ -60,6 +61,8 @@ export async function GET() {
   return NextResponse.json({ users: result });
 }
 
+// 두 축이 따로 있다: 알림 설정(enable_/disable_ 계열)과 구독 기간(grant_year·revoke_period).
+// 어느 쪽 손잡이도 다른 축을 건드리지 않는다 — delete 만 예외로 둘 다 거둔다.
 export async function PATCH(request: NextRequest) {
   if (!(await requireAdmin())) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
@@ -74,50 +77,41 @@ export async function PATCH(request: NextRequest) {
 
   const db = getDb();
 
-  if (action === 'deactivate') {
-    db.update(subscriptions)
-      .set({ isActive: 0 })
-      .where(eq(subscriptions.userId, userId))
-      .run();
+  if (action === 'disable_all_alerts') {
+    disableAllAlerts(userId);
     return NextResponse.json({ ok: true });
   }
 
   if (action === 'delete') {
-    // 사용자 탈퇴와 같은 규칙: 기간까지 거둔다. 남겨두면 재로그인으로 부활한다.
-    db.update(subscriptions).set({ isActive: 0 }).where(eq(subscriptions.userId, userId)).run();
+    // 사용자 탈퇴와 같은 규칙: 기간까지 거두고 일시중지도 푼다. 남겨두면 재로그인으로 부활한다.
+    disableAllAlerts(userId);
     db.update(users)
-      .set({ deletedAt: new Date().toISOString(), subscriptionExpiresAt: null })
+      .set({ deletedAt: new Date().toISOString(), subscriptionExpiresAt: null, alertsPausedAt: null })
       .where(eq(users.id, userId))
       .run();
     return NextResponse.json({ ok: true });
   }
 
-  if (action === 'subscribe' && category) {
-    if (!SUBSCRIPTION_CATEGORIES.some((c) => c.id === category)) {
+  if (action === 'enable_alert' && category) {
+    if (!ALERT_CATEGORIES.some((c) => c.id === category)) {
       return NextResponse.json({ error: 'Invalid category' }, { status: 400 });
     }
-    upsertSubscription(userId, category);
+    enableAlert(userId, category);
     return NextResponse.json({ ok: true });
   }
 
-  if (action === 'unsubscribe' && category) {
-    db.update(subscriptions)
-      .set({ isActive: 0 })
-      .where(and(eq(subscriptions.userId, userId), eq(subscriptions.category, category)))
-      .run();
+  if (action === 'disable_alert' && category) {
+    disableAlert(userId, category);
     return NextResponse.json({ ok: true });
   }
 
-  if (action === 'subscribe_all') {
-    for (const cat of SUBSCRIPTION_CATEGORIES) {
-      upsertSubscription(userId, cat.id);
-    }
+  if (action === 'enable_all_alerts') {
+    enableAllAlerts(userId);
     return NextResponse.json({ ok: true });
   }
 
-  // Categories are free but the period is not, so an admin needs a way to hand
-  // one out without a card — a comp, or a transfer settled off-site. Same rule
-  // a payment follows: one click buys exactly one calendar year.
+  // 알림 설정은 무료지만 기간은 아니므로, 카드 없이 좌석을 내줄 손잡이가 필요하다 —
+  // 무상 제공이나 계좌이체 정산. 결제와 같은 규칙으로 한 번에 정확히 한 해를 준다.
   if (action === 'grant_year') {
     const account = db
       .select({ expiresAt: users.subscriptionExpiresAt })

@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { NextRequest } from 'next/server';
-import { createTestDb, seedUser, seedSubscription, seedEmailLog, createUpsertSubscriptionMock, UNEXPIRED, type MockSession, type TestDb } from '../helpers';
+import { createTestDb, seedUser, seedAlertPreference, seedEmailLog, UNEXPIRED, type MockSession, type TestDb } from '../helpers';
 import { eq, and } from 'drizzle-orm';
-import { users, subscriptions } from '@/lib/db/schema';
-import { SUBSCRIPTION_CATEGORIES } from '@/lib/constants';
+import { users, alertPreferences } from '@/lib/db/schema';
+import { ALERT_CATEGORIES } from '@/lib/constants';
 
 let db: TestDb;
 let mockAdminSession: MockSession = null;
@@ -14,10 +14,6 @@ vi.mock('@/lib/db', () => ({
 
 vi.mock('@/lib/auth', () => ({
   requireAdmin: () => mockAdminSession,
-}));
-
-vi.mock('@/lib/subscription/upsert', () => ({
-  upsertSubscription: (userId: number, category: string) => createUpsertSubscriptionMock(() => db)(userId, category),
 }));
 
 const { GET, PATCH } = await import('@/app/api/admin/users/route');
@@ -41,11 +37,11 @@ describe('GET /api/admin/users', () => {
     expect(res.status).toBe(403);
   });
 
-  it('returns users with subscriptions and email counts', async () => {
+  it('returns users with alert settings and email counts', async () => {
     mockAdminSession = { user: { id: 1, isAdmin: true } };
     const u1 = seedUser(db, { googleId: 'g1', email: 'a@test.com' });
     seedUser(db, { googleId: 'g2', email: 'b@test.com', deletedAt: '2025-01-01' });
-    seedSubscription(db, u1, 'notice_Z');
+    seedAlertPreference(db, u1, 'notice_Z');
     seedEmailLog(db, u1);
     seedEmailLog(db, u1);
 
@@ -58,7 +54,8 @@ describe('GET /api/admin/users', () => {
     expect(data.users[1].deletedAt).not.toBeNull();
 
     const user1 = data.users.find((u: { email: string }) => u.email === 'a@test.com');
-    expect(user1.subscriptions.length).toBe(1);
+    expect(user1.alerts.length).toBe(1);
+    expect(user1.alertsPausedAt).toBeNull();
     expect(user1.emailsSent).toBe(2);
   });
 });
@@ -70,7 +67,7 @@ describe('PATCH /api/admin/users', () => {
   });
 
   it('returns 403 when not admin', async () => {
-    const res = await PATCH(patchReq({ userId: 1, action: 'deactivate' }));
+    const res = await PATCH(patchReq({ userId: 1, action: 'disable_all_alerts' }));
     expect(res.status).toBe(403);
   });
 
@@ -80,77 +77,77 @@ describe('PATCH /api/admin/users', () => {
     expect(res.status).toBe(400);
   });
 
-  it('deactivates all subscriptions', async () => {
+  it('switches every alert off', async () => {
     mockAdminSession = { user: { id: 1, isAdmin: true } };
     const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com' });
-    seedSubscription(db, userId, 'notice_Z');
-    seedSubscription(db, userId, 'rule');
+    seedAlertPreference(db, userId, 'notice_Z');
+    seedAlertPreference(db, userId, 'rule');
 
-    const res = await PATCH(patchReq({ userId, action: 'deactivate' }));
+    const res = await PATCH(patchReq({ userId, action: 'disable_all_alerts' }));
     expect((await res.json()).ok).toBe(true);
 
-    const subs = db.select().from(subscriptions).where(eq(subscriptions.userId, userId)).all();
+    const subs = db.select().from(alertPreferences).where(eq(alertPreferences.userId, userId)).all();
     expect(subs.every(s => s.isActive === 0)).toBe(true);
   });
 
-  it('deletes user (soft delete + deactivate subs)', async () => {
+  it('deletes user (soft delete + alerts off)', async () => {
     mockAdminSession = { user: { id: 1, isAdmin: true } };
     const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com' });
-    seedSubscription(db, userId, 'notice_Z');
+    seedAlertPreference(db, userId, 'notice_Z');
 
     const res = await PATCH(patchReq({ userId, action: 'delete' }));
     expect((await res.json()).ok).toBe(true);
 
     const user = db.select().from(users).where(eq(users.id, userId)).get();
     expect(user!.deletedAt).not.toBeNull();
-    const subs = db.select().from(subscriptions).where(eq(subscriptions.userId, userId)).all();
+    const subs = db.select().from(alertPreferences).where(eq(alertPreferences.userId, userId)).all();
     expect(subs.every(s => s.isActive === 0)).toBe(true);
   });
 
-  it('subscribes user to a category', async () => {
+  it('switches a category on for a user', async () => {
     mockAdminSession = { user: { id: 1, isAdmin: true } };
     const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com' });
 
-    const res = await PATCH(patchReq({ userId, action: 'subscribe', category: 'notice_Z' }));
+    const res = await PATCH(patchReq({ userId, action: 'enable_alert', category: 'notice_Z' }));
     expect((await res.json()).ok).toBe(true);
 
-    const sub = db.select().from(subscriptions)
-      .where(and(eq(subscriptions.userId, userId), eq(subscriptions.category, 'notice_Z')))
+    const sub = db.select().from(alertPreferences)
+      .where(and(eq(alertPreferences.userId, userId), eq(alertPreferences.category, 'notice_Z')))
       .get();
     expect(sub).toBeDefined();
     expect(sub!.isActive).toBe(1);
   });
 
-  it('returns 400 for invalid subscribe category', async () => {
+  it('returns 400 for an invalid enable_alert category', async () => {
     mockAdminSession = { user: { id: 1, isAdmin: true } };
     const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com' });
-    const res = await PATCH(patchReq({ userId, action: 'subscribe', category: 'invalid' }));
+    const res = await PATCH(patchReq({ userId, action: 'enable_alert', category: 'invalid' }));
     expect(res.status).toBe(400);
   });
 
-  it('unsubscribes user from a category', async () => {
+  it('switches a category off for a user', async () => {
     mockAdminSession = { user: { id: 1, isAdmin: true } };
     const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com' });
-    seedSubscription(db, userId, 'notice_Z');
+    seedAlertPreference(db, userId, 'notice_Z');
 
-    const res = await PATCH(patchReq({ userId, action: 'unsubscribe', category: 'notice_Z' }));
+    const res = await PATCH(patchReq({ userId, action: 'disable_alert', category: 'notice_Z' }));
     expect((await res.json()).ok).toBe(true);
 
-    const sub = db.select().from(subscriptions)
-      .where(and(eq(subscriptions.userId, userId), eq(subscriptions.category, 'notice_Z')))
+    const sub = db.select().from(alertPreferences)
+      .where(and(eq(alertPreferences.userId, userId), eq(alertPreferences.category, 'notice_Z')))
       .get();
     expect(sub!.isActive).toBe(0);
   });
 
-  it('subscribes user to all categories', async () => {
+  it('switches every category on for a user', async () => {
     mockAdminSession = { user: { id: 1, isAdmin: true } };
     const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com' });
 
-    const res = await PATCH(patchReq({ userId, action: 'subscribe_all' }));
+    const res = await PATCH(patchReq({ userId, action: 'enable_all_alerts' }));
     expect((await res.json()).ok).toBe(true);
 
-    const subs = db.select().from(subscriptions).where(eq(subscriptions.userId, userId)).all();
-    expect(subs.length).toBe(SUBSCRIPTION_CATEGORIES.length);
+    const subs = db.select().from(alertPreferences).where(eq(alertPreferences.userId, userId)).all();
+    expect(subs.length).toBe(ALERT_CATEGORIES.length);
     expect(subs.every(s => s.isActive === 1)).toBe(true);
   });
 
@@ -161,30 +158,30 @@ describe('PATCH /api/admin/users', () => {
     expect(res.status).toBe(400);
   });
 
-  it('returns 400 (unknown action) when subscribe has no category', async () => {
+  it('returns 400 (unknown action) when enable_alert has no category', async () => {
     mockAdminSession = { user: { id: 1, isAdmin: true } };
     const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com' });
-    const res = await PATCH(patchReq({ userId, action: 'subscribe' }));
+    const res = await PATCH(patchReq({ userId, action: 'enable_alert' }));
     expect(res.status).toBe(400);
   });
 
-  it('returns 400 (unknown action) when unsubscribe has no category', async () => {
+  it('returns 400 (unknown action) when disable_alert has no category', async () => {
     mockAdminSession = { user: { id: 1, isAdmin: true } };
     const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com' });
-    const res = await PATCH(patchReq({ userId, action: 'unsubscribe' }));
+    const res = await PATCH(patchReq({ userId, action: 'disable_alert' }));
     expect(res.status).toBe(400);
   });
 
-  it('reactivates previously deactivated subscription via subscribe', async () => {
+  it('revives a switched-off row via enable_alert', async () => {
     mockAdminSession = { user: { id: 1, isAdmin: true } };
     const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com' });
-    seedSubscription(db, userId, 'notice_Z', { isActive: 0 });
+    seedAlertPreference(db, userId, 'notice_Z', { isActive: 0 });
 
-    const res = await PATCH(patchReq({ userId, action: 'subscribe', category: 'notice_Z' }));
+    const res = await PATCH(patchReq({ userId, action: 'enable_alert', category: 'notice_Z' }));
     expect((await res.json()).ok).toBe(true);
 
-    const sub = db.select().from(subscriptions)
-      .where(and(eq(subscriptions.userId, userId), eq(subscriptions.category, 'notice_Z')))
+    const sub = db.select().from(alertPreferences)
+      .where(and(eq(alertPreferences.userId, userId), eq(alertPreferences.category, 'notice_Z')))
       .get();
     expect(sub!.isActive).toBe(1);
   });
@@ -210,14 +207,20 @@ describe('PATCH /api/admin/users - delete forfeits the period', () => {
     mockAdminSession = { user: { id: 1, isAdmin: true } };
   });
 
-  it('clears the subscription period along with the account', async () => {
-    const userId = seedUser(db, { googleId: 'g9', email: 'gone@test.com', subscriptionExpiresAt: UNEXPIRED });
-    seedSubscription(db, userId, 'notice_Z');
+  it('clears the subscription period and the alert pause along with the account', async () => {
+    const userId = seedUser(db, {
+      googleId: 'g9',
+      email: 'gone@test.com',
+      subscriptionExpiresAt: UNEXPIRED,
+      alertsPausedAt: '2026-01-01T00:00:00.000Z',
+    });
+    seedAlertPreference(db, userId, 'notice_Z');
 
     await PATCH(patchReq({ userId, action: 'delete' }));
 
     const user = db.select().from(users).where(eq(users.id, userId)).get()!;
     expect(user.deletedAt).not.toBeNull();
     expect(user.subscriptionExpiresAt).toBeNull();
+    expect(user.alertsPausedAt).toBeNull();
   });
 });

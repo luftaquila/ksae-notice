@@ -5,6 +5,7 @@ import { posts, crawlLogs } from '../db/schema';
 import { BOARDS, type BoardType } from '../constants';
 import { parseBoardPage, type ParsedPost } from './parser';
 import { notifyNewPosts } from '../email/sender';
+import { emitCrawlFinished } from './events';
 
 type UpsertResult =
   | { type: 'new'; id: number }
@@ -153,6 +154,8 @@ export async function crawlAll(boardTypes: readonly BoardType[] = BOARDS.map((b)
       console.error(`[Crawler] Full crawl failed for ${board.type}:`, error);
     }
   }
+
+  emitCrawlFinished();
 }
 
 export async function crawlLatest(): Promise<ParsedPost[]> {
@@ -197,6 +200,9 @@ export async function crawlLatest(): Promise<ParsedPost[]> {
       console.error(`[Crawler] Incremental crawl failed for ${board.type}:`, error);
     }
   }
+
+  // 글과 크롤 기록은 다 적혔다. 메일 발송(수 초)을 기다리지 않고 페이지들에 먼저 알린다.
+  emitCrawlFinished();
 
   if (allNewPosts.length > 0) {
     try {
