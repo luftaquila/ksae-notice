@@ -4,13 +4,14 @@ import { useMemo, useState, type ReactNode } from 'react';
 import { ALERT_CATEGORIES, CATEGORY_COLORS, getCategoryLabel } from '@/lib/constants';
 import { formatCalendarDate } from '@/lib/format';
 import { alertSummary, subscriptionState, type SubscriptionStateKey } from '@/lib/subscription/status';
-import { Badge, BUTTON_DANGER, BUTTON_GHOST, Card, INPUT, Spinner, TH, type BadgeTone } from '@/components/ui';
+import { Badge, BUTTON_ENABLE, BUTTON_GHOST, BUTTON_GRANT, BUTTON_REVOKE, BUTTON_REVOKE_CONFIRM, Card, INPUT, Spinner, TH, type BadgeTone } from '@/components/ui';
 import type { UserAction, UserInfo } from './types';
 
 // 유저 표. 모든 정보와 조작이 한 행에 보인다 — 접지 않는다.
 //
 // lg 이상은 진짜 <table> 이다: 열이 표 전체에서 정렬되고(행마다 그리드를 따로 두면 행끼리
-// 어긋난다), 좁은 열은 w-[1%] 로 내용 폭만 차지하고, 남는 폭은 유저·알림 두 열이 나눈다.
+// 어긋난다), 좁은 열은 w-[1%] 로 내용 폭만 차지하고, 남는 폭은 알림 열이 가져간다. 구독 열은
+// 배지 하나, 날짜는 가입 열에 두 줄(가입일, 만료일 또는 탈퇴일)로 모은다.
 // lg 미만은 유저마다 카드 하나로 쌓는다 — 같은 정보를 세 줄에 나눠 담고 아무것도 숨기지 않는다.
 
 const STATE_TONE: Record<SubscriptionStateKey, BadgeTone> = {
@@ -189,10 +190,11 @@ export default function UsersTab({
   const isBusy = (userId: number, action: UserAction, category?: string) =>
     busy === `${userId}:${action}:${category ?? ''}`;
 
-  // 칩이 곧 켬/끔 버튼이다. 배달이 막힌 상태(모두 꺼짐·일시중지)면 그 이유를 앞에 단다.
-  const chips = (user: UserInfo, delivering: boolean, label: string): ReactNode => (
+  // 칩이 곧 켬/끔 버튼이다. 여덟 칩은 모든 행에서 같은 자리에 선다 — 요약을 칩 앞에 달면 그 행만
+  // 칩이 밀려 열이 어긋난다. 모두 꺼짐은 회색 칩 여덟 개와 초록 "알림 모두 켜기" 버튼이 말하고,
+  // 칩으로 드러나지 않는 일시중지만 칩 뒤에 글자로 붙인다.
+  const chips = (user: UserInfo, paused: boolean): ReactNode => (
     <>
-      {!delivering && <Badge tone="amber">{label}</Badge>}
       {ALERT_CATEGORIES.map((cat) => {
         const on = user.alerts.find((a) => a.category === cat.id)?.isActive === 1;
         const name = getCategoryLabel(cat.id);
@@ -213,15 +215,18 @@ export default function UsersTab({
           </button>
         );
       })}
+      {paused && <span className="ml-1 text-[11px] font-medium text-amber-600 dark:text-amber-400 whitespace-nowrap">일시중지</span>}
     </>
   );
 
-  const actions = (user: UserInfo, isAdmin: boolean): ReactNode => {
+  // 좌석 버튼은 좌석이 있는지로 고른다. 만료된 기간은 좌석이 아니므로 회수가 아니라 부여를 띄운다.
+  // 두 면은 폭을 맞춘다 — 글자 수가 달라 면이 바뀌면 옆의 삭제 버튼이 행마다 밀린다.
+  const actions = (user: UserInfo, holdsSeat: boolean, isAdmin: boolean): ReactNode => {
     if (confirmingDelete === user.id) {
       return (
         <>
           <span className="text-xs text-red-600 dark:text-red-400">탈퇴 처리하고 좌석을 거둡니다.</span>
-          <button onClick={() => act(user.id, 'delete')} disabled={busy !== null} className={`${BUTTON_DANGER} border-red-300 text-red-600 dark:border-red-500/50 dark:text-red-400`}>
+          <button onClick={() => act(user.id, 'delete')} disabled={busy !== null} className={BUTTON_REVOKE_CONFIRM}>
             {isBusy(user.id, 'delete') ? '처리 중...' : '삭제 확정'}
           </button>
           <button onClick={() => setConfirmingDelete(null)} className={BUTTON_GHOST}>취소</button>
@@ -231,27 +236,27 @@ export default function UsersTab({
     return (
       <>
         {user.alerts.some((a) => a.isActive) ? (
-          <button onClick={() => act(user.id, 'disable_all_alerts')} disabled={busy !== null} className={BUTTON_DANGER}>
+          <button onClick={() => act(user.id, 'disable_all_alerts')} disabled={busy !== null} className={BUTTON_REVOKE}>
             {isBusy(user.id, 'disable_all_alerts') ? '처리 중...' : '알림 모두 끄기'}
           </button>
         ) : (
-          <button onClick={() => act(user.id, 'enable_all_alerts')} disabled={busy !== null} className={BUTTON_GHOST}>
+          <button onClick={() => act(user.id, 'enable_all_alerts')} disabled={busy !== null} className={BUTTON_ENABLE}>
             {isBusy(user.id, 'enable_all_alerts') ? '처리 중...' : '알림 모두 켜기'}
           </button>
         )}
-        {user.subscriptionExpiresAt ? (
-          <button onClick={() => act(user.id, 'revoke_period')} disabled={busy !== null} className={BUTTON_DANGER}>
+        {holdsSeat ? (
+          <button onClick={() => act(user.id, 'revoke_period')} disabled={busy !== null} className={`${BUTTON_REVOKE} min-w-[4.75rem]`}>
             {isBusy(user.id, 'revoke_period') ? '처리 중...' : '좌석 회수'}
           </button>
         ) : (
-          <button onClick={() => act(user.id, 'grant_year')} disabled={busy !== null} className={BUTTON_GHOST}>
+          <button onClick={() => act(user.id, 'grant_year')} disabled={busy !== null} className={`${BUTTON_GRANT} min-w-[4.75rem]`}>
             {isBusy(user.id, 'grant_year') ? '처리 중...' : '1년 부여'}
           </button>
         )}
         {isAdmin ? (
           <span className="text-xs text-gray-400 dark:text-gray-500 px-1" title="관리자 본인은 삭제할 수 없습니다">본인</span>
         ) : (
-          <button onClick={() => setConfirmingDelete(user.id)} disabled={busy !== null} className={BUTTON_DANGER}>삭제</button>
+          <button onClick={() => setConfirmingDelete(user.id)} disabled={busy !== null} className={BUTTON_REVOKE}>삭제</button>
         )}
       </>
     );
@@ -335,13 +340,12 @@ export default function UsersTab({
                     </td>
                     <td className={`${TD} whitespace-nowrap`}>
                       <Badge tone={STATE_TONE[state.key]}>{state.label}</Badge>
-                      {date && <div className="mt-1 text-xs text-gray-500 dark:text-gray-400 tabular-nums">{date}</div>}
                     </td>
                     <td className={TD}>
                       {withdrawn ? (
                         <span className="text-xs text-gray-400 dark:text-gray-600">-</span>
                       ) : (
-                        <div className="flex flex-wrap items-center gap-1">{chips(user, summary.delivering, summary.label)}</div>
+                        <div className="flex flex-wrap items-center gap-1">{chips(user, summary.key === 'paused')}</div>
                       )}
                     </td>
                     <td className={`${TD} whitespace-nowrap text-right tabular-nums ${muted}`}>
@@ -349,12 +353,13 @@ export default function UsersTab({
                       <span className="text-gray-400 dark:text-gray-500">{' / '}{user.emailsSkipped}</span>
                     </td>
                     <td className={`${TD} whitespace-nowrap text-xs tabular-nums ${muted || 'text-gray-500 dark:text-gray-400'}`}>
-                      {formatCalendarDate(user.createdAt)}
+                      <div>{formatCalendarDate(user.createdAt)}</div>
+                      {date && <div className="mt-0.5">{withdrawn ? `탈퇴 ${date}` : date}</div>}
                     </td>
                     <td className={`${TD} pr-4 whitespace-nowrap`}>
                       {!withdrawn && (
                         <div className="flex items-center gap-1.5">
-                          {actions(user, isAdmin)}
+                          {actions(user, state.holdsSeat, isAdmin)}
                           {rowBusy && <Spinner />}
                         </div>
                       )}
@@ -397,7 +402,7 @@ export default function UsersTab({
                 </div>
 
                 {!withdrawn && (
-                  <div className="flex flex-wrap items-center gap-1">{chips(user, summary.delivering, summary.label)}</div>
+                  <div className="flex flex-wrap items-center gap-1">{chips(user, summary.key === 'paused')}</div>
                 )}
 
                 <div className={`text-xs tabular-nums ${muted || 'text-gray-500 dark:text-gray-400'}`}>
@@ -406,7 +411,7 @@ export default function UsersTab({
 
                 {!withdrawn && (
                   <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-gray-100 dark:border-gray-800">
-                    {actions(user, isAdmin)}
+                    {actions(user, state.holdsSeat, isAdmin)}
                     {rowBusy && <Spinner />}
                   </div>
                 )}
