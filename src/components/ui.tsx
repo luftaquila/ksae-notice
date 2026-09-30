@@ -10,6 +10,15 @@ export const BUTTON_GHOST =
   'text-xs px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-blue-300 hover:text-blue-500 active:border-blue-300 active:text-blue-500 dark:hover:border-blue-500/50 dark:hover:text-blue-400 dark:active:border-blue-500/50 dark:active:text-blue-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed';
 export const BUTTON_DANGER =
   'text-xs px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-red-300 hover:text-red-500 active:border-red-300 active:text-red-500 dark:hover:border-red-500/50 dark:hover:text-red-400 dark:active:border-red-500/50 dark:active:text-red-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed';
+// 되돌릴 수 없는 조작의 두 번째 확인. BUTTON_DANGER 보다 한 단계 짙다.
+export const BUTTON_DANGER_CONFIRM =
+  'text-xs px-3 py-1.5 rounded-lg border border-red-300 dark:border-red-500/50 bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400 font-medium hover:bg-red-100 active:bg-red-100 dark:hover:bg-red-500/20 dark:active:bg-red-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed';
+// 관리자 유저 표에서 토글의 채우는 면(알림 모두 켜기, 1년 부여). 거두는 면은 BUTTON_DANGER 로
+// 조용하게 두고 이쪽만 색을 채운다 — 대부분의 행은 거두는 면이라, 상태가 다른 행만 색으로 보인다.
+export const BUTTON_ENABLE =
+  'text-xs px-3 py-1.5 rounded-lg border border-green-200 dark:border-green-500/30 bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-400 hover:bg-green-100 hover:border-green-300 active:bg-green-100 active:border-green-300 dark:hover:bg-green-500/20 dark:hover:border-green-500/50 dark:active:bg-green-500/20 dark:active:border-green-500/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed';
+export const BUTTON_GRANT =
+  'text-xs px-3 py-1.5 rounded-lg border border-blue-200 dark:border-blue-500/30 bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300 hover:bg-blue-100 hover:border-blue-300 active:bg-blue-100 active:border-blue-300 dark:hover:bg-blue-500/20 dark:hover:border-blue-500/50 dark:active:bg-blue-500/20 dark:active:border-blue-500/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed';
 export const INPUT =
   'w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500';
 
@@ -54,4 +63,7 @@ export function Card({ children, className = '' }: { children: ReactNode; classN
 
 // 표 헤더·셀. 관리자 화면의 표마다 같은 밀도로 찍힌다.
 export const TH = 'pb-2 pr-4 text-left text-xs font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap';
+// 가운데 정렬 머리. `${TH} text-center` 로는 안 된다 — 생성된 CSS 에서 .text-left 가 .text-center
+// 뒤에 나와 이긴다.
+export const TH_CENTER = TH.replace('text-left', 'text-center');
 export const TD = 'py-3 pr-4 align-top';
