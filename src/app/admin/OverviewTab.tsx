@@ -16,6 +16,10 @@ const CRAWL_STATUS: Record<string, { label: string; tone: BadgeTone }> = {
   failed: { label: '실패', tone: 'red' },
 };
 
+// 신호 카드의 제목. 메일 카드는 이 제목을 표의 머리 행에 얹으므로 둘이 같은 글꼴을 쓴다 — 그 아래
+// 행 이름(발송·생략·실패)보다 한 단계 크고 굵어야 제목과 행이 구분된다.
+const SIGNAL_TITLE = 'text-sm font-semibold text-gray-700 dark:text-gray-300';
+
 function Signal({
   label,
   value,
@@ -41,7 +45,7 @@ function Signal({
       : 'text-gray-900 dark:text-gray-100';
   return (
     <div className={`bg-white dark:bg-gray-900 rounded-lg border p-4 ${border}`}>
-      {label && <div className="text-xs font-medium text-gray-500 dark:text-gray-400">{label}</div>}
+      {label && <div className={SIGNAL_TITLE}>{label}</div>}
       {value !== undefined && <div className={`mt-1 text-2xl font-bold tabular-nums ${valueColor}`}>{value}</div>}
       {sub && <div className="mt-1 text-xs text-gray-500 dark:text-gray-400 tabular-nums">{sub}</div>}
       {children}
@@ -63,7 +67,7 @@ function EmailCounts({ emails }: { emails: AdminStats['emails'] | undefined }) {
     <table className="w-full tabular-nums">
       <thead>
         <tr className="align-baseline">
-          <th scope="col" className="pb-1 text-left text-xs font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap">메일</th>
+          <th scope="col" className={`pb-1 text-left whitespace-nowrap ${SIGNAL_TITLE}`}>메일</th>
           <th scope="col" className="w-[1%] pb-1 pl-3 text-right text-[11px] font-normal text-gray-400 dark:text-gray-500 whitespace-nowrap">오늘</th>
           <th scope="col" className="w-[1%] pb-1 pl-3 text-right text-[11px] font-normal text-gray-400 dark:text-gray-500 whitespace-nowrap">전체</th>
         </tr>
@@ -71,7 +75,7 @@ function EmailCounts({ emails }: { emails: AdminStats['emails'] | undefined }) {
       <tbody>
         {rows.map((r) => (
           <tr key={r.label} className="align-baseline">
-            <th scope="row" className="py-0.5 text-left text-xs font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap">{r.label}</th>
+            <th scope="row" className="py-0.5 text-left text-xs font-normal text-gray-500 dark:text-gray-400 whitespace-nowrap">{r.label}</th>
             <td className={`py-0.5 pl-3 text-right text-base font-semibold whitespace-nowrap ${r.alarm && r.today > 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-gray-100'}`}>
               {r.today.toLocaleString('ko-KR')}
             </td>
