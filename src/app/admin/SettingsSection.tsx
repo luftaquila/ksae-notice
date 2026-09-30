@@ -16,12 +16,11 @@ const BUSINESS_FIELDS: [keyof Settings, string][] = [
   ['bizEmail', '이메일'],
 ];
 
-function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{label}</label>
       {children}
-      {hint && <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">{hint}</p>}
     </div>
   );
 }
@@ -81,16 +80,16 @@ export default function SettingsSection({
           </div>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-          <Field label="최대 구독자 수" hint="좌석 수 상한. Brevo 일 300통에 맞춰 잡습니다.">
+          <Field label="최대 구독자 수">
             <input type="number" min={0} value={draft.maxSubscribers} onChange={(e) => set('maxSubscribers', e.target.value)} className={INPUT} />
           </Field>
-          <Field label="연간 구독료 (원)" hint="0 이면 결제창 없이 무료로 구독됩니다. 1~999 는 카드 최소 승인금액 미만이라 1,000원으로 처리됩니다.">
+          <Field label="연간 구독료 (원)">
             <input type="number" min={0} value={draft.subscriptionPrice} onChange={(e) => set('subscriptionPrice', e.target.value)} className={INPUT} />
           </Field>
-          <Field label="유저별 일일 최대 발송" hint="하루에 한 사람에게 보낼 메일 수. 넘치면 생략으로 기록됩니다.">
+          <Field label="유저별 일일 최대 발송">
             <input type="number" min={0} value={draft.maxEmailsPerUserPerDay} onChange={(e) => set('maxEmailsPerUserPerDay', e.target.value)} className={INPUT} />
           </Field>
-          <Field label="신규 구독 접수" hint="끄면 좌석이 없는 사람의 결제가 막힙니다. 기존 좌석의 갱신은 그대로 됩니다.">
+          <Field label="신규 구독 접수">
             <div className="flex items-center gap-3 h-[38px]">
               <ToggleSwitch
                 checked={draft.registrationOpen === 'true'}
