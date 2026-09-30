@@ -4,14 +4,14 @@ import { useMemo, useState, type ReactNode } from 'react';
 import { ALERT_CATEGORIES, CATEGORY_COLORS, getCategoryLabel } from '@/lib/constants';
 import { formatCalendarDate } from '@/lib/format';
 import { alertSummary, subscriptionState, type SubscriptionStateKey } from '@/lib/subscription/status';
-import { Badge, BUTTON_ENABLE, BUTTON_GHOST, BUTTON_GRANT, BUTTON_REVOKE, BUTTON_REVOKE_CONFIRM, Card, INPUT, Spinner, TH, type BadgeTone } from '@/components/ui';
+import { Badge, BUTTON_DANGER, BUTTON_DANGER_CONFIRM, BUTTON_ENABLE, BUTTON_GHOST, BUTTON_GRANT, Card, INPUT, Spinner, TH, type BadgeTone } from '@/components/ui';
 import type { UserAction, UserInfo } from './types';
 
 // 유저 표. 모든 정보와 조작이 한 행에 보인다 — 접지 않는다.
 //
 // lg 이상은 진짜 <table> 이다: 열이 표 전체에서 정렬되고(행마다 그리드를 따로 두면 행끼리
 // 어긋난다), 좁은 열은 w-[1%] 로 내용 폭만 차지하고, 남는 폭은 알림 열이 가져간다. 구독 열은
-// 배지 하나, 날짜는 가입 열에 두 줄(가입일, 만료일 또는 탈퇴일)로 모은다.
+// 배지 하나, 날짜는 "가입 / 구독" 열에 두 줄(가입일, 구독 만료일 또는 탈퇴일)로 모은다.
 // lg 미만은 유저마다 카드 하나로 쌓는다 — 같은 정보를 세 줄에 나눠 담고 아무것도 숨기지 않는다.
 
 const STATE_TONE: Record<SubscriptionStateKey, BadgeTone> = {
@@ -219,14 +219,14 @@ export default function UsersTab({
     </>
   );
 
-  // 좌석 버튼은 좌석이 있는지로 고른다. 만료된 기간은 좌석이 아니므로 회수가 아니라 부여를 띄운다.
+  // 구독 버튼은 좌석이 있는지로 고른다. 만료된 기간은 좌석이 아니므로 해지가 아니라 부여를 띄운다.
   // 두 면은 폭을 맞춘다 — 글자 수가 달라 면이 바뀌면 옆의 삭제 버튼이 행마다 밀린다.
   const actions = (user: UserInfo, holdsSeat: boolean, isAdmin: boolean): ReactNode => {
     if (confirmingDelete === user.id) {
       return (
         <>
-          <span className="text-xs text-red-600 dark:text-red-400">탈퇴 처리하고 좌석을 거둡니다.</span>
-          <button onClick={() => act(user.id, 'delete')} disabled={busy !== null} className={BUTTON_REVOKE_CONFIRM}>
+          <span className="text-xs text-red-600 dark:text-red-400">탈퇴 처리하고 구독을 해지합니다.</span>
+          <button onClick={() => act(user.id, 'delete')} disabled={busy !== null} className={BUTTON_DANGER_CONFIRM}>
             {isBusy(user.id, 'delete') ? '처리 중...' : '삭제 확정'}
           </button>
           <button onClick={() => setConfirmingDelete(null)} className={BUTTON_GHOST}>취소</button>
@@ -236,7 +236,7 @@ export default function UsersTab({
     return (
       <>
         {user.alerts.some((a) => a.isActive) ? (
-          <button onClick={() => act(user.id, 'disable_all_alerts')} disabled={busy !== null} className={BUTTON_REVOKE}>
+          <button onClick={() => act(user.id, 'disable_all_alerts')} disabled={busy !== null} className={BUTTON_DANGER}>
             {isBusy(user.id, 'disable_all_alerts') ? '처리 중...' : '알림 모두 끄기'}
           </button>
         ) : (
@@ -245,8 +245,8 @@ export default function UsersTab({
           </button>
         )}
         {holdsSeat ? (
-          <button onClick={() => act(user.id, 'revoke_period')} disabled={busy !== null} className={`${BUTTON_REVOKE} min-w-[4.75rem]`}>
-            {isBusy(user.id, 'revoke_period') ? '처리 중...' : '좌석 회수'}
+          <button onClick={() => act(user.id, 'revoke_period')} disabled={busy !== null} className={`${BUTTON_DANGER} min-w-[4.75rem]`}>
+            {isBusy(user.id, 'revoke_period') ? '처리 중...' : '구독 해지'}
           </button>
         ) : (
           <button onClick={() => act(user.id, 'grant_year')} disabled={busy !== null} className={`${BUTTON_GRANT} min-w-[4.75rem]`}>
@@ -256,17 +256,19 @@ export default function UsersTab({
         {isAdmin ? (
           <span className="text-xs text-gray-400 dark:text-gray-500 px-1" title="관리자 본인은 삭제할 수 없습니다">본인</span>
         ) : (
-          <button onClick={() => setConfirmingDelete(user.id)} disabled={busy !== null} className={BUTTON_REVOKE}>삭제</button>
+          <button onClick={() => setConfirmingDelete(user.id)} disabled={busy !== null} className={BUTTON_DANGER}>삭제</button>
         )}
       </>
     );
   };
 
+  // 가입일 다음 줄의 날짜: 구독 만료일, 탈퇴했으면 탈퇴일. 탈퇴일만 글자를 붙인다 — 열 머리가
+  // "가입 / 구독" 이라 맨 날짜는 구독 날짜로 읽힌다.
   const subscriptionDate = (user: UserInfo, withdrawn: boolean) =>
     withdrawn && user.deletedAt
-      ? formatCalendarDate(user.deletedAt)
+      ? `탈퇴 ${formatCalendarDate(user.deletedAt)}`
       : user.subscriptionExpiresAt
-        ? `~ ${formatCalendarDate(user.subscriptionExpiresAt)}`
+        ? formatCalendarDate(user.subscriptionExpiresAt)
         : null;
 
   return (
@@ -313,7 +315,7 @@ export default function UsersTab({
                 <th className={`${TH} pt-3 w-[1%]`}>구독</th>
                 <th className={`${TH} pt-3`}>알림</th>
                 <th className={`${TH} pt-3 w-[1%] text-right`}>발송 / 생략</th>
-                <th className={`${TH} pt-3 w-[1%]`}>가입</th>
+                <th className={`${TH} pt-3 w-[1%]`}>가입 / 구독</th>
                 <th className={`${TH} pt-3 pr-4 w-[1%]`}>관리</th>
               </tr>
             </thead>
@@ -354,7 +356,7 @@ export default function UsersTab({
                     </td>
                     <td className={`${TD} whitespace-nowrap text-xs tabular-nums ${muted || 'text-gray-500 dark:text-gray-400'}`}>
                       <div>{formatCalendarDate(user.createdAt)}</div>
-                      {date && <div className="mt-0.5">{withdrawn ? `탈퇴 ${date}` : date}</div>}
+                      {date && <div className="mt-0.5">{date}</div>}
                     </td>
                     <td className={`${TD} pr-4 whitespace-nowrap`}>
                       {!withdrawn && (
@@ -395,10 +397,7 @@ export default function UsersTab({
                     </div>
                     <div className={`text-xs font-mono break-all ${muted || 'text-gray-500 dark:text-gray-400'}`}>{user.email}</div>
                   </div>
-                  <div className="shrink-0 text-right">
-                    <Badge tone={STATE_TONE[state.key]}>{state.label}</Badge>
-                    {date && <div className="mt-1 text-xs text-gray-500 dark:text-gray-400 tabular-nums">{date}</div>}
-                  </div>
+                  <Badge tone={STATE_TONE[state.key]} className="shrink-0">{state.label}</Badge>
                 </div>
 
                 {!withdrawn && (
@@ -406,7 +405,9 @@ export default function UsersTab({
                 )}
 
                 <div className={`text-xs tabular-nums ${muted || 'text-gray-500 dark:text-gray-400'}`}>
-                  가입 {formatCalendarDate(user.createdAt)} · 발송 {user.emailsSent} · 생략 {user.emailsSkipped}
+                  가입 {formatCalendarDate(user.createdAt)}
+                  {date && <> · {withdrawn ? date : `구독 ${date}`}</>}
+                  {' '}· 발송 {user.emailsSent} · 생략 {user.emailsSkipped}
                 </div>
 
                 {!withdrawn && (

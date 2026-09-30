@@ -10,14 +10,11 @@ export const BUTTON_GHOST =
   'text-xs px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-blue-300 hover:text-blue-500 active:border-blue-300 active:text-blue-500 dark:hover:border-blue-500/50 dark:hover:text-blue-400 dark:active:border-blue-500/50 dark:active:text-blue-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed';
 export const BUTTON_DANGER =
   'text-xs px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-red-300 hover:text-red-500 active:border-red-300 active:text-red-500 dark:hover:border-red-500/50 dark:hover:text-red-400 dark:active:border-red-500/50 dark:active:text-red-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed';
-// 관리자 유저 표의 조작 버튼. 토글의 두 면(알림 끄기 ↔ 켜기, 좌석 회수 ↔ 1년 부여)이 곧 그 행의
-// 상태라서 면마다 색이 다르다 — 거두는 쪽은 빨간 글자만, 채우는 쪽은 색을 채운 버튼. 대부분의 행은
-// 거두는 면이므로 조용하게 두고, 상태가 다른 행의 채운 버튼이 표를 훑을 때 먼저 보이게 한다.
-export const BUTTON_REVOKE =
-  'text-xs px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-red-600 dark:text-red-400 hover:bg-red-50 hover:border-red-300 active:bg-red-50 active:border-red-300 dark:hover:bg-red-500/10 dark:hover:border-red-500/50 dark:active:bg-red-500/10 dark:active:border-red-500/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed';
-// 되돌릴 수 없는 조작의 두 번째 확인. 첫 버튼보다 한 단계 짙다.
-export const BUTTON_REVOKE_CONFIRM =
+// 되돌릴 수 없는 조작의 두 번째 확인. BUTTON_DANGER 보다 한 단계 짙다.
+export const BUTTON_DANGER_CONFIRM =
   'text-xs px-3 py-1.5 rounded-lg border border-red-300 dark:border-red-500/50 bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400 font-medium hover:bg-red-100 active:bg-red-100 dark:hover:bg-red-500/20 dark:active:bg-red-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed';
+// 관리자 유저 표에서 토글의 채우는 면(알림 모두 켜기, 1년 부여). 거두는 면은 BUTTON_DANGER 로
+// 조용하게 두고 이쪽만 색을 채운다 — 대부분의 행은 거두는 면이라, 상태가 다른 행만 색으로 보인다.
 export const BUTTON_ENABLE =
   'text-xs px-3 py-1.5 rounded-lg border border-green-200 dark:border-green-500/30 bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-400 hover:bg-green-100 hover:border-green-300 active:bg-green-100 active:border-green-300 dark:hover:bg-green-500/20 dark:hover:border-green-500/50 dark:active:bg-green-500/20 dark:active:border-green-500/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed';
 export const BUTTON_GRANT =
