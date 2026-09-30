@@ -63,9 +63,9 @@ function EmailCounts({ emails }: { emails: AdminStats['emails'] | undefined }) {
     <table className="w-full tabular-nums">
       <thead>
         <tr className="align-baseline">
-          <th scope="col" className="pb-1 text-left text-xs font-medium text-gray-500 dark:text-gray-400">메일</th>
-          <th scope="col" className="w-[1%] pb-1 pl-3 text-right text-[11px] font-normal text-gray-400 dark:text-gray-500">오늘</th>
-          <th scope="col" className="w-[1%] pb-1 pl-3 text-right text-[11px] font-normal text-gray-400 dark:text-gray-500">전체</th>
+          <th scope="col" className="pb-1 text-left text-xs font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap">메일</th>
+          <th scope="col" className="w-[1%] pb-1 pl-3 text-right text-[11px] font-normal text-gray-400 dark:text-gray-500 whitespace-nowrap">오늘</th>
+          <th scope="col" className="w-[1%] pb-1 pl-3 text-right text-[11px] font-normal text-gray-400 dark:text-gray-500 whitespace-nowrap">전체</th>
         </tr>
       </thead>
       <tbody>
