@@ -42,7 +42,7 @@ src/
 │   ├── page.tsx            # 메인 페이지 (공개, 게시글 목록 + 필터)
 │   ├── dashboard/page.tsx  # 구독 관리 (로그인 필요): 구독 카드 + 알림 설정(카테고리 8개 한 목록)
 │   ├── admin/              # 관리자: page.tsx 가 자료를 읽고 탭(URL 해시)을 고른다 — 개요·유저·결제
-│   │   ├── OverviewTab.tsx #   개요 — 신호 카드 넷 → 설정(SettingsSection) → 접힌 크롤/실패 로그
+│   │   ├── OverviewTab.tsx #   개요 — 신호 카드 넷(메일은 오늘·전체) → 설정(SettingsSection) → 접힌 크롤/실패 로그
 │   │   ├── SettingsSection.tsx # 운영 값·판매자 정보·테스트 메일, dirty 체크
 │   │   ├── UsersTab.tsx    #   유저 — 검색·상태 필터·정렬; lg 이상 표(한 행에 칩·조작 전부), 미만 카드
 │   │   └── PaymentsTab.tsx #   결제 — 상태 필터, 인라인 취소 폼; md 이상 표, 미만 카드

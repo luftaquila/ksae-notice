@@ -7,8 +7,8 @@ import SettingsSection from './SettingsSection';
 import type { AdminStats, Settings } from './types';
 
 // 개요: 위에서부터 신호 카드 넷 → 설정 → (접힌) 최근 크롤링 → (접힌) 최근 발송 실패.
-// 신호는 숫자만이다. 오늘 발송이 정상인가, 정원이 얼마나 찼나, Brevo 잔량, 크롤러가 살아
-// 있나 — 설명 문장은 붙이지 않는다.
+// 신호는 숫자만이다. 발송이 정상인가(오늘·전체), 정원이 얼마나 찼나, Brevo 잔량, 크롤러가
+// 살아 있나 — 설명 문장은 붙이지 않는다.
 
 const CRAWL_STATUS: Record<string, { label: string; tone: BadgeTone }> = {
   completed: { label: '완료', tone: 'gray' },
@@ -23,8 +23,8 @@ function Signal({
   tone = 'default',
   children,
 }: {
-  label: string;
-  value: React.ReactNode;
+  label?: string;
+  value?: React.ReactNode;
   sub?: React.ReactNode;
   tone?: 'default' | 'warn' | 'bad';
   children?: React.ReactNode;
@@ -41,11 +41,45 @@ function Signal({
       : 'text-gray-900 dark:text-gray-100';
   return (
     <div className={`bg-white dark:bg-gray-900 rounded-lg border p-4 ${border}`}>
-      <div className="text-xs font-medium text-gray-500 dark:text-gray-400">{label}</div>
-      <div className={`mt-1 text-2xl font-bold tabular-nums ${valueColor}`}>{value}</div>
+      {label && <div className="text-xs font-medium text-gray-500 dark:text-gray-400">{label}</div>}
+      {value !== undefined && <div className={`mt-1 text-2xl font-bold tabular-nums ${valueColor}`}>{value}</div>}
       {sub && <div className="mt-1 text-xs text-gray-500 dark:text-gray-400 tabular-nums">{sub}</div>}
       {children}
     </div>
+  );
+}
+
+// 메일 카드의 표. 행이 발송·생략·실패, 열이 오늘·전체다 — 전체 누적은 다섯 자리까지 커지므로
+// 모바일 두 칸 그리드에서도 숫자가 들어가도록 열을 둘만 두고, 카드 제목을 머리 행에 얹어 옆
+// 카드들과 키를 맞춘다. 실패를 빨갛게 칠하는 것은 오늘 칸뿐이다. 전체 실패는 누적이라 한 번
+// 생기면 다시 0 이 되지 않는다.
+function EmailCounts({ emails }: { emails: AdminStats['emails'] | undefined }) {
+  const rows = [
+    { label: '발송', today: emails?.todaySent ?? 0, total: emails?.totalSent ?? 0, alarm: false },
+    { label: '생략', today: emails?.todaySkipped ?? 0, total: emails?.totalSkipped ?? 0, alarm: false },
+    { label: '실패', today: emails?.todayFailed ?? 0, total: emails?.totalFailed ?? 0, alarm: true },
+  ];
+  return (
+    <table className="w-full tabular-nums">
+      <thead>
+        <tr className="align-baseline">
+          <th scope="col" className="pb-1 text-left text-xs font-medium text-gray-500 dark:text-gray-400">메일</th>
+          <th scope="col" className="w-[1%] pb-1 pl-3 text-right text-[11px] font-normal text-gray-400 dark:text-gray-500">오늘</th>
+          <th scope="col" className="w-[1%] pb-1 pl-3 text-right text-[11px] font-normal text-gray-400 dark:text-gray-500">전체</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((r) => (
+          <tr key={r.label} className="align-baseline">
+            <th scope="row" className="py-0.5 text-left text-xs font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap">{r.label}</th>
+            <td className={`py-0.5 pl-3 text-right text-base font-semibold whitespace-nowrap ${r.alarm && r.today > 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-gray-100'}`}>
+              {r.today.toLocaleString('ko-KR')}
+            </td>
+            <td className="py-0.5 pl-3 text-right text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">{r.total.toLocaleString('ko-KR')}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }
 
@@ -96,17 +130,9 @@ export default function OverviewTab({
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <Signal
-          label="오늘 발송"
-          value={emails?.todaySent ?? 0}
-          tone={failedToday > 0 ? 'bad' : 'default'}
-          sub={
-            <>
-              생략 {emails?.todaySkipped ?? 0} ·{' '}
-              <span className={failedToday > 0 ? 'font-semibold text-red-600 dark:text-red-400' : ''}>실패 {failedToday}</span>
-            </>
-          }
-        />
+        <Signal tone={failedToday > 0 ? 'bad' : 'default'}>
+          <EmailCounts emails={emails} />
+        </Signal>
 
         <Signal
           label="구독자"
