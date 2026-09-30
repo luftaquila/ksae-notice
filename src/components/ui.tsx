@@ -63,4 +63,7 @@ export function Card({ children, className = '' }: { children: ReactNode; classN
 
 // 표 헤더·셀. 관리자 화면의 표마다 같은 밀도로 찍힌다.
 export const TH = 'pb-2 pr-4 text-left text-xs font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap';
+// 가운데 정렬 머리. `${TH} text-center` 로는 안 된다 — 생성된 CSS 에서 .text-left 가 .text-center
+// 뒤에 나와 이긴다.
+export const TH_CENTER = TH.replace('text-left', 'text-center');
 export const TD = 'py-3 pr-4 align-top';

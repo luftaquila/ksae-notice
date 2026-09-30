@@ -4,7 +4,7 @@ import { useMemo, useState, type ReactNode } from 'react';
 import { ALERT_CATEGORIES, CATEGORY_COLORS, getCategoryLabel } from '@/lib/constants';
 import { formatCalendarDate } from '@/lib/format';
 import { alertSummary, subscriptionState, type SubscriptionStateKey } from '@/lib/subscription/status';
-import { Badge, BUTTON_DANGER, BUTTON_DANGER_CONFIRM, BUTTON_ENABLE, BUTTON_GHOST, BUTTON_GRANT, Card, INPUT, Spinner, TH, type BadgeTone } from '@/components/ui';
+import { Badge, BUTTON_DANGER, BUTTON_DANGER_CONFIRM, BUTTON_ENABLE, BUTTON_GHOST, BUTTON_GRANT, Card, INPUT, Spinner, TH, TH_CENTER, type BadgeTone } from '@/components/ui';
 import type { UserAction, UserInfo } from './types';
 
 // 유저 표. 모든 정보와 조작이 한 행에 보인다 — 접지 않는다.
@@ -262,11 +262,11 @@ export default function UsersTab({
     );
   };
 
-  // 가입일 다음 줄의 날짜: 구독 만료일, 탈퇴했으면 탈퇴일. 탈퇴일만 글자를 붙인다 — 열 머리가
-  // "가입 / 구독" 이라 맨 날짜는 구독 날짜로 읽힌다.
+  // 가입일 다음 줄의 날짜: 구독 만료일, 탈퇴했으면 괄호 친 탈퇴일 — 열 머리가 "가입 / 구독" 이라
+  // 맨 날짜는 구독 만료일로 읽히고, 괄호는 그 자리의 다른 날짜(탈퇴 배지가 옆에 있다)다.
   const subscriptionDate = (user: UserInfo, withdrawn: boolean) =>
     withdrawn && user.deletedAt
-      ? `탈퇴 ${formatCalendarDate(user.deletedAt)}`
+      ? `(${formatCalendarDate(user.deletedAt)})`
       : user.subscriptionExpiresAt
         ? formatCalendarDate(user.subscriptionExpiresAt)
         : null;
@@ -312,10 +312,10 @@ export default function UsersTab({
             <thead>
               <tr className="border-b border-gray-200 dark:border-gray-800">
                 <th className={`${TH} pl-4 pt-3 w-[1%]`}>유저</th>
-                <th className={`${TH} pt-3 w-[1%]`}>구독</th>
+                <th className={`${TH_CENTER} pt-3 w-[1%]`}>구독</th>
                 <th className={`${TH} pt-3`}>알림</th>
                 <th className={`${TH} pt-3 w-[1%] text-right`}>발송 / 생략</th>
-                <th className={`${TH} pt-3 w-[1%]`}>가입 / 구독</th>
+                <th className={`${TH_CENTER} pt-3 w-[1%]`}>가입 / 구독</th>
                 <th className={`${TH} pt-3 pr-4 w-[1%]`}>관리</th>
               </tr>
             </thead>
@@ -340,7 +340,7 @@ export default function UsersTab({
                         </div>
                       </div>
                     </td>
-                    <td className={`${TD} whitespace-nowrap`}>
+                    <td className={`${TD} whitespace-nowrap text-center`}>
                       <Badge tone={STATE_TONE[state.key]}>{state.label}</Badge>
                     </td>
                     <td className={TD}>
@@ -354,7 +354,7 @@ export default function UsersTab({
                       {user.emailsSent}
                       <span className="text-gray-400 dark:text-gray-500">{' / '}{user.emailsSkipped}</span>
                     </td>
-                    <td className={`${TD} whitespace-nowrap text-xs tabular-nums ${muted || 'text-gray-500 dark:text-gray-400'}`}>
+                    <td className={`${TD} whitespace-nowrap text-center text-xs tabular-nums ${muted || 'text-gray-500 dark:text-gray-400'}`}>
                       <div>{formatCalendarDate(user.createdAt)}</div>
                       {date && <div className="mt-0.5">{date}</div>}
                     </td>
@@ -406,7 +406,7 @@ export default function UsersTab({
 
                 <div className={`text-xs tabular-nums ${muted || 'text-gray-500 dark:text-gray-400'}`}>
                   가입 {formatCalendarDate(user.createdAt)}
-                  {date && <> · {withdrawn ? date : `구독 ${date}`}</>}
+                  {date && <> · 구독 {date}</>}
                   {' '}· 발송 {user.emailsSent} · 생략 {user.emailsSkipped}
                 </div>
 
