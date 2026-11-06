@@ -6,6 +6,7 @@ import { users, alertPreferences, emailLogs } from '@/lib/db/schema';
 import { ALERT_CATEGORIES } from '@/lib/constants';
 import { disableAlert, disableAllAlerts, enableAlert, enableAllAlerts } from '@/lib/alerts/preferences';
 import { endOfYear, renewalTargetYear } from '@/lib/subscription/period';
+import { getRenewalOpenMonth } from '@/lib/subscription/capacity';
 
 export async function GET() {
   if (!(await requireAdmin())) {
@@ -124,7 +125,7 @@ export async function PATCH(request: NextRequest) {
     const now = new Date();
     db.update(users)
       .set({
-        subscriptionExpiresAt: endOfYear(renewalTargetYear(now, account.expiresAt ?? null)),
+        subscriptionExpiresAt: endOfYear(renewalTargetYear(now, account.expiresAt ?? null, getRenewalOpenMonth(db))),
         subscriptionRenewedAt: now.toISOString(),
       })
       .where(eq(users.id, userId))

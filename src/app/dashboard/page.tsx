@@ -277,7 +277,7 @@ export default function DashboardPage() {
   // Shared with the payment order route, so the label below cannot promise a
   // year the server will not write.
   const { show: inRenewalWindow } = renewalPrompt(now, expiresAt, renewalOpenMonth);
-  const targetYear = renewalTargetYear(now, expiresAt);
+  const targetYear = renewalTargetYear(now, expiresAt, renewalOpenMonth);
   // 기간이 없거나 지났을 때, 그리고 갱신 창(설정한 달~12월)에 올해로 끝나는 기간만 결제
   // 대상이다. 서버의 주문 라우트와 같은 규칙이라 버튼이 있으면 주문도 열려 있다.
   const canPay = canPurchase(now, expiresAt, renewalOpenMonth);

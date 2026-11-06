@@ -22,7 +22,14 @@ function inRenewalWindow(now: Date, openMonth: number): boolean {
 // One purchase buys exactly one calendar year, stacked on top of whatever is
 // already covered: the year after the current period while it still runs, the
 // current year once it has lapsed or was never set. Handing a lapsed account
-// year + 1 would give it two years for one payment.
+// year + 1 outside the renewal window would give it two years for one payment.
+//
+// Inside the renewal window (openMonth through December) what is on sale is next
+// year, for everyone: an account with no period, or a lapsed one, buys the same
+// year a running subscriber renews into. Otherwise someone subscribing in
+// November would get two months and have to buy again for next year. The rest of
+// this year comes along with it — the period is a single expiry date, so there is
+// no start date to hold it back.
 //
 // Stacking matters now that the year is bought rather than clicked. Returning
 // currentYear + 1 for an account already paid through next year would take the
@@ -32,11 +39,11 @@ function inRenewalWindow(now: Date, openMonth: number): boolean {
 // Compared by calendar year off the ISO prefix, not as an instant. Between 00:00
 // and 08:59 KST on Jan 1 a 12/31 23:59:59 UTC period has not technically passed
 // yet, and an instant comparison would call it covered and hand out two years.
-export function renewalTargetYear(now: Date, expiresAt: string | null): number {
+export function renewalTargetYear(now: Date, expiresAt: string | null, openMonth: number): number {
   const currentYear = now.getFullYear();
   const coveredThrough = expiresAt ? Number(expiresAt.slice(0, 4)) : null;
   if (coveredThrough !== null && coveredThrough >= currentYear) return coveredThrough + 1;
-  return currentYear;
+  return inRenewalWindow(now, openMonth) ? currentYear + 1 : currentYear;
 }
 
 export interface RenewalPrompt {
@@ -62,7 +69,7 @@ export function renewalPrompt(now: Date, expiresAt: string | null, openMonth: nu
   return {
     show: isExpired || (inRenewalWindow(now, openMonth) && !renewedAhead),
     isExpired,
-    targetYear: renewalTargetYear(now, expiresAt),
+    targetYear: renewalTargetYear(now, expiresAt, openMonth),
   };
 }
 

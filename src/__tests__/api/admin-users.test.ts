@@ -1,8 +1,8 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 import { createTestDb, seedUser, seedAlertPreference, seedEmailLog, UNEXPIRED, type MockSession, type TestDb } from '../helpers';
 import { eq, and } from 'drizzle-orm';
-import { users, alertPreferences } from '@/lib/db/schema';
+import { users, alertPreferences, settings } from '@/lib/db/schema';
 import { ALERT_CATEGORIES } from '@/lib/constants';
 
 let db: TestDb;
@@ -222,5 +222,37 @@ describe('PATCH /api/admin/users - delete forfeits the period', () => {
     expect(user.deletedAt).not.toBeNull();
     expect(user.subscriptionExpiresAt).toBeNull();
     expect(user.alertsPausedAt).toBeNull();
+  });
+});
+
+// "1년 부여" 도 결제와 같은 규칙이다 — 갱신 창이 열린 뒤에는 구독이 없던 사람도 내년까지.
+describe('PATCH /api/admin/users - grant_year follows the renewal window', () => {
+  beforeEach(() => {
+    db = createTestDb();
+    mockAdminSession = { user: { id: 99, email: 'admin@test.com', isAdmin: true } };
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function expiryOf(userId: number) {
+    return db.select().from(users).where(eq(users.id, userId)).get()!.subscriptionExpiresAt;
+  }
+
+  it('grants this year before the window and next year inside it', async () => {
+    const year = new Date().getFullYear();
+    db.insert(settings).values({ key: 'renewalOpenMonth', value: '11' }).run();
+    vi.useFakeTimers({ toFake: ['Date'] });
+
+    vi.setSystemTime(new Date(`${year}-10-31T12:00:00+09:00`));
+    const before = seedUser(db, { googleId: 'g1', email: 'a@test.com', subscriptionExpiresAt: null });
+    await PATCH(patchReq({ userId: before, action: 'grant_year' }));
+    expect(expiryOf(before)).toBe(`${year}-12-31T23:59:59.000Z`);
+
+    vi.setSystemTime(new Date(`${year}-11-06T12:00:00+09:00`));
+    const inside = seedUser(db, { googleId: 'g2', email: 'b@test.com', subscriptionExpiresAt: null });
+    await PATCH(patchReq({ userId: inside, action: 'grant_year' }));
+    expect(expiryOf(inside)).toBe(`${year + 1}-12-31T23:59:59.000Z`);
   });
 });

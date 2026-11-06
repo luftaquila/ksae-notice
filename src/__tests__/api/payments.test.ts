@@ -176,6 +176,11 @@ beforeEach(() => {
   vi.stubEnv('NICEPAY_CLIENT_ID', 'R2_testclient');
   vi.stubEnv('NICEPAY_SECRET_KEY', 'testsecret');
   vi.stubEnv('SITE_URL', 'https://ksae-notice.test');
+
+  // 기본 시계는 갱신 창 밖(9월)이다. 창 안에서는 구독이 없던 사람도 내년을 사므로, 실제
+  // 시계에 맡기면 12월에 돌린 테스트만 "올해" 기대가 깨진다. 창이 필요한 테스트는
+  // inDecember()/setClock() 로 다시 돌린다.
+  setClock(`${new Date().getFullYear()}-09-08T12:00:00+09:00`);
 });
 
 afterEach(() => {
@@ -228,6 +233,26 @@ describe('POST /api/payments/orders', () => {
     const body = await (await createOrderRoute(orderReq())).json();
     expect(body.amount).toBe(0);
     expect(body.free).toBe(true);
+  });
+
+  // 창이 열린 뒤에는 구독이 없거나 만료된 사람도 이미 구독 중인 사람과 같은 해(내년)를 산다.
+  it('sells next year to a newcomer and a lapsed account once the window is open', async () => {
+    seedSetting(db, 'renewalOpenMonth', '11');
+    setClock(`${new Date().getFullYear()}-11-06T12:00:00+09:00`);
+    const nextYear = new Date().getFullYear() + 1;
+
+    const newcomer = seedUser(db, { googleId: 'g1', email: 'a@test.com', subscriptionExpiresAt: null });
+    const order = await buyOnce(newcomer);
+    expect(order.targetYear).toBe(nextYear);
+    expect(periodOf(newcomer)).toBe(endOfYear(nextYear));
+
+    const lapsed = seedUser(db, { googleId: 'g2', email: 'b@test.com', subscriptionExpiresAt: EXPIRED });
+    await buyOnce(lapsed, 'b@test.com');
+    expect(periodOf(lapsed)).toBe(endOfYear(nextYear));
+
+    // 내년까지 덮였으니 더 살 것이 없다.
+    mockSessionValue = { user: { id: newcomer, email: 'a@test.com' } };
+    expect((await createOrderRoute(orderReq())).status).toBe(403);
   });
 
   it('quotes this year for a lapsed account and, in December, next year for one ending this year', async () => {
@@ -815,10 +840,11 @@ describe('admin payments', () => {
 
   // 되돌리면 나중 결제까지 무효로 만들어 버리므로 손대지 않는다.
   it('leaves the period alone when a later payment already moved it', async () => {
-    // 두 번째 결제(내년)는 12월에만 열린다.
-    inDecember();
+    // 첫 결제는 갱신 창 전(기본 시계 9월, 올해), 두 번째 결제(내년)는 창이 열린 12월에.
+    // 창 안에서는 구독이 없던 사람도 첫 결제로 내년까지 받으므로 두 결제를 창 앞뒤로 나눈다.
     const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com', subscriptionExpiresAt: null });
     const first = await buyOnce(userId);
+    inDecember();
     const second = await buyOnce(userId);
     const afterSecond = periodOf(userId);
 

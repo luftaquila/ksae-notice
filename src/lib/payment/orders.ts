@@ -9,6 +9,7 @@ import { and, desc, eq, inArray, lt, sql } from 'drizzle-orm';
 import { getDb } from '../db';
 import { payments, users } from '../db/schema';
 import { endOfYear, renewalTargetYear } from '../subscription/period';
+import { getRenewalOpenMonth } from '../subscription/capacity';
 
 export type PaymentRow = typeof payments.$inferSelect;
 
@@ -147,8 +148,8 @@ export function settleOrder(params: {
 
     // 기간은 결제 시점에 다시 계산한다. 주문을 만든 뒤 해를 넘겨 결제하면 주문
     // 당시 안내한 연도가 한 해 어긋나기 때문이다. 규칙은 lib/subscription/period
-    // 그대로 — 한 번의 결제는 정확히 한 해를 산다.
-    const grantedTo = endOfYear(renewalTargetYear(now, account?.expiresAt ?? null));
+    // 그대로 — 한 번의 결제는 정확히 한 해를 산다. 갱신 창이 열린 뒤에는 그 해가 내년이다.
+    const grantedTo = endOfYear(renewalTargetYear(now, account?.expiresAt ?? null, getRenewalOpenMonth(tx)));
 
     tx.update(users)
       .set({ subscriptionExpiresAt: grantedTo, subscriptionRenewedAt: now.toISOString() })

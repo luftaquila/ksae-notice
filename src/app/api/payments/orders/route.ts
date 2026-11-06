@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: `지금은 결제할 구독 기간이 없습니다. 갱신은 ${openMonth}월부터 가능합니다.` }, { status: 403 });
   }
 
-  const targetYear = renewalTargetYear(now, account.expiresAt ?? null);
+  const targetYear = renewalTargetYear(now, account.expiresAt ?? null, openMonth);
   const goodsName = `KSAE 공지봇 ${targetYear}년 구독`;
 
   const order = createOrder({

@@ -17,27 +17,31 @@ const DEC = DEFAULT_RENEWAL_OPEN_MONTH;
 
 describe('renewalTargetYear', () => {
   it('buys next year while the period still covers this one', () => {
-    expect(renewalTargetYear(kst('2026-12-15T12:00:00+09:00'), endOfYear(2026))).toBe(2027);
+    expect(renewalTargetYear(kst('2026-12-15T12:00:00+09:00'), endOfYear(2026), DEC)).toBe(2027);
   });
 
   it('buys this year once the period has lapsed', () => {
-    expect(renewalTargetYear(kst('2027-03-01T12:00:00+09:00'), endOfYear(2026))).toBe(2027);
+    expect(renewalTargetYear(kst('2027-03-01T12:00:00+09:00'), endOfYear(2026), DEC)).toBe(2027);
   });
 
   it('buys this year for an account with no period at all', () => {
-    expect(renewalTargetYear(kst('2027-03-01T12:00:00+09:00'), null)).toBe(2027);
+    expect(renewalTargetYear(kst('2027-03-01T12:00:00+09:00'), null, DEC)).toBe(2027);
+  });
+
+  it('buys next year for an account with no period in December', () => {
+    expect(renewalTargetYear(kst('2026-12-15T12:00:00+09:00'), null, DEC)).toBe(2027);
   });
 
   // Paying twice must buy two years. Guarding a double-submit is the order
   // ledger's job, not this function's — clamping here would swallow a payment.
   it('stacks another year onto a period already paid ahead', () => {
-    expect(renewalTargetYear(kst('2026-12-20T12:00:00+09:00'), endOfYear(2027))).toBe(2028);
+    expect(renewalTargetYear(kst('2026-12-20T12:00:00+09:00'), endOfYear(2027), DEC)).toBe(2028);
   });
 
   // 2026-12-31T23:59:59Z is 2027-01-01 08:59 KST, so between midnight and 08:59
   // KST the period has not passed as an instant while the calendar has turned.
   it('does not hand out two years in the KST new-year gap', () => {
-    expect(renewalTargetYear(kst('2027-01-01T03:00:00+09:00'), endOfYear(2026))).toBe(2027);
+    expect(renewalTargetYear(kst('2027-01-01T03:00:00+09:00'), endOfYear(2026), DEC)).toBe(2027);
   });
 });
 
@@ -72,7 +76,7 @@ describe('renewalPrompt', () => {
   it('reports the year the server would write', () => {
     for (const [, now, expiresAt] of cases) {
       const at = kst(now);
-      expect(renewalPrompt(at, expiresAt, DEC).targetYear).toBe(renewalTargetYear(at, expiresAt));
+      expect(renewalPrompt(at, expiresAt, DEC).targetYear).toBe(renewalTargetYear(at, expiresAt, DEC));
     }
   });
 
@@ -130,7 +134,27 @@ describe('renewal window opened earlier', () => {
   }
 
   it('sells next year, not this one, inside the window', () => {
-    expect(renewalTargetYear(kst('2026-11-06T12:00:00+09:00'), endOfYear(2026))).toBe(2027);
+    expect(renewalTargetYear(kst('2026-11-06T12:00:00+09:00'), endOfYear(2026), NOV)).toBe(2027);
+  });
+
+  // 구독이 없거나 만료된 사람도 창이 열린 뒤에는 같은 해(내년)를 산다. 올해만 사면
+  // 두 달 받고 내년 것을 또 사야 한다.
+  it('sells next year to an account with no period inside the window', () => {
+    expect(renewalTargetYear(kst('2026-11-06T12:00:00+09:00'), null, NOV)).toBe(2027);
+  });
+
+  it('sells next year to a lapsed account inside the window', () => {
+    expect(renewalTargetYear(kst('2026-11-06T12:00:00+09:00'), endOfYear(2025), NOV)).toBe(2027);
+  });
+
+  it('still sells this year to an account with no period before the window', () => {
+    expect(renewalTargetYear(kst('2026-10-31T23:00:00+09:00'), null, NOV)).toBe(2026);
+  });
+
+  it('closes the sale once a newcomer has bought next year', () => {
+    const now = kst('2026-11-06T12:00:00+09:00');
+    const bought = endOfYear(renewalTargetYear(now, null, NOV));
+    expect(canPurchase(now, bought, NOV)).toBe(false);
   });
 
   it('puts the prompt up exactly when the button opens for a period ending this year', () => {
