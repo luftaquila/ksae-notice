@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { createTestDb, seedUser, seedAlertPreference, seedPost, seedEmailLog, seedCrawlLog, type MockSession, type TestDb } from '../helpers';
+import { emailQueue } from '@/lib/db/schema';
 
 let db: TestDb;
 let mockAdminSession: MockSession = null;
@@ -98,5 +99,21 @@ describe('GET /api/admin/stats', () => {
     const data = await res.json();
     expect(data.emails.todaySent).toBe(2);
     expect(data.emails.totalSent).toBe(3);
+  });
+
+  // 한 사람에게 쌓인 큐 행은 한 통으로 나가므로 사람 수를 센다.
+  it('counts queued mails per person', async () => {
+    mockAdminSession = { user: { id: 1, isAdmin: true } };
+    expect((await (await GET()).json()).emails.queued).toBe(0);
+
+    const a = seedUser(db, { googleId: 'g1', email: 'a@test.com' });
+    const b = seedUser(db, { googleId: 'g2', email: 'b@test.com' });
+    db.insert(emailQueue).values([
+      { userId: a, posts: '[]' },
+      { userId: a, posts: '[]' },
+      { userId: b, posts: '[]' },
+    ]).run();
+
+    expect((await (await GET()).json()).emails.queued).toBe(2);
   });
 });

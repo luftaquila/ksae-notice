@@ -55,6 +55,8 @@ export interface AdminStats {
     todaySent: number;
     todaySkipped: number;
     todayFailed: number;
+    // Brevo 잔량이 모자라 다음 날 이후로 넘긴 메일 수 (큐에 든 사람 수)
+    queued: number;
     recentFailed: FailedEmail[];
   };
   recentCrawls: CrawlLog[];

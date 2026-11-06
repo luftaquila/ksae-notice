@@ -163,7 +163,12 @@ export default function OverviewTab({
           )}
         </Signal>
 
-        <Signal label="Brevo 잔량" value={brevoRemaining ?? '...'} tone={brevoShort ? 'warn' : 'default'} />
+        <Signal
+          label="Brevo 잔량"
+          value={brevoRemaining ?? '...'}
+          tone={brevoShort ? 'warn' : 'default'}
+          sub={<>대기 {emails?.queued ?? 0}</>}
+        />
 
         <Signal
           label="마지막 크롤링"

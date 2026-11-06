@@ -302,6 +302,8 @@ English conventional commits: `feat:`, `fix:`, `refactor:`, `docs:`, `chore:`, e
   - 크론과 새 글 발송이 겹쳐도 같은 행을 두 번 보내지 않도록 `flushEmailQueue` 는 한 번에 하나만 돈다
     (모듈 변수 — 둘 다 server.ts 모듈 그래프)
   - 유저별 일일 상한에 걸린 새 글은 예전처럼 `skipped` 로 남고 큐에 들어가지 않는다
+  - 관리자 개요의 Brevo 잔량 카드 아래 줄이 `대기 n` 이다(`/api/admin/stats` 의 `emails.queued`).
+    큐 행이 아니라 사람 수를 센다 — 한 사람에게 쌓인 것은 한 통으로 나가므로 기다리는 메일 수와 같다
 - **구독 상태와 알림 설정은 곱하지 않는다**: 구독은 `subscriptionState()`(없음/이용 중/만료),
   알림은 `alertSummary()`(모두 켜짐/n 켜짐/모두 꺼짐/일시중지). 예전에는 둘을 곱해 네 칸을
   만들었고 "해제"(돈은 냈는데 아무것도 안 받음)가 구독 상태로 보였다. 관리자 표는 구독 열에
