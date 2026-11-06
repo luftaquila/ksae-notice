@@ -64,6 +64,13 @@
       "when": 1789723045420,
       "tag": "0008_alerts_paused_at",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1793956446916,
+      "tag": "0009_email_queue",
+      "breakpoints": true
     }
   ]
 }

@@ -62,7 +62,7 @@ src/
 │       └── admin/          # 관리자 전용 API (settings, users, stats, test-email, payments)
 ├── lib/
 │   ├── db/
-│   │   ├── schema.ts       # Drizzle 스키마 (users, alertPreferences(=subscriptions 테이블), posts, emailLogs, crawlLogs, settings, payments)
+│   │   ├── schema.ts       # Drizzle 스키마 (users, alertPreferences(=subscriptions 테이블), posts, emailLogs, emailQueue, crawlLogs, settings, payments)
 │   │   ├── index.ts        # DB 싱글톤
 │   │   └── migrate.ts      # 마이그레이션 + 기본 설정 시드
 │   ├── auth.ts             # Auth.js 설정
@@ -78,7 +78,7 @@ src/
 │   ├── email/
 │   │   ├── brevo.ts        # Brevo API 클라이언트
 │   │   ├── templates.ts    # 이메일 HTML 템플릿
-│   │   └── sender.ts       # 알림 발송 + 로깅
+│   │   └── sender.ts       # 알림 발송 + 로깅, Brevo 잔량 초과분 발송 큐(다음 날부터)
 │   ├── signup/
 │   │   └── pending.ts      # 동의 전 프로필을 담는 HMAC 봉인 쿠키
 │   ├── payment/
@@ -288,6 +288,20 @@ English conventional commits: `feat:`, `fix:`, `refactor:`, `docs:`, `chore:`, e
 - **유료 구독**: 기간(좌석)을 발급하는 경로는 결제 정산(무료 구독의 즉시 확정 포함)과 관리자
   수동 부여뿐. 가입과 알림 토글은 기간을 만들지 않는다 (그래야 결제를 우회할 수 없다)
 - **이메일 제한**: Brevo 일 300통 제한, 발송 전 당일 카운트 체크
+- **발송 큐**(`email_queue`, `lib/email/sender.ts`): 새 글 알림은 Brevo 잔량에서 여유분
+  (`BREVO_RESERVE` = 30, 테스트 메일·갱신 안내 몫)을 뺀 만큼만 보낸다. 넘치는 사람은 userId 순으로
+  뒤쪽부터 큐에 넣는다 — 예전에는 잔량이 수신인 수보다 적으면 그 글의 알림을 전원에게 통째로
+  건너뛰었다. 큐는 **들어간 날(KST)의 다음 날부터** 나간다(`flushEmailQueue`). Brevo 한도 초기화
+  시각이 문서에 없어 시각을 정하지 않고, 크롤 시간대(07~18시) 매시 30분 크론과 새 글 발송 직전에
+  실제 잔량을 읽어 여유분을 뺀 만큼 보낸다. 밀린 것이 오늘 새 글보다 먼저 나가고, 큐가 읽은
+  잔량에서 보낸 만큼을 빼 이어 쓴다(Brevo 잔량이 즉시 줄어든다는 보장이 없다)
+  - 한 사람에게 쌓인 큐는 한 통으로 합친다(같은 글은 나중 것 — 수정 제목 — 을 쓴다).
+    수정 전 제목은 posts 테이블에 없어서 큐 행에 글 목록 JSON 을 그대로 담는다
+  - 보내기 직전에 수신 조건을 다시 본다: 탈퇴·만료·일시중지면 버리고, 꺼 둔 카테고리의 글은 뺀다.
+    유저별 일일 상한에 걸리면 큐에 남겨 다음 기회에 보낸다
+  - 크론과 새 글 발송이 겹쳐도 같은 행을 두 번 보내지 않도록 `flushEmailQueue` 는 한 번에 하나만 돈다
+    (모듈 변수 — 둘 다 server.ts 모듈 그래프)
+  - 유저별 일일 상한에 걸린 새 글은 예전처럼 `skipped` 로 남고 큐에 들어가지 않는다
 - **구독 상태와 알림 설정은 곱하지 않는다**: 구독은 `subscriptionState()`(없음/이용 중/만료),
   알림은 `alertSummary()`(모두 켜짐/n 켜짐/모두 꺼짐/일시중지). 예전에는 둘을 곱해 네 칸을
   만들었고 "해제"(돈은 냈는데 아무것도 안 받음)가 구독 상태로 보였다. 관리자 표는 구독 열에
@@ -306,7 +320,7 @@ English conventional commits: `feat:`, `fix:`, `refactor:`, `docs:`, `chore:`, e
   끈다 — 다시 끄면 저장된 숫자로 돌아간다. 정원이 없으면 `/api/stats` 의 `maxSubscribers` 는
   `null` 이고 메인은 구독자 수만, 관리자 화면은 `n / 무제한` 을 보인다. **정원은 Brevo 발송
   한도를 지키는 장치다** — 끄면 `수신인 × 유저별 일일 최대 발송` 이 일일 한도를 넘을 수 있고,
-  `sender.ts` 는 잔량이 수신인 수보다 적으면 그 배치를 통째로 건너뛴다
+  넘친 몫은 아래 발송 큐로 다음 날 이후에 나간다
 - **알림 일시중지**(`users.alerts_paused_at`): 잠시 안 받고 싶은 사람이 카테고리 여덟 개를 끄고
   나중에 하나씩 되살리는 대신 이 하나를 세운다. 설정과 좌석은 그대로다. 갱신 리마인더는
   일시중지와 무관하게 좌석 기준으로 나간다
