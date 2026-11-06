@@ -66,9 +66,10 @@ export async function initScheduler() {
     timezone: 'Asia/Seoul',
   });
 
-  // Brevo 잔량이 모자라 다음 날로 넘긴 알림. 한도 초기화 시각을 모르므로 크롤 시간대에
-  // 매시간 잔량을 읽어 보낼 수 있는 만큼 보낸다. 새 글 발송 직전에도 먼저 비운다.
-  emailQueueTask = cron.schedule('30 7-18 * * *', async () => {
+  // Brevo 잔량이 모자라 다음 날로 넘긴 알림. 크롤 시간대에 매시간 잔량을 읽어 보낼 수 있는
+  // 만큼 보낸다. 5분에 도는 것은 Brevo 한도가 풀리는 09:00 직후(09:05)에 밀린 것을 내보내려는
+  // 것이다. 새 글 발송 직전에도 먼저 비운다.
+  emailQueueTask = cron.schedule('5 7-18 * * *', async () => {
     try {
       await flushEmailQueue();
     } catch (error) {

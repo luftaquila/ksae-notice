@@ -76,7 +76,7 @@ export const emailLogs = sqliteTable('email_logs', {
   index('email_logs_user_id_idx').on(table.userId),
 ]);
 
-// Brevo 잔량(여유분 제외)이 모자라 그날 못 보낸 새 글 알림. 다음 날(KST)부터
+// Brevo 잔량(여유분 제외)이 모자라 그날 못 보낸 새 글 알림. Brevo 의 다음 날(UTC, KST 09:00)부터
 // 오래된 것부터 보낸다 (lib/email/sender 의 flushEmailQueue). 한 사람에게 쌓인 것은
 // 한 통으로 합친다.
 export const emailQueue = sqliteTable('email_queue', {

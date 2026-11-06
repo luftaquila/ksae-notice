@@ -194,6 +194,23 @@ describe('flushEmailQueue', () => {
     expect(queueRows()).toHaveLength(2);
   });
 
+  // Brevo 하루는 UTC 자정(KST 09:00)에 바뀐다. 어제(UTC) 들어간 것은 KST 09:00 이 지나면 바로
+  // 나가고, 오늘(UTC) 들어간 것은 다음 KST 09:00 까지 기다린다.
+  it('releases the queue on the Brevo (UTC) day boundary', async () => {
+    const [early, late] = subscribers(2);
+    db.insert(emailQueue).values([
+      // 어제 23:59 UTC = 오늘 08:59 KST
+      { userId: early, posts: JSON.stringify([post(1)]), queuedAt: sql`datetime('now', 'start of day', '-1 minute')` },
+      // 오늘 00:00 UTC = 오늘 09:00 KST
+      { userId: late, posts: JSON.stringify([post(1)]), queuedAt: sql`datetime('now', 'start of day')` },
+    ]).run();
+
+    await flushEmailQueue();
+
+    expect(sent.map((s) => s.to)).toEqual(['a0@test.com']);
+    expect(queueRows().map((r) => r.userId)).toEqual([late]);
+  });
+
   it('sends the backlog the next day and logs it as sent', async () => {
     subscribers(3);
     remaining = RESERVE + 1;

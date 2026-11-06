@@ -172,10 +172,13 @@ function mergeQueuedPosts(rows: { posts: string }[]): NewPost[] {
   return [...merged.values()];
 }
 
-// 큐에 들어간 날(KST)의 다음 날부터 보낸다. Brevo 무료 한도는 하루 단위라, 같은 날
-// 다시 시도해 봐야 여유분까지 쓰게 될 뿐이다. 초기화 시각은 문서에 없으므로 시각을
-// 정해 두지 않고, 부를 때마다 실제 잔량을 읽어 여유분을 뺀 만큼만 보낸다 — 모자라면
-// 나머지는 그대로 남아 다음 기회(시간마다 도는 크론, 또는 다음 새 글 발송 직전)를 기다린다.
+// 큐에 들어간 Brevo 하루의 다음 날부터 보낸다. Brevo 무료 한도는 UTC 자정(KST 09:00)에
+// 초기화된다 — 공식 문서에는 시각이 없고, 운영에서 본 시각과 제3자 문서가 그렇다. 그래서
+// 날짜를 UTC 로 가른다(유저별 일일 상한도 UTC 날짜로 센다). KST 날짜로 가르면 07~09시 크롤에서
+// 넘친 알림이 09시에 한도가 풀려도 하루를 더 기다린다. 같은 Brevo 하루 안에 다시 시도해 봐야
+// 여유분까지 쓰게 될 뿐이다. 그래도 시각을 믿지는 않고, 부를 때마다 실제 잔량을 읽어 여유분을
+// 뺀 만큼만 보낸다 — 모자라면 나머지는 그대로 남아 다음 기회(시간마다 도는 크론, 또는 다음 새 글
+// 발송 직전)를 기다린다.
 //
 // 가장 오래 기다린 사람부터, 한 사람에게 쌓인 것은 한 통으로. 유저별 일일 상한은 보지도
 // 세지도 않는다(BACKLOG). 보내기 전에 수신 조건을 다시 본다 — 그사이 탈퇴·만료·일시중지했으면
@@ -187,7 +190,8 @@ async function runFlush(): Promise<number> {
   const due = db
     .select()
     .from(emailQueue)
-    .where(sql`date(${emailQueue.queuedAt}, '+9 hours') < date('now', '+9 hours')`)
+    // queued_at 은 datetime('now') 형식의 UTC 다. 둘 다 UTC 날짜로 비교한다.
+    .where(sql`date(${emailQueue.queuedAt}) < date('now')`)
     .orderBy(emailQueue.id)
     .all();
   if (due.length === 0) return 0;
