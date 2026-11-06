@@ -88,6 +88,8 @@ export const emailQueue = sqliteTable('email_queue', {
   // 감지 시점의 것을 그대로 담는다.
   posts: text('posts').notNull(),
   queuedAt: text('queued_at').notNull().default(sql`(datetime('now'))`),
+  // 보내다 실패한 횟수. 실패하면 행을 남겨 다음 회차에 다시 보내고, 몇 번 넘게 실패하면 버린다.
+  attempts: integer('attempts').notNull().default(0),
 }, (table) => [
   index('email_queue_user_id_idx').on(table.userId),
 ]);

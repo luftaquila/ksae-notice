@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "0520b1a6-0c86-4818-aa40-28558557eb22",
+  "id": "8e1a5e9e-d224-467b-afb0-6548fd70c9a7",
   "prevId": "27b9c92f-62ea-466e-bddf-843890f7f51b",
   "tables": {
     "subscriptions": {
@@ -264,6 +264,14 @@
           "notNull": true,
           "autoincrement": false,
           "default": "(datetime('now'))"
+        },
+        "attempts": {
+          "name": "attempts",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
         }
       },
       "indexes": {

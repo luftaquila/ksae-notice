@@ -79,6 +79,32 @@ describe('PUT /api/admin/settings', () => {
     expect(db.select().from(settings).where(eq(settings.key, 'renewalOpenMonth')).get()!.value).toBe('11');
   });
 
+  it('accepts the Brevo reserve and the update-alert switch', async () => {
+    mockAdminSession = { user: { id: 1, email: 'admin@test.com', isAdmin: true } };
+    await PUT(putReq({ brevoReserve: '50', notifyPostUpdates: 'false' }));
+
+    expect(db.select().from(settings).where(eq(settings.key, 'brevoReserve')).get()!.value).toBe('50');
+    expect(db.select().from(settings).where(eq(settings.key, 'notifyPostUpdates')).get()!.value).toBe('false');
+  });
+
+  // 범위 밖 값이 저장되면 화면과 서버가 다른 값으로 읽는다. 저장할 때 서버의 해석으로 맞춘다.
+  it('stores the values the server would read back', async () => {
+    mockAdminSession = { user: { id: 1, email: 'admin@test.com', isAdmin: true } };
+    const stored = (key: string) => db.select().from(settings).where(eq(settings.key, key)).get()!.value;
+
+    await PUT(putReq({ renewalOpenMonth: '13', brevoReserve: '-5', unlimitedSubscribers: 'yes', notifyPostUpdates: 'nope' }));
+    expect(stored('renewalOpenMonth')).toBe('12');
+    expect(stored('brevoReserve')).toBe('30');
+    expect(stored('unlimitedSubscribers')).toBe('false');
+    expect(stored('notifyPostUpdates')).toBe('true');
+
+    await PUT(putReq({ renewalOpenMonth: '1', brevoReserve: '', unlimitedSubscribers: true, notifyPostUpdates: false }));
+    expect(stored('renewalOpenMonth')).toBe('12');
+    expect(stored('brevoReserve')).toBe('30');
+    expect(stored('unlimitedSubscribers')).toBe('true');
+    expect(stored('notifyPostUpdates')).toBe('false');
+  });
+
   it('ignores disallowed keys', async () => {
     mockAdminSession = { user: { id: 1, email: 'admin@test.com', isAdmin: true } };
     const res = await PUT(putReq({ dangerousKey: 'evil', maxSubscribers: 10 }));

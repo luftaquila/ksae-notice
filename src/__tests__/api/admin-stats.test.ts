@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { createTestDb, seedUser, seedAlertPreference, seedPost, seedEmailLog, seedCrawlLog, type MockSession, type TestDb } from '../helpers';
+import { createTestDb, seedUser, seedAlertPreference, seedPost, seedEmailLog, seedCrawlLog, EXPIRED, type MockSession, type TestDb } from '../helpers';
 import { emailQueue } from '@/lib/db/schema';
 
 let db: TestDb;
@@ -115,5 +115,17 @@ describe('GET /api/admin/stats', () => {
     ]).run();
 
     expect((await (await GET()).json()).emails.queued).toBe(2);
+  });
+
+  // 탈퇴·만료·일시중지한 사람의 행은 큐가 보낼 때 버린다. 기다리는 메일로 세지 않는다.
+  it('leaves people who will not get the mail out of the queued count', async () => {
+    mockAdminSession = { user: { id: 1, isAdmin: true } };
+    const live = seedUser(db, { googleId: 'g1', email: 'a@test.com' });
+    const left = seedUser(db, { googleId: 'g2', email: 'b@test.com', deletedAt: '2026-11-01T00:00:00.000Z' });
+    const lapsed = seedUser(db, { googleId: 'g3', email: 'c@test.com', subscriptionExpiresAt: EXPIRED });
+    const paused = seedUser(db, { googleId: 'g4', email: 'd@test.com', alertsPausedAt: '2026-11-01T00:00:00.000Z' });
+    db.insert(emailQueue).values([live, left, lapsed, paused].map((userId) => ({ userId, posts: '[]' }))).run();
+
+    expect((await (await GET()).json()).emails.queued).toBe(1);
   });
 });

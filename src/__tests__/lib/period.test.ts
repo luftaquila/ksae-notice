@@ -166,16 +166,22 @@ describe('renewal window opened earlier', () => {
     }
   });
 
-  it('opens all year when set to January', () => {
-    expect(canPurchase(kst('2026-03-01T12:00:00+09:00'), endOfYear(2026), 1)).toBe(true);
+  it('opens from February at the earliest', () => {
+    expect(canPurchase(kst('2026-02-01T00:00:00+09:00'), endOfYear(2026), 2)).toBe(true);
+    expect(canPurchase(kst('2026-01-31T23:00:00+09:00'), endOfYear(2026), 2)).toBe(false);
   });
 });
 
 describe('parseRenewalOpenMonth', () => {
-  it('reads a month between 1 and 12', () => {
+  it('reads a month between 2 and 12', () => {
     expect(parseRenewalOpenMonth('11')).toBe(11);
-    expect(parseRenewalOpenMonth('1')).toBe(1);
+    expect(parseRenewalOpenMonth('2')).toBe(2);
     expect(parseRenewalOpenMonth('12')).toBe(12);
+  });
+
+  // 창이 한 해 전체가 되면 새해 첫날 정산된 갱신이 두 해 뒤까지 나간다.
+  it('refuses January', () => {
+    expect(parseRenewalOpenMonth('1')).toBe(DEFAULT_RENEWAL_OPEN_MONTH);
   });
 
   it('falls back to December for a missing or out-of-range value', () => {

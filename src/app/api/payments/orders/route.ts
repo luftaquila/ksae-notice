@@ -63,7 +63,12 @@ export async function POST(request: NextRequest) {
   const now = new Date();
   const openMonth = getRenewalOpenMonth();
   if (!canPurchase(now, account.expiresAt ?? null, openMonth)) {
-    return NextResponse.json({ error: `지금은 결제할 구독 기간이 없습니다. 갱신은 ${openMonth}월부터 가능합니다.` }, { status: 403 });
+    const coveredAhead = !!account.expiresAt && Number(account.expiresAt.slice(0, 4)) > now.getFullYear();
+    return NextResponse.json({
+      error: coveredAhead
+        ? '이미 내년까지 구독되어 있습니다.'
+        : `지금은 결제할 구독 기간이 없습니다. 갱신은 ${openMonth}월부터 가능합니다.`,
+    }, { status: 403 });
   }
 
   const targetYear = renewalTargetYear(now, account.expiresAt ?? null, openMonth);

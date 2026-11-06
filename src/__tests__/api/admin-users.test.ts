@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 import { createTestDb, seedUser, seedAlertPreference, seedEmailLog, UNEXPIRED, type MockSession, type TestDb } from '../helpers';
 import { eq, and } from 'drizzle-orm';
-import { users, alertPreferences, settings } from '@/lib/db/schema';
+import { users, alertPreferences, emailQueue, settings } from '@/lib/db/schema';
 import { ALERT_CATEGORIES } from '@/lib/constants';
 
 let db: TestDb;
@@ -102,6 +102,16 @@ describe('PATCH /api/admin/users', () => {
     expect(user!.deletedAt).not.toBeNull();
     const subs = db.select().from(alertPreferences).where(eq(alertPreferences.userId, userId)).all();
     expect(subs.every(s => s.isActive === 0)).toBe(true);
+  });
+
+  it('drops notifications queued for the next day along with the account', async () => {
+    mockAdminSession = { user: { id: 1, isAdmin: true } };
+    const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com' });
+    db.insert(emailQueue).values({ userId, posts: '[]' }).run();
+
+    await PATCH(patchReq({ userId, action: 'delete' }));
+
+    expect(db.select().from(emailQueue).all()).toHaveLength(0);
   });
 
   it('switches a category on for a user', async () => {

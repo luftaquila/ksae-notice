@@ -149,7 +149,13 @@ export function settleOrder(params: {
     // 기간은 결제 시점에 다시 계산한다. 주문을 만든 뒤 해를 넘겨 결제하면 주문
     // 당시 안내한 연도가 한 해 어긋나기 때문이다. 규칙은 lib/subscription/period
     // 그대로 — 한 번의 결제는 정확히 한 해를 산다. 갱신 창이 열린 뒤에는 그 해가 내년이다.
-    const grantedTo = endOfYear(renewalTargetYear(now, account?.expiresAt ?? null, getRenewalOpenMonth(tx)));
+    // 다만 주문에 안내한 연도(targetYear)보다 짧게는 주지 않는다 — 결제창이 떠 있는 사이
+    // 관리자가 갱신 시작 월을 늦추면 다시 계산한 해가 한 해 앞당겨질 수 있다.
+    const year = Math.max(
+      row.targetYear,
+      renewalTargetYear(now, account?.expiresAt ?? null, getRenewalOpenMonth(tx)),
+    );
+    const grantedTo = endOfYear(year);
 
     tx.update(users)
       .set({ subscriptionExpiresAt: grantedTo, subscriptionRenewedAt: now.toISOString() })

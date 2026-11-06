@@ -35,6 +35,8 @@ const DEFAULT_SETTINGS: Settings = {
   registrationOpen: 'true',
   maxEmailsPerUserPerDay: '2',
   subscriptionPrice: '1000',
+  brevoReserve: '30',
+  notifyPostUpdates: 'true',
   bizName: '',
   bizOwner: '',
   bizRegNo: '',

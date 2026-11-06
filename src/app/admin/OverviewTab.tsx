@@ -2,6 +2,7 @@
 
 import { CATEGORY_COLORS, getBoardLabel } from '@/lib/constants';
 import { formatLocalDateTime, formatRelativeTime } from '@/lib/format';
+import { parseBrevoReserve } from '@/lib/email/limits';
 import { Badge, Card, TD, TH, type BadgeTone } from '@/components/ui';
 import SettingsSection from './SettingsSection';
 import type { AdminStats, Settings } from './types';
@@ -127,8 +128,10 @@ export default function OverviewTab({
   const unlimited = settings.unlimitedSubscribers === 'true';
   const maxSubscribers = unlimited ? 0 : parseInt(settings.maxSubscribers, 10) || 0;
 
-  // 잔량이 수신인 전원에게 한 번 보낼 분량이 안 되면 숫자를 경고색으로.
-  const brevoShort = brevoRemaining !== null && recipients > 0 && brevoRemaining < recipients;
+  // 여유분을 뺀 잔량이 수신인 전원에게 한 번 보낼 분량이 안 되면 숫자를 경고색으로 —
+  // 그 상태에서 새 글이 뜨면 일부가 다음 날로 밀린다 (lib/email/sender).
+  const brevoShort = brevoRemaining !== null && recipients > 0
+    && brevoRemaining - parseBrevoReserve(settings.brevoReserve) < recipients;
 
   const latest = stats?.recentCrawls?.[0] ?? null;
 

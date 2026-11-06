@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { createTestDb, seedUser, seedAlertPreference, seedPayment, UNEXPIRED, type MockSession, type TestDb } from '../helpers';
 import { eq } from 'drizzle-orm';
-import { users, alertPreferences } from '@/lib/db/schema';
+import { users, alertPreferences, emailQueue } from '@/lib/db/schema';
 import { ACCOUNT_DELETE_CONFIRMATION } from '@/lib/constants';
 
 let db: TestDb;
@@ -51,6 +51,17 @@ describe('DELETE /api/user', () => {
 
     const subs = db.select().from(alertPreferences).where(eq(alertPreferences.userId, userId)).all();
     expect(subs.every(s => s.isActive === 0)).toBe(true);
+  });
+
+  // 남겨 두면 같은 날 재가입·구독한 계정이 옛 알림을 받는다.
+  it('drops notifications queued for the next day', async () => {
+    const userId = seedUser(db, { googleId: 'g1', email: 'test@test.com' });
+    db.insert(emailQueue).values({ userId, posts: '[]' }).run();
+
+    mockSessionValue = { user: { id: userId, email: 'test@test.com' } };
+    await withdraw();
+
+    expect(db.select().from(emailQueue).all()).toHaveLength(0);
   });
 
   it('returns 401 when session has no user id', async () => {

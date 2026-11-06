@@ -61,7 +61,8 @@ export function createTestDb() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL REFERENCES users(id),
       posts TEXT NOT NULL,
-      queued_at TEXT NOT NULL DEFAULT (datetime('now'))
+      queued_at TEXT NOT NULL DEFAULT (datetime('now')),
+      attempts INTEGER NOT NULL DEFAULT 0
     );
     CREATE INDEX email_queue_user_id_idx ON email_queue(user_id);
     CREATE TABLE crawl_logs (

@@ -7,12 +7,18 @@ export function endOfYear(year: number): string {
 }
 
 // 내년 구독(올해로 끝나는 기간의 갱신)을 파는 첫 달. 그 달 1일부터 12월 31일까지가
-// 갱신 창이다. 관리자 설정(`renewalOpenMonth`)이 정하고, 없거나 1~12 밖이면 12월이다.
+// 갱신 창이다. 관리자 설정(`renewalOpenMonth`)이 정하고, 없거나 범위 밖이면 12월이다.
+//
+// 1월은 받지 않는다. 창이 한 해 전체가 되면 새해 첫날에도 "내년"을 팔아서, 12/31 에 만든
+// 갱신 주문이 1/1 에 정산될 때 두 해 뒤까지 나가고 1월 신규 가입자는 두 해 가까이 받는다.
 export const DEFAULT_RENEWAL_OPEN_MONTH = 12;
+export const MIN_RENEWAL_OPEN_MONTH = 2;
 
 export function parseRenewalOpenMonth(value: string | null | undefined): number {
   const parsed = Number(value);
-  return Number.isInteger(parsed) && parsed >= 1 && parsed <= 12 ? parsed : DEFAULT_RENEWAL_OPEN_MONTH;
+  return Number.isInteger(parsed) && parsed >= MIN_RENEWAL_OPEN_MONTH && parsed <= 12
+    ? parsed
+    : DEFAULT_RENEWAL_OPEN_MONTH;
 }
 
 function inRenewalWindow(now: Date, openMonth: number): boolean {

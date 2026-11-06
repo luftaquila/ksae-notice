@@ -300,8 +300,29 @@ describe('POST /api/payments/orders', () => {
     const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com', subscriptionExpiresAt: UNEXPIRED });
     mockSessionValue = { user: { id: userId, email: 'a@test.com' } };
 
-    expect((await createOrderRoute(orderReq())).status).toBe(403);
+    const res = await createOrderRoute(orderReq());
+    expect(res.status).toBe(403);
+    // 창 안에서 "갱신은 N월부터" 라고 하면 틀린 말이다.
+    expect((await res.json()).error).toBe('이미 내년까지 구독되어 있습니다.');
     expect(db.select().from(payments).all()).toHaveLength(0);
+  });
+
+  // 결제창이 떠 있는 사이 관리자가 갱신 시작 월을 늦춰도, 안내한 해보다 짧게 주지 않는다.
+  it('grants at least the year quoted on the order when the window moves mid-payment', async () => {
+    seedSetting(db, 'renewalOpenMonth', '11');
+    setClock(`${new Date().getFullYear()}-11-10T12:00:00+09:00`);
+    const nextYear = new Date().getFullYear() + 1;
+    const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com', subscriptionExpiresAt: null });
+    mockSessionValue = { user: { id: userId, email: 'a@test.com' } };
+
+    const order = await (await createOrderRoute(orderReq())).json();
+    expect(order.targetYear).toBe(nextYear);
+
+    db.update(settings).set({ value: '12' }).where(eq(settings.key, 'renewalOpenMonth')).run();
+    approveResponse = approved(order.amount);
+    await returnRoute(returnReq(returnFields(order)));
+
+    expect(periodOf(userId)).toBe(endOfYear(nextYear));
   });
 
   it('blocks a new payer when every subscriber slot is taken', async () => {

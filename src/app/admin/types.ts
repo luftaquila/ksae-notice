@@ -69,6 +69,8 @@ export interface Settings {
   registrationOpen: string;
   maxEmailsPerUserPerDay: string;
   subscriptionPrice: string;
+  brevoReserve: string;
+  notifyPostUpdates: string;
   bizName: string;
   bizOwner: string;
   bizRegNo: string;
