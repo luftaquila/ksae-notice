@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import ToggleSwitch from '@/components/ToggleSwitch';
 import { BUTTON_GHOST, BUTTON_PRIMARY, Card, INPUT } from '@/components/ui';
+import { MIN_RENEWAL_OPEN_MONTH, parseRenewalOpenMonth } from '@/lib/subscription/period';
 import type { Settings } from './types';
 
 // 판매자 정보 입력칸. 라벨과 설정 키를 한 곳에 묶어 둔다.
@@ -16,6 +17,9 @@ const BUSINESS_FIELDS: [keyof Settings, string][] = [
   ['bizEmail', '이메일'],
 ];
 
+// 1월은 고를 수 없다 (lib/subscription/period 의 MIN_RENEWAL_OPEN_MONTH 참고).
+const MONTHS = Array.from({ length: 13 - MIN_RENEWAL_OPEN_MONTH }, (_, i) => i + MIN_RENEWAL_OPEN_MONTH);
+
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
@@ -25,7 +29,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-// 개요 탭 안의 설정 섹션. 운영 값 넷과 판매자 정보, 그리고 테스트 메일.
+// 개요 탭 안의 설정 섹션. 운영 값과 판매자 정보, 그리고 테스트 메일.
 export default function SettingsSection({
   settings,
   onSave,
@@ -53,6 +57,7 @@ export default function SettingsSection({
   const [error, setError] = useState<string | null>(null);
 
   const dirty = JSON.stringify(draft) !== JSON.stringify(settings);
+  const unlimited = draft.unlimitedSubscribers === 'true';
   const set = <K extends keyof Settings>(key: K, value: Settings[K]) => {
     setDraft((d) => ({ ...d, [key]: value }));
     setSaved(false);
@@ -81,7 +86,24 @@ export default function SettingsSection({
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
           <Field label="최대 구독자 수">
-            <input type="number" min={0} value={draft.maxSubscribers} onChange={(e) => set('maxSubscribers', e.target.value)} className={INPUT} />
+            <div className="flex items-center gap-3">
+              <input
+                type="number"
+                min={0}
+                value={draft.maxSubscribers}
+                onChange={(e) => set('maxSubscribers', e.target.value)}
+                disabled={unlimited}
+                className={`${INPUT} min-w-0 disabled:opacity-50`}
+              />
+              {/* 입력칸 옆에서 스위치가 눌려 찌그러지지 않게. */}
+              <div className="flex shrink-0">
+                <ToggleSwitch
+                  checked={unlimited}
+                  onChange={() => set('unlimitedSubscribers', unlimited ? 'false' : 'true')}
+                />
+              </div>
+              <span className="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">무제한</span>
+            </div>
           </Field>
           <Field label="연간 구독료 (원)">
             <input type="number" min={0} value={draft.subscriptionPrice} onChange={(e) => set('subscriptionPrice', e.target.value)} className={INPUT} />
@@ -96,6 +118,30 @@ export default function SettingsSection({
                 onChange={() => set('registrationOpen', draft.registrationOpen === 'true' ? 'false' : 'true')}
               />
               <span className="text-sm text-gray-600 dark:text-gray-400">{draft.registrationOpen === 'true' ? '접수 중' : '중단됨'}</span>
+            </div>
+          </Field>
+          <Field label="내년 구독 시작">
+            {/* 서버와 같은 해석으로 보여 준다 — 범위 밖 값이면 서버가 쓰는 12월이 선택돼 보인다. */}
+            <select
+              value={String(parseRenewalOpenMonth(draft.renewalOpenMonth))}
+              onChange={(e) => set('renewalOpenMonth', e.target.value)}
+              className={INPUT}
+            >
+              {MONTHS.map((m) => (
+                <option key={m} value={String(m)}>{m}월</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Brevo 여유분">
+            <input type="number" min={0} value={draft.brevoReserve} onChange={(e) => set('brevoReserve', e.target.value)} className={INPUT} />
+          </Field>
+          <Field label="게시글 수정 알림">
+            <div className="flex items-center gap-3 h-[38px]">
+              <ToggleSwitch
+                checked={draft.notifyPostUpdates !== 'false'}
+                onChange={() => set('notifyPostUpdates', draft.notifyPostUpdates === 'false' ? 'true' : 'false')}
+              />
+              <span className="text-sm text-gray-600 dark:text-gray-400">{draft.notifyPostUpdates === 'false' ? '꺼짐' : '켜짐'}</span>
             </div>
           </Field>
         </div>

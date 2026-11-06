@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import { ACCOUNT_DELETE_CONFIRMATION, ALERT_CATEGORIES, CATEGORY_COLORS, getCategoryLabel } from '@/lib/constants';
-import { canPurchase, renewalPrompt, renewalTargetYear } from '@/lib/subscription/period';
+import { DEFAULT_RENEWAL_OPEN_MONTH, canPurchase, renewalPrompt, renewalTargetYear } from '@/lib/subscription/period';
 import { alertSummary, subscriptionState, type SubscriptionStateKey } from '@/lib/subscription/status';
 import { formatCalendarDate, formatLocalDateTime } from '@/lib/format';
 import ToggleSwitch from '@/components/ToggleSwitch';
@@ -89,6 +89,8 @@ export default function DashboardPage() {
   // 구독료 0원. 버튼 문구와 결제창 호출 여부가 여기서 갈린다.
   const [free, setFree] = useState(false);
   const [paymentEnabled, setPaymentEnabled] = useState(false);
+  // 내년 구독을 파는 첫 달. 서버의 주문 라우트와 같은 설정값이다.
+  const [renewalOpenMonth, setRenewalOpenMonth] = useState(DEFAULT_RENEWAL_OPEN_MONTH);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -112,6 +114,7 @@ export default function DashboardPage() {
       setPrice(data.price ?? null);
       setFree(!!data.free);
       setPaymentEnabled(!!data.paymentEnabled);
+      setRenewalOpenMonth(data.renewalOpenMonth ?? DEFAULT_RENEWAL_OPEN_MONTH);
     } catch {
       setError({ scope: 'load', message: '구독 정보를 불러오는데 실패했습니다.' });
     }
@@ -273,11 +276,11 @@ export default function DashboardPage() {
 
   // Shared with the payment order route, so the label below cannot promise a
   // year the server will not write.
-  const { show: inRenewalWindow } = renewalPrompt(now, expiresAt);
-  const targetYear = renewalTargetYear(now, expiresAt);
-  // 기간이 없거나 지났을 때, 그리고 12월에 올해로 끝나는 기간만 결제 대상이다.
-  // 서버의 주문 라우트와 같은 규칙이라 버튼이 있으면 주문도 열려 있다.
-  const canPay = canPurchase(now, expiresAt);
+  const { show: inRenewalWindow } = renewalPrompt(now, expiresAt, renewalOpenMonth);
+  const targetYear = renewalTargetYear(now, expiresAt, renewalOpenMonth);
+  // 기간이 없거나 지났을 때, 그리고 갱신 창(설정한 달~12월)에 올해로 끝나는 기간만 결제
+  // 대상이다. 서버의 주문 라우트와 같은 규칙이라 버튼이 있으면 주문도 열려 있다.
+  const canPay = canPurchase(now, expiresAt, renewalOpenMonth);
   const coveredThroughNextYear = !!expiresAt && Number(expiresAt.slice(0, 4)) > currentYear;
   const expiryLabel = expiresAt ? formatCalendarDate(expiresAt) : null;
   const priceLabel = price === null ? '' : free ? ' · 무료' : ` · ${price.toLocaleString('ko-KR')}원`;
@@ -291,7 +294,7 @@ export default function DashboardPage() {
         ? `12월 31일에 만료됩니다. 지금 갱신하면 ${targetYear}년 말까지 이어집니다.`
         : coveredThroughNextYear
           ? '내년까지 구독되어 있습니다.'
-          : '갱신은 12월부터 가능합니다.';
+          : `갱신은 ${renewalOpenMonth}월부터 가능합니다.`;
       break;
     case 'expired':
       headline = '구독이 만료되었습니다';
@@ -321,7 +324,7 @@ export default function DashboardPage() {
     );
   } else if (state.key === 'active' && !coveredThroughNextYear) {
     cta = (
-      <button disabled title="갱신은 12월부터 가능합니다" className={BUTTON_PRIMARY}>
+      <button disabled title={`갱신은 ${renewalOpenMonth}월부터 가능합니다`} className={BUTTON_PRIMARY}>
         {targetYear}년까지 갱신
       </button>
     );

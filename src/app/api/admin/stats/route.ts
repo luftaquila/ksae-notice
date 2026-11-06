@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
-import { eq, sql, and, gte, desc, isNotNull } from 'drizzle-orm';
+import { eq, sql, and, gte, desc, isNotNull, isNull } from 'drizzle-orm';
 import { requireAdmin } from '@/lib/auth';
 import { getDb } from '@/lib/db';
-import { users, emailLogs, crawlLogs, posts } from '@/lib/db/schema';
+import { users, emailLogs, emailQueue, crawlLogs, posts } from '@/lib/db/schema';
 import { getSeatBreakdown } from '@/lib/subscription/capacity';
 
 export async function GET() {
@@ -61,6 +61,20 @@ export async function GET() {
     .where(and(gte(emailLogs.sentAt, today), eq(emailLogs.status, 'failed')))
     .get();
 
+  // Brevo 잔량이 모자라 다음 날로 넘긴 알림. 한 사람에게 쌓인 행은 한 통으로 합쳐
+  // 나가므로 사람 수가 곧 기다리는 메일 수다. 그사이 탈퇴·만료·일시중지한 사람은 큐가
+  // 보낼 때 버리므로 세지 않는다 (lib/email/sender 의 runFlush 와 같은 조건).
+  const queued = db
+    .select({ count: sql<number>`count(distinct ${emailQueue.userId})` })
+    .from(emailQueue)
+    .innerJoin(users, eq(emailQueue.userId, users.id))
+    .where(and(
+      gte(users.subscriptionExpiresAt, new Date().toISOString()),
+      isNull(users.deletedAt),
+      isNull(users.alertsPausedAt),
+    ))
+    .get();
+
   const totalPosts = db
     .select({ count: sql<number>`count(*)` })
     .from(posts)
@@ -106,6 +120,7 @@ export async function GET() {
       todaySent: todayEmails?.count || 0,
       todaySkipped: todaySkipped?.count || 0,
       todayFailed: todayFailed?.count || 0,
+      queued: queued?.count || 0,
       recentFailed,
     },
     recentCrawls,

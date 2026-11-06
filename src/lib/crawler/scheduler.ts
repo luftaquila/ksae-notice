@@ -3,10 +3,12 @@ import { crawlLatest, crawlAll, boardsNeedingInitialCrawl, cleanupStaleCrawlLogs
 import { checkAndSendRenewalReminders } from '../subscription/renewal';
 import { expireStaleOrders } from '../payment/orders';
 import { CRAWL_CRON, CRAWL_TIMEZONE } from './schedule';
+import { flushEmailQueue } from '../email/sender';
 
 let crawlTask: ScheduledTask | null = null;
 let renewalTask: ScheduledTask | null = null;
 let orderCleanupTask: ScheduledTask | null = null;
+let emailQueueTask: ScheduledTask | null = null;
 let isCrawling = false;
 
 export async function initScheduler() {
@@ -64,6 +66,18 @@ export async function initScheduler() {
     timezone: 'Asia/Seoul',
   });
 
+  // Brevo 잔량이 모자라 다음 날로 넘긴 알림. 한도 초기화 시각을 모르므로 크롤 시간대에
+  // 매시간 잔량을 읽어 보낼 수 있는 만큼 보낸다. 새 글 발송 직전에도 먼저 비운다.
+  emailQueueTask = cron.schedule('30 7-18 * * *', async () => {
+    try {
+      await flushEmailQueue();
+    } catch (error) {
+      console.error('[Scheduler] Email queue flush error:', error);
+    }
+  }, {
+    timezone: 'Asia/Seoul',
+  });
+
   console.log('[Scheduler] Cron jobs scheduled.');
 }
 
@@ -71,5 +85,6 @@ export function stopScheduler() {
   crawlTask?.stop();
   renewalTask?.stop();
   orderCleanupTask?.stop();
+  emailQueueTask?.stop();
   console.log('[Scheduler] Cron jobs stopped.');
 }

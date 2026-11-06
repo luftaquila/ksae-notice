@@ -17,10 +17,18 @@ export function runMigrations() {
   // Seed default settings if not present
   const defaults: [string, string][] = [
     ['maxSubscribers', '50'],
+    // 'true' 면 정원 없음. maxSubscribers 값은 그대로 남아 끄면 다시 쓰인다.
+    ['unlimitedSubscribers', 'false'],
+    // 내년 구독(갱신)을 파는 첫 달. 이 달 1일부터 12월 31일까지 판다.
+    ['renewalOpenMonth', '12'],
     ['registrationOpen', 'true'],
     ['maxEmailsPerUserPerDay', '2'],
     // 연간 구독료. 카드 최소 승인금액이 1,000원이라 그 밑으로는 내릴 수 없다.
     ['subscriptionPrice', '1000'],
+    // Brevo 잔량 중 새 글 알림에 쓰지 않고 남겨 두는 몫(테스트 메일·갱신 안내). 넘치는 알림은 다음 날로.
+    ['brevoReserve', '30'],
+    // 게시글 제목이 바뀐 것(수정)도 알리는지. 'false' 면 새 글만 보낸다.
+    ['notifyPostUpdates', 'true'],
     // 전자상거래법 제10조·제12조 표시사항. /policy 가 이 값을 그대로 렌더한다.
     // 관리자 화면에서 덮어쓸 수 있고, 비워두면 "미등록"으로 표시된다.
     ['bizName', '오병준'],

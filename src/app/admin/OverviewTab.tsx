@@ -2,6 +2,7 @@
 
 import { CATEGORY_COLORS, getBoardLabel } from '@/lib/constants';
 import { formatLocalDateTime, formatRelativeTime } from '@/lib/format';
+import { parseBrevoReserve } from '@/lib/email/limits';
 import { Badge, Card, TD, TH, type BadgeTone } from '@/components/ui';
 import SettingsSection from './SettingsSection';
 import type { AdminStats, Settings } from './types';
@@ -124,10 +125,13 @@ export default function OverviewTab({
   const seats = stats?.seats ?? 0;
   const recipients = stats?.recipients ?? 0;
   const failedToday = emails?.todayFailed ?? 0;
-  const maxSubscribers = parseInt(settings.maxSubscribers, 10) || 0;
+  const unlimited = settings.unlimitedSubscribers === 'true';
+  const maxSubscribers = unlimited ? 0 : parseInt(settings.maxSubscribers, 10) || 0;
 
-  // 잔량이 수신인 전원에게 한 번 보낼 분량이 안 되면 숫자를 경고색으로.
-  const brevoShort = brevoRemaining !== null && recipients > 0 && brevoRemaining < recipients;
+  // 여유분을 뺀 잔량이 수신인 전원에게 한 번 보낼 분량이 안 되면 숫자를 경고색으로 —
+  // 그 상태에서 새 글이 뜨면 일부가 다음 날로 밀린다 (lib/email/sender).
+  const brevoShort = brevoRemaining !== null && recipients > 0
+    && brevoRemaining - parseBrevoReserve(settings.brevoReserve) < recipients;
 
   const latest = stats?.recentCrawls?.[0] ?? null;
 
@@ -140,7 +144,7 @@ export default function OverviewTab({
 
         <Signal
           label="구독자"
-          value={<>{seats} <span className="text-base font-medium text-gray-400 dark:text-gray-500">/ {maxSubscribers || '-'}</span></>}
+          value={<>{seats} <span className="text-base font-medium text-gray-400 dark:text-gray-500">/ {unlimited ? '무제한' : maxSubscribers || '-'}</span></>}
           tone={maxSubscribers > 0 && seats >= maxSubscribers ? 'warn' : 'default'}
           sub={
             // 좌석과 수신인의 차이만 한 줄로. 0 인 항목은 적지 않는다.
@@ -151,15 +155,23 @@ export default function OverviewTab({
             </>
           }
         >
-          <div className="mt-3 h-1.5 rounded-full bg-gray-100 dark:bg-gray-800 overflow-hidden">
-            <div
-              className="h-full rounded-full bg-blue-500 dark:bg-blue-400 transition-all"
-              style={{ width: `${maxSubscribers > 0 ? Math.min(100, (seats / maxSubscribers) * 100) : 0}%` }}
-            />
-          </div>
+          {/* 정원이 없으면 채울 막대도 없다. */}
+          {!unlimited && (
+            <div className="mt-3 h-1.5 rounded-full bg-gray-100 dark:bg-gray-800 overflow-hidden">
+              <div
+                className="h-full rounded-full bg-blue-500 dark:bg-blue-400 transition-all"
+                style={{ width: `${maxSubscribers > 0 ? Math.min(100, (seats / maxSubscribers) * 100) : 0}%` }}
+              />
+            </div>
+          )}
         </Signal>
 
-        <Signal label="Brevo 잔량" value={brevoRemaining ?? '...'} tone={brevoShort ? 'warn' : 'default'} />
+        <Signal
+          label="Brevo 잔량"
+          value={brevoRemaining ?? '...'}
+          tone={brevoShort ? 'warn' : 'default'}
+          sub={<>대기 {emails?.queued ?? 0}</>}
+        />
 
         <Signal
           label="마지막 크롤링"

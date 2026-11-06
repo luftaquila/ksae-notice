@@ -30,9 +30,13 @@ function subscribeHash(onChange: () => void) {
 
 const DEFAULT_SETTINGS: Settings = {
   maxSubscribers: '50',
+  unlimitedSubscribers: 'false',
+  renewalOpenMonth: '12',
   registrationOpen: 'true',
   maxEmailsPerUserPerDay: '2',
   subscriptionPrice: '1000',
+  brevoReserve: '30',
+  notifyPostUpdates: 'true',
   bizName: '',
   bizOwner: '',
   bizRegNo: '',
@@ -254,7 +258,7 @@ export default function AdminPage() {
       <div role="tabpanel" hidden={tab !== 'users'}>
         <UsersTab
           users={users}
-          maxSubscribers={parseInt(settings.maxSubscribers, 10) || 0}
+          maxSubscribers={settings.unlimitedSubscribers === 'true' ? null : parseInt(settings.maxSubscribers, 10) || 0}
           adminEmail={session?.user?.email ?? null}
           onPatch={patchUser}
         />

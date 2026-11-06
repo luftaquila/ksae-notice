@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { MIN_CARD_AMOUNT } from '@/lib/payment/nicepay';
 import { getBusinessInfo, getSubscriptionPrice, isFreeSubscription } from '@/lib/payment/pricing';
+import { getRenewalOpenMonth } from '@/lib/subscription/capacity';
 
 // 설정값을 읽으므로 빌드 시점에 미리 그릴 수 없다.
 export const dynamic = 'force-dynamic';
@@ -36,6 +37,8 @@ export default async function PolicyPage() {
   const price = getSubscriptionPrice();
   // 무료로 운영하는 동안에는 결제 고지가 사실이 아니게 된다. 해당 항목을 내린다.
   const free = isFreeSubscription();
+  // 갱신 창이 열린 뒤의 구독은 다음 해 말까지다 (lib/subscription/period 의 renewalTargetYear).
+  const openMonth = getRenewalOpenMonth();
   // 값이 비어 있으면 그럴듯한 자리표시자 대신 사실대로 적는다.
   const or = (value: string) => value || '미등록';
   const contact = business.bizEmail ? (
@@ -66,7 +69,11 @@ export default async function PolicyPage() {
           <Row label="이용료" value={free ? '무료' : `${price.toLocaleString('ko-KR')}원 / 1년`} />
           <Row
             label="이용 기간"
-            value={free ? '신청일부터 해당 연도 12월 31일까지' : '결제일부터 해당 연도 12월 31일까지'}
+            value={
+              free
+                ? `신청일부터 해당 연도 12월 31일까지 (${openMonth}월 1일 이후 신청은 다음 해 12월 31일까지)`
+                : `결제일부터 해당 연도 12월 31일까지 (${openMonth}월 1일 이후 결제는 다음 해 12월 31일까지)`
+            }
           />
           {!free && <Row label="결제수단" value="신용·체크카드 및 간편결제" />}
           {!free && (

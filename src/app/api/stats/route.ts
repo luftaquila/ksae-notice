@@ -22,7 +22,7 @@ export async function GET() {
     .get();
 
   return NextResponse.json({
-    // 구독자 수 = 결제된 좌석 수. 메인이 `n / max` 로 보여준다.
+    // 구독자 수 = 결제된 좌석 수. 메인이 `n / max` 로 보여준다. max 가 null 이면 정원 없음.
     activeSubscribers: getSeatCount(),
     maxSubscribers: getMaxSubscribers(),
     registrationOpen: isRegistrationOpen(),

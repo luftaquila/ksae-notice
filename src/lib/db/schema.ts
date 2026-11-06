@@ -76,6 +76,24 @@ export const emailLogs = sqliteTable('email_logs', {
   index('email_logs_user_id_idx').on(table.userId),
 ]);
 
+// Brevo 잔량(여유분 제외)이 모자라 그날 못 보낸 새 글 알림. 다음 날(KST)부터
+// 오래된 것부터 보낸다 (lib/email/sender 의 flushEmailQueue). 한 사람에게 쌓인 것은
+// 한 통으로 합친다.
+export const emailQueue = sqliteTable('email_queue', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  userId: integer('user_id')
+    .notNull()
+    .references(() => users.id),
+  // 메일에 들어갈 글 목록(JSON). 수정 전 제목(previousTitle)은 posts 테이블에 남지 않아
+  // 감지 시점의 것을 그대로 담는다.
+  posts: text('posts').notNull(),
+  queuedAt: text('queued_at').notNull().default(sql`(datetime('now'))`),
+  // 보내다 실패한 횟수. 실패하면 행을 남겨 다음 회차에 다시 보내고, 몇 번 넘게 실패하면 버린다.
+  attempts: integer('attempts').notNull().default(0),
+}, (table) => [
+  index('email_queue_user_id_idx').on(table.userId),
+]);
+
 export const crawlLogs = sqliteTable('crawl_logs', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   boardType: text('board_type').notNull(),

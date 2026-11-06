@@ -5,10 +5,18 @@ import PostTable from '@/components/PostTable';
 
 interface Stats {
   activeSubscribers: number;
-  maxSubscribers: number;
+  // null = 정원 없음
+  maxSubscribers: number | null;
   registrationOpen: boolean;
   lastCrawl: { finishedAt: string; ageMs: number; boardType: string; newPostsCount: number } | null;
   refreshAfterMs: number;
+}
+
+// 정원이 있으면 `n / max`, 없으면 구독자 수만.
+function subscriberCount(stats: Stats): string {
+  return stats.maxSubscribers === null
+    ? `${stats.activeSubscribers}`
+    : `${stats.activeSubscribers} / ${stats.maxSubscribers}`;
 }
 
 // 서버가 준 나이(ageMs)에 응답을 받은 뒤 흐른 시간을 더한다. 브라우저 시계는 쓰지 않는다 —
@@ -109,7 +117,7 @@ export default function Home() {
         <div className="mb-3">
           <div className="text-sm text-gray-500 dark:text-gray-400">구독자</div>
           <div className="text-lg font-bold text-gray-900 dark:text-gray-100 mt-1">
-            {stats ? `${stats.activeSubscribers} / ${stats.maxSubscribers}` : '-'}
+            {stats ? subscriberCount(stats) : '-'}
           </div>
         </div>
         <div>
@@ -130,7 +138,7 @@ export default function Home() {
         <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-4">
           <div className="text-sm text-gray-500 dark:text-gray-400">구독자</div>
           <div className="text-2xl font-bold text-gray-900 dark:text-gray-100 mt-1">
-            {stats ? `${stats.activeSubscribers} / ${stats.maxSubscribers}` : '-'}
+            {stats ? subscriberCount(stats) : '-'}
           </div>
         </div>
         <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-4">

@@ -66,6 +66,15 @@ describe('GET /api/alerts', () => {
     expect(data.expiresAt).toBe(account(userId).subscriptionExpiresAt);
     expect(data.price).toBe(3000);
     expect(data.free).toBe(false);
+    expect(data.renewalOpenMonth).toBe(12);
+  });
+
+  it('tells the dashboard which month next year goes on sale', async () => {
+    const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com' });
+    seedSetting(db, 'renewalOpenMonth', '11');
+    mockSessionValue = { user: { id: userId, email: 'a@test.com' } };
+
+    expect((await (await GET()).json()).renewalOpenMonth).toBe(11);
   });
 });
 
