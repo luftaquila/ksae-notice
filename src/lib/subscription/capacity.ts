@@ -1,6 +1,7 @@
 import { and, eq, gte, isNotNull, isNull, notExists, sql } from 'drizzle-orm';
 import { getDb } from '../db';
 import { alertPreferences, settings, users } from '../db/schema';
+import { parseRenewalOpenMonth } from './period';
 
 export const DEFAULT_MAX_SUBSCRIBERS = 50;
 
@@ -17,11 +18,19 @@ export function isRegistrationOpen(db: DbClient = getDb()): boolean {
   return getSetting('registrationOpen', db) !== 'false';
 }
 
-export function getMaxSubscribers(db: DbClient = getDb()): number {
+// 정원. `null` 은 정원 없음(`unlimitedSubscribers`)이다 — 좌석 수와 상관없이 신규 구독을
+// 받는다. 숫자 설정(`maxSubscribers`)은 지우지 않고 남겨 두어, 정원 없음을 끄면 그 값으로 돌아간다.
+export function getMaxSubscribers(db: DbClient = getDb()): number | null {
+  if (getSetting('unlimitedSubscribers', db) === 'true') return null;
   // A non-numeric setting would otherwise yield NaN, which compares false
   // against every count and would silently block all sign-ups.
   const parsed = parseInt(getSetting('maxSubscribers', db) || '', 10);
   return Number.isFinite(parsed) ? parsed : DEFAULT_MAX_SUBSCRIBERS;
+}
+
+// 내년 구독을 파는 첫 달 (lib/subscription/period 의 canPurchase·renewalPrompt 가 받는 값).
+export function getRenewalOpenMonth(db: DbClient = getDb()): number {
+  return parseRenewalOpenMonth(getSetting('renewalOpenMonth', db));
 }
 
 // 좌석 = 결제된 기간이 남아 있는 미탈퇴 계정. 메인의 `n / max` 가 이 수다.

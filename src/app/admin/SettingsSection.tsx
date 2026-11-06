@@ -16,6 +16,8 @@ const BUSINESS_FIELDS: [keyof Settings, string][] = [
   ['bizEmail', '이메일'],
 ];
 
+const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
+
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
@@ -25,7 +27,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-// 개요 탭 안의 설정 섹션. 운영 값 넷과 판매자 정보, 그리고 테스트 메일.
+// 개요 탭 안의 설정 섹션. 운영 값과 판매자 정보, 그리고 테스트 메일.
 export default function SettingsSection({
   settings,
   onSave,
@@ -53,6 +55,7 @@ export default function SettingsSection({
   const [error, setError] = useState<string | null>(null);
 
   const dirty = JSON.stringify(draft) !== JSON.stringify(settings);
+  const unlimited = draft.unlimitedSubscribers === 'true';
   const set = <K extends keyof Settings>(key: K, value: Settings[K]) => {
     setDraft((d) => ({ ...d, [key]: value }));
     setSaved(false);
@@ -79,9 +82,26 @@ export default function SettingsSection({
             </button>
           </div>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
           <Field label="최대 구독자 수">
-            <input type="number" min={0} value={draft.maxSubscribers} onChange={(e) => set('maxSubscribers', e.target.value)} className={INPUT} />
+            <div className="flex items-center gap-3">
+              <input
+                type="number"
+                min={0}
+                value={draft.maxSubscribers}
+                onChange={(e) => set('maxSubscribers', e.target.value)}
+                disabled={unlimited}
+                className={`${INPUT} min-w-0 disabled:opacity-50`}
+              />
+              {/* 입력칸 옆에서 스위치가 눌려 찌그러지지 않게. */}
+              <div className="flex shrink-0">
+                <ToggleSwitch
+                  checked={unlimited}
+                  onChange={() => set('unlimitedSubscribers', unlimited ? 'false' : 'true')}
+                />
+              </div>
+              <span className="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">무제한</span>
+            </div>
           </Field>
           <Field label="연간 구독료 (원)">
             <input type="number" min={0} value={draft.subscriptionPrice} onChange={(e) => set('subscriptionPrice', e.target.value)} className={INPUT} />
@@ -97,6 +117,13 @@ export default function SettingsSection({
               />
               <span className="text-sm text-gray-600 dark:text-gray-400">{draft.registrationOpen === 'true' ? '접수 중' : '중단됨'}</span>
             </div>
+          </Field>
+          <Field label="내년 구독 시작">
+            <select value={draft.renewalOpenMonth} onChange={(e) => set('renewalOpenMonth', e.target.value)} className={INPUT}>
+              {MONTHS.map((m) => (
+                <option key={m} value={String(m)}>{m}월</option>
+              ))}
+            </select>
           </Field>
         </div>
       </Card>

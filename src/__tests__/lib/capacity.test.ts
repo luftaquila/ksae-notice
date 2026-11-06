@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { eq } from 'drizzle-orm';
 import { createTestDb, seedUser, seedAlertPreference, seedSetting, EXPIRED, type TestDb } from '../helpers';
+import { settings } from '@/lib/db/schema';
 
 let db: TestDb;
 
@@ -11,6 +13,7 @@ const {
   DEFAULT_MAX_SUBSCRIBERS,
   getMaxSubscribers,
   getRecipientCount,
+  getRenewalOpenMonth,
   getSeatCount,
   holdsSeat,
   isRegistrationOpen,
@@ -33,6 +36,31 @@ describe('getMaxSubscribers', () => {
   it('falls back to the default instead of NaN for a non-numeric setting', () => {
     seedSetting(db, 'maxSubscribers', 'not-a-number');
     expect(getMaxSubscribers()).toBe(DEFAULT_MAX_SUBSCRIBERS);
+  });
+
+  // 정원 없음은 숫자를 지우지 않는다 — 끄면 저장돼 있던 정원으로 돌아간다.
+  it('has no limit while unlimitedSubscribers is on, and the old limit once it is off', () => {
+    seedSetting(db, 'maxSubscribers', '150');
+    seedSetting(db, 'unlimitedSubscribers', 'true');
+    expect(getMaxSubscribers()).toBeNull();
+
+    db.update(settings).set({ value: 'false' }).where(eq(settings.key, 'unlimitedSubscribers')).run();
+    expect(getMaxSubscribers()).toBe(150);
+  });
+});
+
+describe('getRenewalOpenMonth', () => {
+  beforeEach(() => {
+    db = createTestDb();
+  });
+
+  it('is December unless set', () => {
+    expect(getRenewalOpenMonth()).toBe(12);
+  });
+
+  it('reads the setting', () => {
+    seedSetting(db, 'renewalOpenMonth', '11');
+    expect(getRenewalOpenMonth()).toBe(11);
   });
 });
 

@@ -131,8 +131,8 @@ function approved(amount: number): NicepayResult {
   };
 }
 
-// 올해로 끝나는 기간. 갱신은 12월에만 열리므로 이 기간을 가진 계정은 12월로 시계를
-// 돌린 뒤에만 주문할 수 있다.
+// 올해로 끝나는 기간. 갱신은 기본 12월에만 열리므로 이 기간을 가진 계정은 12월로 시계를
+// 돌린 뒤에만 주문할 수 있다 (renewalOpenMonth 로 앞당길 수 있다).
 const THIS_YEAR = endOfYear(new Date().getFullYear());
 
 // Date 만 고정한다. 타이머까지 가짜로 바꾸면 await 가 멈춘다.
@@ -254,6 +254,22 @@ describe('POST /api/payments/orders', () => {
     expect(db.select().from(payments).all()).toHaveLength(0);
   });
 
+  it('sells next year from the configured month on', async () => {
+    seedSetting(db, 'renewalOpenMonth', '11');
+    const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com', subscriptionExpiresAt: THIS_YEAR });
+    mockSessionValue = { user: { id: userId, email: 'a@test.com' } };
+
+    setClock(`${new Date().getFullYear()}-10-31T12:00:00+09:00`);
+    const early = await createOrderRoute(orderReq());
+    expect(early.status).toBe(403);
+    expect((await early.json()).error).toContain('11월');
+
+    setClock(`${new Date().getFullYear()}-11-01T09:00:00+09:00`);
+    const res = await createOrderRoute(orderReq());
+    expect(res.status).toBe(200);
+    expect((await res.json()).targetYear).toBe(new Date().getFullYear() + 1);
+  });
+
   it('refuses an account already paid through next year, even in December', async () => {
     inDecember();
     const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com', subscriptionExpiresAt: UNEXPIRED });
@@ -273,6 +289,27 @@ describe('POST /api/payments/orders', () => {
     const res = await createOrderRoute(orderReq());
     expect(res.status).toBe(403);
     expect((await res.json()).error).toBe('최대 구독자 수에 도달했습니다.');
+  });
+
+  it('takes a new payer past the stored limit when the limit is switched off', async () => {
+    db.update(settings).set({ value: '1' }).where(eq(settings.key, 'maxSubscribers')).run();
+    seedSetting(db, 'unlimitedSubscribers', 'true');
+    seedUser(db, { googleId: 'g1', email: 'a@test.com' });
+    const newcomer = seedUser(db, { googleId: 'g2', email: 'b@test.com', subscriptionExpiresAt: null });
+    mockSessionValue = { user: { id: newcomer, email: 'b@test.com' } };
+
+    expect((await createOrderRoute(orderReq())).status).toBe(200);
+  });
+
+  it('still honours a closed registration when the limit is switched off', async () => {
+    seedSetting(db, 'unlimitedSubscribers', 'true');
+    db.update(settings).set({ value: 'false' }).where(eq(settings.key, 'registrationOpen')).run();
+    const userId = seedUser(db, { googleId: 'g1', email: 'a@test.com', subscriptionExpiresAt: null });
+    mockSessionValue = { user: { id: userId, email: 'a@test.com' } };
+
+    const res = await createOrderRoute(orderReq());
+    expect(res.status).toBe(403);
+    expect((await res.json()).error).toBe('현재 신규 구독이 중단되었습니다.');
   });
 
   it('lets a paid-up subscriber renew even when the limit is reached', async () => {

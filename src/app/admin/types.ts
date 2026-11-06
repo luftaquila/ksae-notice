@@ -62,6 +62,8 @@ export interface AdminStats {
 
 export interface Settings {
   maxSubscribers: string;
+  unlimitedSubscribers: string;
+  renewalOpenMonth: string;
   registrationOpen: string;
   maxEmailsPerUserPerDay: string;
   subscriptionPrice: string;

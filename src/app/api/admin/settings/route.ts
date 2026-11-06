@@ -30,6 +30,8 @@ export async function PUT(request: NextRequest) {
 
   const allowedKeys = [
     'maxSubscribers',
+    'unlimitedSubscribers',
+    'renewalOpenMonth',
     'registrationOpen',
     'maxEmailsPerUserPerDay',
     'subscriptionPrice',

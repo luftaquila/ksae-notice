@@ -5,6 +5,7 @@ import { getDb } from '@/lib/db';
 import { users } from '@/lib/db/schema';
 import {
   getMaxSubscribers,
+  getRenewalOpenMonth,
   getSeatCount,
   holdsSeat,
   isRegistrationOpen,
@@ -39,7 +40,8 @@ export async function POST(request: NextRequest) {
     if (!isRegistrationOpen()) {
       return NextResponse.json({ error: '현재 신규 구독이 중단되었습니다.' }, { status: 403 });
     }
-    if (getSeatCount() >= getMaxSubscribers()) {
+    const max = getMaxSubscribers();
+    if (max !== null && getSeatCount() >= max) {
       return NextResponse.json({ error: '최대 구독자 수에 도달했습니다.' }, { status: 403 });
     }
   }
@@ -55,12 +57,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: '계정을 찾을 수 없습니다.' }, { status: 404 });
   }
 
-  // 이미 내년까지 덮인 계정, 또는 올해로 끝나지만 아직 12월이 아닌 계정은 살 것이
-  // 없다. 대시보드는 버튼을 내리지만 라우트를 직접 부르면 9월에 내년을 살 수 있으니
-  // 서버가 같은 규칙으로 막는다.
+  // 이미 내년까지 덮인 계정, 또는 올해로 끝나지만 아직 갱신 창(설정한 달~12월)이 아닌
+  // 계정은 살 것이 없다. 대시보드는 버튼을 내리지만 라우트를 직접 부르면 창 밖에서도
+  // 내년을 살 수 있으니 서버가 같은 규칙으로 막는다.
   const now = new Date();
-  if (!canPurchase(now, account.expiresAt ?? null)) {
-    return NextResponse.json({ error: '지금은 결제할 구독 기간이 없습니다. 갱신은 12월부터 가능합니다.' }, { status: 403 });
+  const openMonth = getRenewalOpenMonth();
+  if (!canPurchase(now, account.expiresAt ?? null, openMonth)) {
+    return NextResponse.json({ error: `지금은 결제할 구독 기간이 없습니다. 갱신은 ${openMonth}월부터 가능합니다.` }, { status: 403 });
   }
 
   const targetYear = renewalTargetYear(now, account.expiresAt ?? null);

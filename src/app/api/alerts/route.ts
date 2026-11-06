@@ -7,6 +7,7 @@ import { ALERT_CATEGORIES } from '@/lib/constants';
 import { getSubscriptionPrice, isFreeSubscription } from '@/lib/payment/pricing';
 import { isConfigured } from '@/lib/payment/nicepay';
 import { disableAlert, enableAlert } from '@/lib/alerts/preferences';
+import { getRenewalOpenMonth } from '@/lib/subscription/capacity';
 
 // 알림 설정 API. 구독(결제된 기간)과는 다른 축이라 여기서는 기간을 읽기만 하고
 // 쓰지 않는다. 정원·접수 여부도 보지 않는다 — 카테고리는 무료고, 좌석은 결제된
@@ -46,6 +47,8 @@ export async function GET() {
     free,
     // 구독 시작 버튼을 띄울 수 있는지. 무료 구독은 게이트웨이 설정을 타지 않는다.
     paymentEnabled: free || isConfigured(),
+    // 내년 구독을 파는 첫 달. 주문 라우트가 canPurchase 에 넘기는 것과 같은 값이다.
+    renewalOpenMonth: getRenewalOpenMonth(),
   });
 }
 

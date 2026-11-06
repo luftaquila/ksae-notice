@@ -71,6 +71,14 @@ describe('PUT /api/admin/settings', () => {
     expect(reg!.value).toBe('false');
   });
 
+  it('accepts the unlimited-subscribers switch and the renewal month', async () => {
+    mockAdminSession = { user: { id: 1, email: 'admin@test.com', isAdmin: true } };
+    await PUT(putReq({ unlimitedSubscribers: 'true', renewalOpenMonth: '11' }));
+
+    expect(db.select().from(settings).where(eq(settings.key, 'unlimitedSubscribers')).get()!.value).toBe('true');
+    expect(db.select().from(settings).where(eq(settings.key, 'renewalOpenMonth')).get()!.value).toBe('11');
+  });
+
   it('ignores disallowed keys', async () => {
     mockAdminSession = { user: { id: 1, email: 'admin@test.com', isAdmin: true } };
     const res = await PUT(putReq({ dangerousKey: 'evil', maxSubscribers: 10 }));

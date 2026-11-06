@@ -115,7 +115,8 @@ export default function UsersTab({
   onPatch,
 }: {
   users: UserInfo[];
-  maxSubscribers: number;
+  // null = 정원 없음
+  maxSubscribers: number | null;
   adminEmail: string | null;
   onPatch: (userId: number, action: UserAction, category?: string) => Promise<string | null>;
 }) {
@@ -277,7 +278,7 @@ export default function UsersTab({
         <div className="flex items-baseline gap-3">
           <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">유저</h2>
           <span className="text-sm text-gray-500 dark:text-gray-400 tabular-nums">
-            구독자 <b className="text-gray-900 dark:text-gray-100">{seats}</b> / {maxSubscribers || '-'} · 수신인 <b className="text-gray-900 dark:text-gray-100">{recipients}</b>
+            구독자 <b className="text-gray-900 dark:text-gray-100">{seats}</b> / {maxSubscribers === null ? '무제한' : maxSubscribers || '-'} · 수신인 <b className="text-gray-900 dark:text-gray-100">{recipients}</b>
           </span>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">

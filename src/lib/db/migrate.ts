@@ -17,6 +17,10 @@ export function runMigrations() {
   // Seed default settings if not present
   const defaults: [string, string][] = [
     ['maxSubscribers', '50'],
+    // 'true' 면 정원 없음. maxSubscribers 값은 그대로 남아 끄면 다시 쓰인다.
+    ['unlimitedSubscribers', 'false'],
+    // 내년 구독(갱신)을 파는 첫 달. 이 달 1일부터 12월 31일까지 판다.
+    ['renewalOpenMonth', '12'],
     ['registrationOpen', 'true'],
     ['maxEmailsPerUserPerDay', '2'],
     // 연간 구독료. 카드 최소 승인금액이 1,000원이라 그 밑으로는 내릴 수 없다.

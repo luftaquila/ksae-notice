@@ -49,6 +49,14 @@ describe('GET /api/stats', () => {
     expect(data.registrationOpen).toBe(false);
   });
 
+  it('reports no limit as null when unlimitedSubscribers is on', async () => {
+    seedSetting(db, 'maxSubscribers', '100');
+    seedSetting(db, 'unlimitedSubscribers', 'true');
+
+    const data = await (await GET()).json();
+    expect(data.maxSubscribers).toBeNull();
+  });
+
   it('returns last completed crawl', async () => {
     seedCrawlLog(db, { boardType: 'notice', status: 'completed', finishedAt: '2025-01-01T10:00:00Z', newPostsCount: 3 });
     seedCrawlLog(db, { boardType: 'rule', status: 'completed', finishedAt: '2025-01-02T10:00:00Z', newPostsCount: 1 });
